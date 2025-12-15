@@ -1,42 +1,16 @@
-//! Rule loader with compression support.
+//! Graph loader with compression support.
 //!
-//! Handles loading rules from Config Store, supporting both:
-//! - Legacy format: individual rules as separate keys
-//! - Packed format: all rules compressed in a single 'rules_packed' key
-//!
-//! Packed format uses gzip compression + base64 encoding to fit more rules
-//! within Config Store's 8KB value limit.
+//! Handles loading the visual graph format from Config Store.
+//! The graph format (nodes + edges) is the single source of truth,
+//! shared between the editor and compute instance.
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use flate2::read::GzDecoder;
-use serde::Deserialize;
-use std::collections::HashMap;
 use std::io::Read;
 
-use super::types::{Rule, BackendConfig};
+use super::types::GraphPayload;
 
-/// Packed rules payload format (matches editor output).
-#[derive(Debug, Deserialize)]
-struct PackedRules {
-    /// Version string
-    v: String,
-    /// Rule list (order matters for evaluation)
-    r: Vec<String>,
-    /// Rule definitions by name
-    d: HashMap<String, Rule>,
-    /// Backend definitions (optional)
-    #[serde(default)]
-    backends: HashMap<String, BackendConfig>,
-}
-
-/// Result of loading rules from config store.
-pub struct LoadedRules {
-    pub rule_list: Vec<String>,
-    pub rules: HashMap<String, Rule>,
-    pub backends: HashMap<String, BackendConfig>,
-}
-
-/// Errors that can occur during rule loading.
+/// Errors that can occur during graph loading.
 #[derive(Debug, thiserror::Error)]
 pub enum LoadError {
     #[error("Config store key not found: {0}")]
@@ -51,15 +25,16 @@ pub enum LoadError {
     #[error("JSON parse error: {0}")]
     JsonError(#[from] serde_json::Error),
 
-    #[error("Invalid packed rules format")]
+    #[error("Invalid graph format: missing nodes or edges")]
     InvalidFormat,
 }
 
-/// Decompresses and parses packed rules from Config Store.
+/// Decompresses and parses graph payload from Config Store.
 ///
-/// Expected format: base64(gzip(JSON))
-/// Or for uncompressed fallback: "raw:" + base64(JSON)
-pub fn decompress_rules(packed: &str) -> Result<LoadedRules, LoadError> {
+/// Expected encoding: base64(gzip(JSON)) or "raw:" + base64(JSON)
+///
+/// The JSON must be a graph format: { nodes: [...], edges: [...] }
+pub fn decompress_graph(packed: &str) -> Result<GraphPayload, LoadError> {
     let json = if packed.starts_with("raw:") {
         // Uncompressed fallback format
         let b64 = &packed[4..];
@@ -74,75 +49,31 @@ pub fn decompress_rules(packed: &str) -> Result<LoadedRules, LoadError> {
         json
     };
 
-    let parsed: PackedRules = serde_json::from_str(&json)?;
+    // Parse as graph format
+    let value: serde_json::Value = serde_json::from_str(&json)?;
 
-    // Validate version
-    if !parsed.v.starts_with("1.") {
-        println!("Warning: Unknown packed rules version: {}", parsed.v);
+    if value.get("nodes").is_none() || value.get("edges").is_none() {
+        return Err(LoadError::InvalidFormat);
     }
 
-    Ok(LoadedRules {
-        rule_list: parsed.r,
-        rules: parsed.d,
-        backends: parsed.backends,
-    })
+    let graph: GraphPayload = serde_json::from_value(value)?;
+    println!("Loaded graph with {} nodes, {} edges", graph.nodes.len(), graph.edges.len());
+
+    Ok(graph)
 }
 
-/// Loads rules from Config Store, supporting both packed and legacy formats.
+/// Loads graph from Config Store.
 ///
-/// Tries packed format first (single compressed key), falls back to legacy
-/// format (individual rule keys) if packed key doesn't exist.
-pub fn load_rules_from_store(
+/// Expects a "rules_packed" key containing the compressed graph payload.
+pub fn load_graph_from_store(
     store: &fastly::ConfigStore,
-) -> Result<LoadedRules, LoadError> {
-    // Try packed format first
-    if let Some(packed) = store.get("rules_packed") {
-        println!("Loading rules from packed format...");
-        let loaded = decompress_rules(&packed)?;
-        println!("Loaded {} rules, {} backends from packed format", loaded.rules.len(), loaded.backends.len());
-        return Ok(loaded);
-    }
+) -> Result<GraphPayload, LoadError> {
+    let packed = store
+        .get("rules_packed")
+        .ok_or_else(|| LoadError::KeyNotFound("rules_packed".to_string()))?;
 
-    // Fall back to legacy format
-    println!("Falling back to legacy rule format...");
-    load_legacy_rules(store)
-}
-
-/// Loads rules in the legacy format (individual keys per rule).
-fn load_legacy_rules(
-    store: &fastly::ConfigStore,
-) -> Result<LoadedRules, LoadError> {
-    let rule_list_str = store
-        .get("rule_list")
-        .ok_or_else(|| LoadError::KeyNotFound("rule_list".to_string()))?;
-
-    let rule_list: Vec<String> = rule_list_str
-        .split(',')
-        .map(|s| s.trim().to_string())
-        .collect();
-
-    let mut rules = HashMap::new();
-
-    for rule_id in &rule_list {
-        if let Some(rule_str) = store.get(rule_id) {
-            match serde_json::from_str::<Rule>(&rule_str) {
-                Ok(rule) => {
-                    rules.insert(rule_id.clone(), rule);
-                }
-                Err(e) => {
-                    println!("Failed to parse rule {}: {}", rule_id, e);
-                }
-            }
-        } else {
-            println!("Rule {} not found in config store", rule_id);
-        }
-    }
-
-    Ok(LoadedRules {
-        rule_list,
-        rules,
-        backends: HashMap::new(), // Legacy format doesn't support backends
-    })
+    println!("Loading graph from config store...");
+    decompress_graph(&packed)
 }
 
 #[cfg(test)]
@@ -150,53 +81,80 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_decompress_raw_fallback() {
-        // Test the raw fallback format
-        let json = r#"{"v":"1.0","r":["rule1"],"d":{"rule1":{"enabled":true,"conditions":{"operator":"and","rules":[]},"action":{"type":"block","response_code":403}}}}"#;
+    fn test_decompress_graph_raw_format() {
+        // Test the raw (uncompressed) format
+        let json = r#"{"nodes":[{"id":"1","type":"request","position":{"x":0,"y":0},"data":{}},{"id":"2","type":"backend","position":{"x":200,"y":0},"data":{"name":"origin","host":"example.com","port":443}}],"edges":[{"id":"e1","source":"1","target":"2"}]}"#;
         let encoded = format!("raw:{}", BASE64.encode(json));
 
-        let (rule_list, rules) = decompress_rules(&encoded).unwrap();
-        assert_eq!(rule_list, vec!["rule1"]);
-        assert!(rules.contains_key("rule1"));
+        let graph = decompress_graph(&encoded).unwrap();
+        assert_eq!(graph.nodes.len(), 2);
+        assert_eq!(graph.edges.len(), 1);
+        assert_eq!(graph.nodes[0].node_type, "request");
+        assert_eq!(graph.nodes[1].node_type, "backend");
     }
 
     #[test]
-    fn test_decompress_gzip_from_browser() {
-        // This payload was generated by Node.js using the same gzip compression
-        // that browsers use via CompressionStream API.
-        // Generated with: node generate-test-payload.mjs
-        //
-        // Original JSON:
-        // {
-        //   "v": "1.0",
-        //   "r": ["rule_admin_block", "rule_bot_challenge"],
-        //   "d": {
-        //     "rule_admin_block": { enabled: true, conditions: {...}, action: {type: "block", ...} },
-        //     "rule_bot_challenge": { enabled: true, conditions: {...}, action: {type: "challenge", ...} }
-        //   }
-        // }
-        const TEST_PAYLOAD: &str = "H4sIAAAAAAACE5VQQWrDMBD8SpmzSBzaQ9Gt7zDBrKXFUetIRiu7FKO/FxnjONSXoouYndmdmRkTNC6nCgoRukYce27I3p1v2j6Yr4IXqA2pMTfqe/Yd46pgoee/bD2DPbU9W+gUR1YwwVuXXPBShmHgSClEaJC363KBrmekn4GhMVC6Qe2Jkigm+XYLPlE/Ftp5uYqsNqEbnmXORypeN02NS3Va3vkd13zNCmSKs2JsXbJlZhmCF25MsAz9Vr3usDuLUFfoH8awyItl79gi58Oy/tFJiEeVjMKROvbpOaAJPpHzsmulDQnHwR521OPfrMNPmkhMdENCzjn/ApZN1hcVAgAA";
+    fn test_decompress_graph_with_rule_group() {
+        // Test graph with a ruleGroup node
+        let json = r#"{
+            "nodes": [
+                {"id": "1", "type": "request", "position": {"x": 0, "y": 0}, "data": {}},
+                {"id": "2", "type": "ruleGroup", "position": {"x": 200, "y": 0}, "data": {
+                    "name": "Block Admin",
+                    "logic": "AND",
+                    "conditions": [
+                        {"id": "c1", "field": "path", "operator": "startsWith", "value": "/admin"}
+                    ]
+                }},
+                {"id": "3", "type": "action", "position": {"x": 400, "y": -50}, "data": {"action": "block", "statusCode": 403}},
+                {"id": "4", "type": "backend", "position": {"x": 400, "y": 50}, "data": {"name": "origin", "host": "example.com"}}
+            ],
+            "edges": [
+                {"id": "e1", "source": "1", "target": "2"},
+                {"id": "e2", "source": "2", "sourceHandle": "match", "target": "3"},
+                {"id": "e3", "source": "2", "sourceHandle": "noMatch", "target": "4"}
+            ]
+        }"#;
+        let encoded = format!("raw:{}", BASE64.encode(json));
 
-        let (rule_list, rules) = decompress_rules(TEST_PAYLOAD).unwrap();
+        let graph = decompress_graph(&encoded).unwrap();
+        assert_eq!(graph.nodes.len(), 4);
+        assert_eq!(graph.edges.len(), 3);
 
-        // Verify rule list
-        assert_eq!(rule_list.len(), 2);
-        assert_eq!(rule_list[0], "rule_admin_block");
-        assert_eq!(rule_list[1], "rule_bot_challenge");
+        // Verify ruleGroup node
+        let rule_group = graph.nodes.iter().find(|n| n.node_type == "ruleGroup").unwrap();
+        assert!(rule_group.data.get("name").is_some());
+        assert!(rule_group.data.get("conditions").is_some());
+    }
 
-        // Verify rules were parsed
-        assert_eq!(rules.len(), 2);
-        assert!(rules.contains_key("rule_admin_block"));
-        assert!(rules.contains_key("rule_bot_challenge"));
+    #[test]
+    fn test_invalid_format_rejected() {
+        // Test that non-graph formats are rejected
+        let json = r#"{"v":"1.0","r":["rule1"],"d":{}}"#;
+        let encoded = format!("raw:{}", BASE64.encode(json));
 
-        // Verify rule content
-        let admin_rule = rules.get("rule_admin_block").unwrap();
-        assert!(admin_rule.enabled);
-        assert_eq!(admin_rule.action.type_, "block");
-        assert_eq!(admin_rule.action.response_code, Some(403));
+        let result = decompress_graph(&encoded);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(LoadError::InvalidFormat)));
+    }
 
-        let bot_rule = rules.get("rule_bot_challenge").unwrap();
-        assert!(bot_rule.enabled);
-        assert_eq!(bot_rule.action.type_, "challenge");
+    #[test]
+    fn test_decompress_gzip_format() {
+        // Test gzip compressed graph format
+        // This payload was generated with: gzip(json) | base64
+        use flate2::write::GzEncoder;
+        use flate2::Compression;
+        use std::io::Write;
+
+        let json = r#"{"nodes":[{"id":"1","type":"request","position":{"x":0,"y":0},"data":{}}],"edges":[]}"#;
+
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(json.as_bytes()).unwrap();
+        let compressed = encoder.finish().unwrap();
+        let encoded = BASE64.encode(&compressed);
+
+        let graph = decompress_graph(&encoded).unwrap();
+        assert_eq!(graph.nodes.len(), 1);
+        assert_eq!(graph.nodes[0].node_type, "request");
     }
 }

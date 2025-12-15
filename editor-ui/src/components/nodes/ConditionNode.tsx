@@ -9,15 +9,45 @@ export type ConditionNodeData = {
 }
 
 const fieldOptions = [
+  // Request basics
   { value: 'path', label: 'Path' },
+  { value: 'query', label: 'Query String' },
   { value: 'method', label: 'Method' },
-  { value: 'clientIp', label: 'Client IP' },
-  { value: 'country', label: 'Country' },
-  { value: 'userAgent', label: 'User Agent' },
   { value: 'host', label: 'Host' },
-  { value: 'header', label: 'Header' },
+  { value: 'scheme', label: 'Scheme (http/https)' },
+
+  // Client & Connection
+  { value: 'clientIp', label: 'Client IP' },
   { value: 'asn', label: 'ASN' },
+  { value: 'datacenter', label: 'Datacenter (POP)' },
+
+  // Geolocation
+  { value: 'country', label: 'Country Code' },
+  { value: 'city', label: 'City' },
+  { value: 'continent', label: 'Continent' },
+
+  // Request Headers
+  { value: 'userAgent', label: 'User-Agent' },
+  { value: 'referer', label: 'Referer' },
+  { value: 'accept', label: 'Accept' },
+  { value: 'acceptLanguage', label: 'Accept-Language' },
+  { value: 'acceptEncoding', label: 'Accept-Encoding' },
+  { value: 'contentType', label: 'Content-Type' },
+  { value: 'cacheControl', label: 'Cache-Control' },
+  { value: 'xForwardedFor', label: 'X-Forwarded-For' },
+  { value: 'xForwardedProto', label: 'X-Forwarded-Proto' },
+  { value: 'xRequestedWith', label: 'X-Requested-With' },
+
+  // TLS/Security
+  { value: 'tlsVersion', label: 'TLS Version' },
+  { value: 'tlsCipher', label: 'TLS Cipher' },
   { value: 'ja3', label: 'JA3 Fingerprint' },
+  { value: 'ja4', label: 'JA4 Fingerprint' },
+  { value: 'h2Fingerprint', label: 'HTTP/2 Fingerprint' },
+  { value: 'ohFingerprint', label: 'OH Fingerprint' },
+
+  // Custom header (fallback)
+  { value: 'header', label: 'Custom Header...' },
 ]
 
 const operatorOptions = [

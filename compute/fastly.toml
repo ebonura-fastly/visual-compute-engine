@@ -1,36 +1,41 @@
-authors = ["ebonura@fastly.com"]
-cloned_from = "https://github.com/fastly/compute-starter-kit-rust-default"
-description = "A high-performance edge security service built on Fastly Compute, providing configurable security rules and filtering capabilities through edge dictionaries."
+authors = ["Fastly <mss@fastly.com>"]
+description = "MSS Engine v1.0.0 - Graph-based edge security rules"
 language = "rust"
 manifest_version = 3
-name = "fastly-compute-mss"
-service_id = "6WKTXA6a1QSXQ55wOfZui5"
+name = "mss-engine"
 
 [scripts]
-  build = "cargo build --bin fastly-compute-project --release --target wasm32-wasi --color always"
+build = "cargo build --bin mss-engine --release --target wasm32-wasip1 --color always"
 
 [setup]
-  [setup.backends]
-    [setup.backends.protected_origin]
-      description = "The origin service being protected by MSS"
-      address = "www.fastly.com"
-      port = 443
-      ssl_cert_hostname = "www.fastly.com"
-      ssl_check_cert = true
-      ssl_sni_hostname = "www.fastly.com"
-      use_ssl = true
+[setup.backends]
+[setup.backends.protected_origin]
+description = "Default backend for unmatched requests"
+address = "httpbin.org"
+port = 443
+ssl_cert_hostname = "httpbin.org"
+ssl_check_cert = true
+ssl_sni_hostname = "httpbin.org"
+use_ssl = true
 
 [local_server]
-  [local_server.config_stores]
-    [local_server.config_stores.security_rules]
-      format = "json"
-      file = "security-rules.json"
-    
-    [local_server.config_stores.mss_shared_secret]
-      format = "inline-toml"
-      contents.compute_auth_key = "development-secret-key-123"
+[local_server.config_stores]
+[local_server.config_stores.security_rules]
+format = "json"
+file = "security-rules.json"
 
-  [local_server.backends]
-    [local_server.backends.protected_origin]
-      url = "https://www.fastly.com"
-      override_host = "www.fastly.com"
+[local_server.config_stores.mss_shared_secret]
+format = "inline-toml"
+contents.compute_auth_key = "development-secret-key-123"
+
+[local_server.backends]
+[local_server.backends.protected_origin]
+url = "https://httpbin.org"
+override_host = "httpbin.org"
+
+# Edge Rate Limiting resources
+[local_server.rate_counter]
+[local_server.rate_counter.mss_rate_counter]
+
+[local_server.penalty_box]
+[local_server.penalty_box.mss_penalty_box]

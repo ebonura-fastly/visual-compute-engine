@@ -18,15 +18,39 @@ export type RuleGroupNodeData = {
 }
 
 const fieldOptions = [
+  // Request basics
   { value: 'path', label: 'Path' },
+  { value: 'query', label: 'Query String' },
   { value: 'method', label: 'Method' },
-  { value: 'clientIp', label: 'Client IP' },
-  { value: 'country', label: 'Country' },
-  { value: 'userAgent', label: 'User Agent' },
   { value: 'host', label: 'Host' },
-  { value: 'header', label: 'Header' },
+  { value: 'scheme', label: 'Scheme' },
+
+  // Client & Connection
+  { value: 'clientIp', label: 'Client IP' },
   { value: 'asn', label: 'ASN' },
+  { value: 'datacenter', label: 'Datacenter' },
+
+  // Geolocation
+  { value: 'country', label: 'Country' },
+  { value: 'city', label: 'City' },
+  { value: 'continent', label: 'Continent' },
+
+  // Request Headers
+  { value: 'userAgent', label: 'User-Agent' },
+  { value: 'referer', label: 'Referer' },
+  { value: 'accept', label: 'Accept' },
+  { value: 'acceptLanguage', label: 'Accept-Language' },
+  { value: 'contentType', label: 'Content-Type' },
+  { value: 'xForwardedFor', label: 'X-Forwarded-For' },
+  { value: 'xForwardedProto', label: 'X-Forwarded-Proto' },
+
+  // TLS/Security
+  { value: 'tlsVersion', label: 'TLS Version' },
   { value: 'ja3', label: 'JA3' },
+  { value: 'ja4', label: 'JA4' },
+
+  // Custom
+  { value: 'header', label: 'Header...' },
 ]
 
 const operatorOptions = [

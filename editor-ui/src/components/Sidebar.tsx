@@ -27,34 +27,16 @@ const nodeTypes = [
     description: 'Check request fields',
   },
   {
+    type: 'ruleGroup',
+    label: 'Rule Group',
+    category: 'condition' as const,
+    description: 'Multiple conditions with AND/OR',
+  },
+  {
     type: 'rateLimit',
     label: 'Rate Limit',
     category: 'condition' as const,
     description: 'Throttle requests',
-  },
-  {
-    type: 'listLookup',
-    label: 'List Lookup',
-    category: 'condition' as const,
-    description: 'IP/bot lists',
-  },
-  {
-    type: 'ruleGroup',
-    label: 'Rule Group',
-    category: 'logic' as const,
-    description: 'Inline conditions',
-  },
-  {
-    type: 'logic',
-    label: 'Logic',
-    category: 'logic' as const,
-    description: 'AND, OR, NOT',
-  },
-  {
-    type: 'score',
-    label: 'Score',
-    category: 'logic' as const,
-    description: 'Anomaly detection',
   },
   {
     type: 'transform',
@@ -92,7 +74,7 @@ const categoryLabels: Record<string, string> = {
 
 export function Sidebar({ nodes, edges, onAddTemplate, onLoadRules }: SidebarProps) {
   const { theme } = useTheme()
-  const [activeTab, setActiveTab] = useState<Tab>('components')
+  const [activeTab, setActiveTab] = useState<Tab>('fastly')
 
   // Templates state
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
@@ -142,9 +124,9 @@ export function Sidebar({ nodes, edges, onAddTemplate, onLoadRules }: SidebarPro
       : allTemplates
 
   const tabs: { id: Tab; label: string }[] = [
+    { id: 'fastly', label: 'Services' },
     { id: 'components', label: 'Components' },
     { id: 'templates', label: 'Templates' },
-    { id: 'fastly', label: 'Services' },
   ]
 
   return (
@@ -455,6 +437,12 @@ type FastlyService = {
   linkedConfigStore?: string
 }
 
+type EngineVersion = {
+  engine: string
+  version: string
+  format: string
+} | null
+
 type ConfigStore = {
   id: string
   name: string
@@ -469,7 +457,7 @@ type MssManifest = {
 }
 
 const MSS_MANIFEST_KEY = 'mss_manifest'
-const MSS_ENGINE_VERSION = '1.0'
+const MSS_ENGINE_VERSION = '1.1.3'
 const FASTLY_API_BASE = 'https://api.fastly.com'
 const STORAGE_KEY = 'mss-compute-fastly'
 
@@ -534,6 +522,9 @@ function FastlyTab({
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [createForm, setCreateForm] = useState({ serviceName: '' })
   const [createProgress, setCreateProgress] = useState<string | null>(null)
+  const [engineVersion, setEngineVersion] = useState<EngineVersion>(null)
+  const [engineVersionLoading, setEngineVersionLoading] = useState(false)
+  const [engineUpdateProgress, setEngineUpdateProgress] = useState<string | null>(null)
 
   // Helper to update fastly state
   const updateFastlyState = (updates: Partial<FastlyState>) => {
@@ -556,6 +547,117 @@ function FastlyTab({
     }
     return response.json()
   }, [apiToken])
+
+  const fetchEngineVersion = useCallback(async (serviceName: string) => {
+    setEngineVersionLoading(true)
+    setEngineVersion(null)
+
+    try {
+      const domain = generateDomainName(serviceName)
+      const response = await fetch(`https://${domain}/_version`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.engine && data.version) {
+          setEngineVersion(data)
+        }
+      }
+    } catch (err) {
+      console.log('[Version] Failed to fetch engine version:', err)
+      // Not an error - service might not be deployed yet or unreachable
+    } finally {
+      setEngineVersionLoading(false)
+    }
+  }, [])
+
+  const handleUpdateEngine = async () => {
+    const service = services.find(s => s.id === selectedService)
+    if (!service) {
+      setError('No service selected')
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    setEngineUpdateProgress('Fetching current service version...')
+    console.log('[Engine Update] Starting update for service:', service.name, service.id)
+
+    try {
+      // Get the active version number
+      console.log('[Engine Update] Fetching service details...')
+      const serviceData = await fastlyFetch(`/service/${service.id}/details`)
+      const activeVersion = serviceData.active_version?.number
+      console.log('[Engine Update] Active version:', activeVersion)
+      if (!activeVersion) {
+        throw new Error('No active version found for service')
+      }
+
+      setEngineUpdateProgress('Cloning service version...')
+      // Clone the active version to create a new one
+      console.log('[Engine Update] Cloning version', activeVersion)
+      const clonedVersion = await fastlyFetch(`/service/${service.id}/version/${activeVersion}/clone`, {
+        method: 'PUT',
+      })
+      const newVersionNumber = clonedVersion.number
+      console.log('[Engine Update] Created new version:', newVersionNumber)
+
+      setEngineUpdateProgress('Building MSS Engine package...')
+      // Build the new package
+      console.log('[Engine Update] Building package...')
+      const packageB64 = await buildMssPackage(service.name)
+      console.log('[Engine Update] Package built, size:', packageB64.length, 'bytes (base64)')
+      const packageBlob = await fetch(`data:application/gzip;base64,${packageB64}`).then(r => r.blob())
+      console.log('[Engine Update] Package blob size:', packageBlob.size, 'bytes')
+
+      setEngineUpdateProgress('Uploading package...')
+      // Upload the package
+      console.log('[Engine Update] Uploading package to version', newVersionNumber)
+      const formData = new FormData()
+      formData.append('package', packageBlob, 'package.tar.gz')
+
+      const uploadResponse = await fetch(`${FASTLY_API_BASE}/service/${service.id}/version/${newVersionNumber}/package`, {
+        method: 'PUT',
+        headers: { 'Fastly-Key': apiToken },
+        body: formData,
+      })
+
+      if (!uploadResponse.ok) {
+        const text = await uploadResponse.text()
+        console.error('[Engine Update] Package upload failed:', uploadResponse.status, text)
+        throw new Error(`Package upload failed: ${uploadResponse.status} - ${text}`)
+      }
+      const uploadResult = await uploadResponse.json()
+      console.log('[Engine Update] Package uploaded successfully:', uploadResult)
+
+      setEngineUpdateProgress('Activating new version...')
+      // Activate the new version
+      console.log('[Engine Update] Activating version', newVersionNumber)
+      const activateResult = await fastlyFetch(`/service/${service.id}/version/${newVersionNumber}/activate`, { method: 'PUT' })
+      console.log('[Engine Update] Version activated:', activateResult)
+
+      setStatus(`MSS Engine updated to v${MSS_ENGINE_VERSION}`)
+      setEngineUpdateProgress('Waiting for edge propagation...')
+      console.log('[Engine Update] Update complete! Waiting for edge propagation...')
+
+      // Refetch the engine version after a short delay to let the edge propagate
+      setTimeout(async () => {
+        console.log('[Engine Update] Re-checking engine version...')
+        setEngineUpdateProgress('Verifying deployment...')
+        await fetchEngineVersion(service.name)
+        setEngineUpdateProgress(null)
+        setLoading(false)
+      }, 3000)
+
+    } catch (err) {
+      console.error('[Engine Update] Error:', err)
+      setError(err instanceof Error ? err.message : 'Engine update failed')
+      setEngineUpdateProgress(null)
+      setLoading(false)
+    }
+  }
 
   const handleConnect = async () => {
     if (!apiToken) {
@@ -587,6 +689,26 @@ function FastlyTab({
       const storesWithManifest: ConfigStore[] = []
       for (const store of stores) {
         try {
+          // First, list items in the store to check if mss_manifest exists (avoids 404 errors)
+          const itemsResponse = await fetch(`${FASTLY_API_BASE}/resources/stores/config/${store.id}/items?limit=100`, {
+            headers: { 'Fastly-Key': apiToken, 'Accept': 'application/json' },
+          })
+
+          if (!itemsResponse.ok) {
+            storesWithManifest.push(store)
+            continue
+          }
+
+          const itemsData = await itemsResponse.json()
+          const items = itemsData?.data || itemsData || []
+          const hasManifestItem = items.some((item: any) => item.key === MSS_MANIFEST_KEY || item.item_key === MSS_MANIFEST_KEY)
+
+          if (!hasManifestItem) {
+            storesWithManifest.push(store)
+            continue
+          }
+
+          // Only fetch the manifest if we know it exists
           const response = await fetch(`${FASTLY_API_BASE}/resources/stores/config/${store.id}/item/${MSS_MANIFEST_KEY}`, {
             headers: { 'Fastly-Key': apiToken, 'Accept': 'application/json' },
           })
@@ -645,7 +767,12 @@ function FastlyTab({
 
       // Load rules for the selected service
       if (storeToSelect && onLoadRules) {
-        await loadRulesFromStore(storeToSelect, computeServices.find(s => s.id === serviceToSelect)?.name || '')
+        const serviceName = computeServices.find(s => s.id === serviceToSelect)?.name || ''
+        await loadRulesFromStore(storeToSelect, serviceName)
+        // Fetch engine version from deployed service
+        if (serviceName) {
+          fetchEngineVersion(serviceName)
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Connection failed')
@@ -729,6 +856,11 @@ function FastlyTab({
       selectedConfigStore: linkedStore,
     })
     saveSettings({ apiToken, selectedService: serviceId, selectedConfigStore: linkedStore })
+
+    // Fetch engine version from deployed service
+    if (service?.name) {
+      fetchEngineVersion(service.name)
+    }
 
     if (linkedStore) {
       setLoading(true)
@@ -1309,6 +1441,150 @@ function FastlyTab({
                   }}
                 >Copy</button>
               </div>
+            </div>
+            {/* Engine Version */}
+            <div style={{ marginTop: 8 }}>
+              <label style={{
+                display: 'block',
+                color: theme.textMuted,
+                fontSize: 9,
+                fontWeight: 500,
+                marginBottom: 2,
+                textTransform: 'uppercase',
+              }}>Engine Version</label>
+              {engineUpdateProgress ? (
+                <div style={{
+                  padding: '4px 6px',
+                  background: theme.bg,
+                  borderRadius: 4,
+                  color: theme.textMuted,
+                  fontSize: 10,
+                }}>
+                  {engineUpdateProgress}
+                </div>
+              ) : engineVersionLoading ? (
+                <div style={{
+                  padding: '4px 6px',
+                  background: theme.bg,
+                  borderRadius: 4,
+                  color: theme.textMuted,
+                  fontSize: 10,
+                }}>
+                  Checking...
+                </div>
+              ) : engineVersion ? (
+                <>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}>
+                    <div style={{
+                      flex: 1,
+                      padding: '4px 6px',
+                      background: theme.bg,
+                      borderRadius: 4,
+                    }}>
+                      <span style={{
+                        color: theme.text,
+                        fontSize: 10,
+                        fontFamily: 'monospace',
+                      }}>
+                        {engineVersion.engine} v{engineVersion.version}
+                      </span>
+                      {engineVersion.engine !== 'MSS Engine' ? (
+                        <span style={{
+                          marginLeft: 6,
+                          padding: '1px 4px',
+                          background: theme.errorBg,
+                          border: `1px solid ${theme.errorBorder}`,
+                          borderRadius: 3,
+                          color: theme.error,
+                          fontSize: 8,
+                          fontWeight: 500,
+                        }}>UNKNOWN ENGINE</span>
+                      ) : engineVersion.version === MSS_ENGINE_VERSION ? (
+                        <span style={{
+                          marginLeft: 6,
+                          padding: '1px 4px',
+                          background: theme.successBg,
+                          border: `1px solid ${theme.successBorder}`,
+                          borderRadius: 3,
+                          color: theme.success,
+                          fontSize: 8,
+                          fontWeight: 500,
+                        }}>UP TO DATE</span>
+                      ) : (
+                        <span style={{
+                          marginLeft: 6,
+                          padding: '1px 4px',
+                          background: '#FEF3C7',
+                          border: '1px solid #F59E0B',
+                          borderRadius: 3,
+                          color: '#B45309',
+                          fontSize: 8,
+                          fontWeight: 500,
+                        }}>UPDATE AVAILABLE</span>
+                      )}
+                    </div>
+                  </div>
+                  {/* Update button - show if version mismatch or unknown engine */}
+                  {(engineVersion.engine !== 'MSS Engine' || engineVersion.version !== MSS_ENGINE_VERSION) && (
+                    <button
+                      onClick={handleUpdateEngine}
+                      disabled={loading}
+                      style={{
+                        width: '100%',
+                        marginTop: 6,
+                        padding: '6px 8px',
+                        background: loading ? theme.bgTertiary : theme.primary,
+                        color: loading ? theme.textMuted : '#FFFFFF',
+                        border: `1px solid ${loading ? theme.border : theme.primary}`,
+                        borderRadius: 4,
+                        cursor: loading ? 'not-allowed' : 'pointer',
+                        fontSize: 10,
+                        fontWeight: 500,
+                        opacity: loading ? 0.6 : 1,
+                      }}
+                    >
+                      Update to MSS Engine v{MSS_ENGINE_VERSION}
+                    </button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div style={{
+                    padding: '4px 6px',
+                    background: theme.bg,
+                    borderRadius: 4,
+                    color: theme.textMuted,
+                    fontSize: 10,
+                  }}>
+                    <span style={{ color: theme.error }}>Not detected</span>
+                    <span style={{ marginLeft: 4, fontSize: 9 }}>- service may not be deployed</span>
+                  </div>
+                  {/* Deploy button - show if no engine detected */}
+                  <button
+                    onClick={handleUpdateEngine}
+                    disabled={loading}
+                    style={{
+                      width: '100%',
+                      marginTop: 6,
+                      padding: '6px 8px',
+                      background: loading ? theme.bgTertiary : theme.primary,
+                      color: loading ? theme.textMuted : '#FFFFFF',
+                      border: `1px solid ${loading ? theme.border : theme.primary}`,
+                      borderRadius: 4,
+                      cursor: loading ? 'not-allowed' : 'pointer',
+                      fontSize: 10,
+                      fontWeight: 500,
+                      opacity: loading ? 0.6 : 1,
+                    }}
+                  >
+                    Deploy MSS Engine v{MSS_ENGINE_VERSION}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )

@@ -20,7 +20,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
-import { ConditionNode, LogicNode, ActionNode, RequestNode, RateLimitNode, ListLookupNode, ScoreNode, TransformNode, BackendNode, LoggingNode, RuleGroupNode } from './components/nodes'
+import { ConditionNode, ActionNode, RequestNode, RateLimitNode, TransformNode, BackendNode, LoggingNode, RuleGroupNode } from './components/nodes'
 import { DeletableEdge } from './components/edges'
 import { Sidebar } from './components/Sidebar'
 import { ThemeContext, lightTheme, darkTheme, useTheme, type ThemeMode, fonts } from './styles/theme'
@@ -29,9 +29,6 @@ const nodeTypes: NodeTypes = {
   request: RequestNode,
   condition: ConditionNode,
   rateLimit: RateLimitNode,
-  listLookup: ListLookupNode,
-  logic: LogicNode,
-  score: ScoreNode,
   transform: TransformNode,
   backend: BackendNode,
   logging: LoggingNode,
@@ -49,12 +46,6 @@ function getDefaultData(type: string) {
       return { field: 'path', operator: 'equals', value: '/' }
     case 'rateLimit':
       return { limit: 100, windowUnit: 'minute', keyBy: 'ip' }
-    case 'listLookup':
-      return { listType: 'ip_blocklist', field: 'clientIp' }
-    case 'logic':
-      return { operation: 'AND' }
-    case 'score':
-      return { operation: 'add', value: 10 }
     case 'transform':
       return { operation: 'lowercase', field: 'path' }
     case 'backend':

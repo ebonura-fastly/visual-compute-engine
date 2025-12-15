@@ -1,235 +1,183 @@
-//! Managed Security Service (MSS) for Fastly's Compute@Edge platform.
+//! MSS Engine - Edge security rules processing for Fastly Compute.
 //!
 //! This service provides edge-based security filtering through:
-//! - Configurable security rules
+//! - Visual graph-based security rules
 //! - Edge authentication
 //! - Detailed security logging
-//! - Request blocking and challenging
+//! - Request blocking and routing
 //!
-//! The service protects an origin by evaluating incoming requests against
-//! security rules defined in edge dictionaries. Rules can check various
-//! aspects of requests including paths, IPs, device types, and headers.
+//! Rules are designed in the visual editor and deployed as graphs (nodes + edges).
 
-use fastly::backend::BackendBuilder;
 use fastly::http::StatusCode;
 use fastly::log::Endpoint;
 use fastly::ConfigStore;
-use fastly::{Backend, Error, Request, Response};
-use std::collections::HashMap;
+use fastly::{Error, Request, Response};
 use std::io::Write;
 use std::time::Instant;
-use std::time::{SystemTime, UNIX_EPOCH, Duration};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use hmac_sha256::HMAC;
 
 mod rules;
-use rules::{RuleEngine, WafLog, load_rules_from_store, BackendConfig};
+use rules::{GraphInterpreter, GraphResult, WafLog, load_graph_from_store, send_to_backend};
+
+/// MSS Engine version - update this on each release
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+const ENGINE_NAME: &str = "MSS Engine";
 
 /// Main request handler for the security service.
 ///
 /// Process flow:
 /// 1. Initialize logging and timing
-/// 2. Add edge authentication headers
-/// 3. Load and evaluate security rules
-/// 4. Apply rule actions (block/challenge/forward)
+/// 2. Load graph rules from config store
+/// 3. Evaluate request against graph
+/// 4. Apply rule actions (block/route/allow)
 /// 5. Log security events
 #[fastly::main]
 fn main(req: Request) -> Result<Response, Error> {
-    const BACKEND_NAME: &str = "protected_origin";
+    // Handle CORS preflight for version endpoint
+    if req.get_method() == "OPTIONS" && (req.get_path() == "/_version" || req.get_path() == "/_health") {
+        return Ok(Response::from_status(StatusCode::NO_CONTENT)
+            .with_header("Access-Control-Allow-Origin", "*")
+            .with_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+            .with_header("Access-Control-Allow-Headers", "Accept, Content-Type")
+            .with_header("Access-Control-Max-Age", "86400"));
+    }
+
+    // Handle version endpoint
+    if req.get_path() == "/_version" || req.get_path() == "/_health" {
+        let version_info = serde_json::json!({
+            "engine": ENGINE_NAME,
+            "version": VERSION,
+            "format": "graph"
+        });
+        return Ok(Response::from_status(StatusCode::OK)
+            .with_content_type(fastly::mime::APPLICATION_JSON)
+            .with_header("Access-Control-Allow-Origin", "*")
+            .with_body(version_info.to_string()));
+    }
+
     let start_time = Instant::now();
     let mut logger = Endpoint::from_name("security_logs");
-    println!("Processing request for path: {}", req.get_path());
+    println!("[{}] Processing request for path: {}", ENGINE_NAME, req.get_path());
 
-    // Clone request for logging and auth headers
-    let mut req_with_headers = req.clone_without_body();
-    
-    // Initialize log entry first to capture original request state
-    let mut log_entry = WafLog::new(&req_with_headers, start_time);
-    
-    // Add auth headers after logging initialization
-    if let Err(e) = add_edge_auth(&mut req_with_headers) {
-        println!("Authentication header addition failed: {}", e);
-        return Err(e);
-    }
-    
-    // Initialize rule engine and backends
-    let LoadedConfig { mut engine, backends } = match load_rules() {
-        Ok(config) => config,
+    // Initialize log entry
+    let mut log_entry = WafLog::new(&req, start_time);
+
+    // Load graph from config store - fail open if loading fails
+    let store = ConfigStore::open("security_rules");
+    let graph = match load_graph_from_store(&store) {
+        Ok(g) => {
+            println!("Loaded graph with {} nodes, {} edges", g.nodes.len(), g.edges.len());
+            Some(g)
+        }
         Err(e) => {
-            println!("Failed to initialize rules: {}", e);
-            log_entry.set_final_action("rule_init_error");
-            log_entry.blocked = true;
-            log_entry.finalize();
-            writeln!(logger, "{}", serde_json::to_string(&log_entry)?)?;
-            return Err(e);
+            println!("Failed to load graph (fail-open): {}", e);
+            log_entry.set_final_action("failopen:graph_load_error");
+            None
         }
     };
 
-    // Evaluate rules
-    let (action_result, rule_evaluations) = engine.evaluate_with_details(&req);
-    
-    // Log evaluations
-    for eval in rule_evaluations {
-        println!("Rule: {}, Matched conditions: {}", 
-                eval.name, 
-                eval.conditions.iter().filter(|c| c.matched).count());
-        log_entry.add_rule_evaluation(
-            eval.name,
-            &eval.rule,
-            eval.conditions
-                .into_iter()
-                .map(|c| (c.rule, c.matched))
-                .collect(),
-        );
-    }
+    // If graph loading failed, fail open to default backend
+    let graph = match graph {
+        Some(g) => g,
+        None => {
+            return forward_to_default_backend_with_reason(req, &mut logger, log_entry, "failopen:graph_load_error");
+        }
+    };
 
-    // Handle rule match
-    if let Some((name, action)) = action_result {
-        println!("Rule matched: {}, Action: {}", name, action.type_);
-        log_entry.blocked = true;
+    // Create interpreter and evaluate
+    let interpreter = GraphInterpreter::new(&graph);
+    let result = interpreter.evaluate(&req);
 
-        match action.type_.as_str() {
-            "block" => {
-                let status = action
-                    .response_code
-                    .and_then(|code| StatusCode::from_u16(code).ok())
-                    .unwrap_or(StatusCode::FORBIDDEN);
+    // Handle result
+    match result {
+        GraphResult::Block { status_code, message } => {
+            println!("Blocked: {} - {}", status_code, message);
+            log_entry.blocked = true;
+            log_entry.set_final_action("blocked");
 
-                let response = Response::from_status(status)
-                    .with_body_text_plain(&action
-                        .response_message
-                        .unwrap_or_else(|| format!("Blocked by rule: {}", name)));
+            let mut response = Response::from_status(StatusCode::from_u16(status_code).unwrap_or(StatusCode::FORBIDDEN))
+                .with_body_text_plain(&message);
+            response.set_header("X-MSS-Action", "blocked");
 
-                log_entry.add_response(&response);
-                log_entry.set_final_action("blocked");
-                log_entry.finalize();
-                writeln!(logger, "{}", serde_json::to_string(&log_entry)?)?;
-                return Ok(response);
+            log_entry.add_response(&response);
+            log_entry.finalize();
+            writeln!(logger, "{}", serde_json::to_string(&log_entry)?)?;
+
+            Ok(response)
+        }
+
+        GraphResult::Route { backend_name, backend_host, backend_port, use_tls } => {
+            println!("Routing to backend: {} ({}:{})", backend_name, backend_host, backend_port);
+            let action = format!("routed:{}", backend_name);
+            log_entry.set_final_action(&action);
+
+            // Add edge auth and send to backend
+            let mut backend_req = req.clone_without_body();
+            if let Err(e) = add_edge_auth(&mut backend_req) {
+                println!("Auth header error: {}", e);
             }
-            "challenge" => {
-                let response = Response::from_status(StatusCode::FORBIDDEN)
-                    .with_body_text_plain(&format!("Challenge required by rule: {}", name));
 
-                log_entry.add_response(&response);
-                log_entry.set_final_action("challenged");
-                log_entry.finalize();
-                writeln!(logger, "{}", serde_json::to_string(&log_entry)?)?;
-                return Ok(response);
-            }
-            "route" => {
-                // Route to a dynamic backend
-                if let Some(backend_name) = &action.backend {
-                    if let Some(backend) = backends.get(backend_name) {
-                        println!("Routing to dynamic backend: {}", backend_name);
-                        log_entry.blocked = false;
-                        return forward_request_to_backend(req, backend, &mut logger, log_entry, &format!("routed:{}", backend_name));
-                    } else {
-                        println!("Backend '{}' not found, using default", backend_name);
-                        return forward_request(req, BACKEND_NAME, &mut logger, log_entry, "route_backend_missing");
-                    }
-                } else {
-                    println!("Route action missing backend, using default");
-                    return forward_request(req, BACKEND_NAME, &mut logger, log_entry, "route_no_backend");
+            match send_to_backend(backend_req, &backend_name, &backend_host, backend_port, use_tls) {
+                Ok(mut response) => {
+                    response.set_header("X-MSS-Action", &action);
+                    log_entry.add_response(&response);
+                    log_entry.finalize();
+                    writeln!(logger, "{}", serde_json::to_string(&log_entry)?)?;
+                    Ok(response)
+                }
+                Err(e) => {
+                    // Fail open on backend errors
+                    println!("Backend error (fail-open): {}", e);
+                    forward_to_default_backend_with_reason(req, &mut logger, log_entry, &format!("failopen:backend_error:{}", backend_name))
                 }
             }
-            _ => {
-                return forward_request(req, BACKEND_NAME, &mut logger, log_entry, "unknown_action");
-            }
+        }
+
+        GraphResult::Allow => {
+            println!("Allowed - using default backend");
+            forward_to_default_backend_with_reason(req, &mut logger, log_entry, "allowed")
+        }
+
+        GraphResult::NoMatch => {
+            println!("No matching path - using default backend");
+            forward_to_default_backend_with_reason(req, &mut logger, log_entry, "nomatch")
         }
     }
-
-    // No rules matched - forward request
-    forward_request(req, BACKEND_NAME, &mut logger, log_entry, "forwarded")
 }
 
-/// Result of loading configuration including rules and backends.
-struct LoadedConfig {
-    engine: RuleEngine,
-    backends: HashMap<String, Backend>,
-}
-
-/// Creates a dynamic backend from configuration.
-fn create_dynamic_backend(name: &str, config: &BackendConfig) -> Result<Backend, Error> {
-    let target = format!("{}:{}", config.host, config.port);
-    let mut builder = BackendBuilder::new(name, &target);
-
-    if config.use_tls {
-        builder = builder.enable_ssl();
-    }
-
-    if let Some(timeout) = config.connect_timeout {
-        builder = builder.connect_timeout(Duration::from_millis(timeout));
-    }
-
-    if let Some(timeout) = config.first_byte_timeout {
-        builder = builder.first_byte_timeout(Duration::from_millis(timeout));
-    }
-
-    if let Some(timeout) = config.between_bytes_timeout {
-        builder = builder.between_bytes_timeout(Duration::from_millis(timeout));
-    }
-
-    builder.finish().map_err(|e| Error::msg(format!("Failed to create backend '{}': {:?}", name, e)))
-}
-
-/// Loads security rules and backends from the Config Store.
+/// Forward request to the default protected_origin backend with a reason header.
 ///
-/// Supports two formats:
-/// 1. Packed format: All rules compressed in 'rules_packed' key (preferred)
-/// 2. Legacy format: Individual rules as separate keys with 'rule_list' index
-///
-/// The packed format uses gzip compression + base64 encoding to fit more rules
-/// within Config Store's 8KB value limit. It also supports backend definitions.
-///
-/// # Returns
-/// * `Ok(LoadedConfig)` - Initialized rule engine and backends if any rules loaded
-/// * `Err(Error)` - If no valid rules could be loaded
-fn load_rules() -> Result<LoadedConfig, Error> {
-    let store = ConfigStore::open("security_rules");
-    let mut engine = RuleEngine::new();
+/// The `X-MSS-Action` header indicates why this routing decision was made:
+/// - `routed:<backend>` - Graph explicitly routed to this backend
+/// - `allowed` - Graph action node set to allow
+/// - `nomatch` - No matching path in graph, default routing
+/// - `failopen:*` - Error occurred, failing open to preserve availability
+fn forward_to_default_backend_with_reason(
+    req: Request,
+    logger: &mut Endpoint,
+    mut log_entry: WafLog,
+    reason: &str,
+) -> Result<Response, Error> {
+    const BACKEND_NAME: &str = "protected_origin";
 
-    // Use the new loader that supports both packed and legacy formats
-    match load_rules_from_store(&store) {
-        Ok(loaded) => {
-            println!("Loaded {} rules, {} backend configs", loaded.rules.len(), loaded.backends.len());
-
-            // Add rules to engine in order
-            for rule_id in &loaded.rule_list {
-                if let Some(rule) = loaded.rules.get(rule_id) {
-                    let rule_json = serde_json::to_string(rule)
-                        .map_err(|e| Error::msg(format!("Failed to serialize rule: {}", e)))?;
-
-                    match engine.add_rule(rule_id.clone(), &rule_json) {
-                        Ok(_) => println!("Loaded rule: {}", rule_id),
-                        Err(e) => println!("Failed to add rule {}: {}", rule_id, e),
-                    }
-                }
-            }
-
-            if engine.rule_count() == 0 {
-                return Err(Error::msg("No valid rules were loaded"));
-            }
-
-            // Create dynamic backends
-            let mut backends = HashMap::new();
-            for (name, config) in &loaded.backends {
-                match create_dynamic_backend(name, config) {
-                    Ok(backend) => {
-                        println!("Created dynamic backend: {} -> {}:{}", name, config.host, config.port);
-                        backends.insert(name.clone(), backend);
-                    }
-                    Err(e) => {
-                        println!("Failed to create backend {}: {}", name, e);
-                    }
-                }
-            }
-
-            Ok(LoadedConfig { engine, backends })
-        }
-        Err(e) => {
-            println!("Failed to load rules: {}", e);
-            Err(Error::msg(format!("Rule loading failed: {}", e)))
-        }
+    let mut backend_req = req.clone_without_body();
+    if let Err(e) = add_edge_auth(&mut backend_req) {
+        println!("Auth header error: {}", e);
     }
+
+    let mut response = backend_req.send(BACKEND_NAME)?;
+    println!("Forwarded to {} (reason: {}), status: {}", BACKEND_NAME, reason, response.get_status());
+
+    // Add routing reason header
+    response.set_header("X-MSS-Action", reason);
+
+    log_entry.add_response(&response);
+    log_entry.set_final_action(reason);
+    log_entry.finalize();
+    writeln!(logger, "{}", serde_json::to_string(&log_entry)?)?;
+
+    Ok(response)
 }
 
 /// Adds edge authentication headers to requests.
@@ -241,84 +189,37 @@ fn load_rules() -> Result<LoadedConfig, Error> {
 ///
 /// Format: timestamp,pop,signature
 fn add_edge_auth(req: &mut Request) -> Result<(), Error> {
-    // Get shared secret
-    let store = ConfigStore::open("mss_shared_secret");
-    let secret = store
-        .get("compute_auth_key")
-        .ok_or_else(|| Error::msg("Authentication secret not configured"))?
-        .to_string();
-    
+    // Get shared secret - use try_open to avoid panic if store doesn't exist
+    let store = match ConfigStore::try_open("mss_shared_secret") {
+        Ok(s) => s,
+        Err(_) => {
+            println!("Auth store not found, skipping auth header");
+            return Ok(());
+        }
+    };
+    let secret = match store.get("compute_auth_key") {
+        Some(s) => s.to_string(),
+        None => {
+            println!("Auth secret not configured, skipping auth header");
+            return Ok(());
+        }
+    };
+
     // Get POP and timestamp
     let pop = std::env::var("FASTLY_POP").unwrap_or_default();
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or(Duration::ZERO)
         .as_secs();
-    
-    println!("Creating auth header - POP: {}, Time: {}", pop, now);
-    
+
     // Generate signature
     let data = format!("{},{}", now, pop);
     let sig = HMAC::mac(data.as_bytes(), secret.as_bytes());
     let sig_hex = hex::encode(sig);
-    
+
     // Set header
     let auth_header = format!("{},0x{}", data, sig_hex);
     req.set_header("Edge-Auth", &auth_header);
-    println!("Auth header set: {}", auth_header);
 
     Ok(())
-}
-
-/// Forwards a request to a named backend (static configuration).
-///
-/// Handles:
-/// - Adding edge authentication
-/// - Sending the request
-/// - Logging the response
-/// - Finalizing timing metrics
-fn forward_request(
-    req: Request,
-    backend: &str,
-    logger: &mut Endpoint,
-    mut log_entry: WafLog,
-    action: &str,
-) -> Result<Response, Error> {
-    let mut backend_req = req.clone_without_body();
-    add_edge_auth(&mut backend_req)?;
-
-    let resp = backend_req.send(backend)?;
-    println!("Forwarding to backend '{}', status: {}", backend, resp.get_status());
-
-    log_entry.add_response(&resp);
-    log_entry.set_final_action(action);
-    log_entry.finalize();
-    writeln!(logger, "{}", serde_json::to_string(&log_entry)?)?;
-
-    Ok(resp)
-}
-
-/// Forwards a request to a dynamic backend instance.
-///
-/// Similar to forward_request but takes a Backend object directly,
-/// allowing requests to be routed to dynamically configured backends.
-fn forward_request_to_backend(
-    req: Request,
-    backend: &Backend,
-    logger: &mut Endpoint,
-    mut log_entry: WafLog,
-    action: &str,
-) -> Result<Response, Error> {
-    let mut backend_req = req.clone_without_body();
-    add_edge_auth(&mut backend_req)?;
-
-    let resp = backend_req.send(backend.clone())?;
-    println!("Forwarding to dynamic backend, status: {}", resp.get_status());
-
-    log_entry.add_response(&resp);
-    log_entry.set_final_action(action);
-    log_entry.finalize();
-    writeln!(logger, "{}", serde_json::to_string(&log_entry)?)?;
-
-    Ok(resp)
 }

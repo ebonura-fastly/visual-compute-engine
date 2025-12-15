@@ -1,0 +1,153 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MSS Engine Node Schema",
+  "description": "Shared schema defining node types and their handles. Used by both editor-ui and compute engine.",
+  "version": "1.1.2",
+  "nodes": {
+    "request": {
+      "description": "Entry point for incoming requests",
+      "inputs": [],
+      "outputs": [
+        { "id": "request", "label": "Request", "type": "geometry" }
+      ]
+    },
+    "condition": {
+      "description": "Single condition evaluation",
+      "inputs": [
+        { "id": "trigger", "label": "Trigger", "type": "bool" }
+      ],
+      "outputs": [
+        { "id": "true", "label": "True", "type": "bool" },
+        { "id": "false", "label": "False", "type": "bool" }
+      ],
+      "data": {
+        "field": "string (path, method, clientIp, country, userAgent, host, header, asn, ja3)",
+        "operator": "string (equals, notEquals, contains, notContains, startsWith, endsWith, matches, in, notIn, inCidr)",
+        "value": "string"
+      }
+    },
+    "ruleGroup": {
+      "description": "Multiple conditions with AND/OR logic",
+      "inputs": [
+        { "id": "trigger", "label": "Trigger", "type": "bool" }
+      ],
+      "outputs": [
+        { "id": "match", "label": "Match", "type": "bool" },
+        { "id": "noMatch", "label": "No Match", "type": "bool" }
+      ],
+      "data": {
+        "name": "string",
+        "logic": "AND | OR",
+        "conditions": "array of { field, operator, value }"
+      }
+    },
+    "action": {
+      "description": "Terminal action (block/allow)",
+      "inputs": [
+        { "id": "trigger", "label": "Trigger", "type": "bool" }
+      ],
+      "outputs": [],
+      "data": {
+        "action": "block | allow",
+        "status_code": "number (for block)",
+        "message": "string (for block)"
+      }
+    },
+    "backend": {
+      "description": "Route to a backend origin",
+      "inputs": [
+        { "id": "route", "label": "Route", "type": "bool" }
+      ],
+      "outputs": [
+        { "id": "response", "label": "Response", "type": "geometry" },
+        { "id": "error", "label": "Error", "type": "bool" }
+      ],
+      "data": {
+        "name": "string",
+        "host": "string",
+        "port": "number",
+        "useTLS": "boolean"
+      }
+    },
+    "rateLimit": {
+      "description": "Rate limiting check",
+      "inputs": [
+        { "id": "trigger", "label": "Trigger", "type": "bool" }
+      ],
+      "outputs": [
+        { "id": "exceeded", "label": "Exceeded", "type": "bool" },
+        { "id": "ok", "label": "OK", "type": "bool" }
+      ],
+      "data": {
+        "key": "string",
+        "window": "number (seconds)",
+        "maxRequests": "number"
+      },
+      "implemented": false
+    },
+    "listLookup": {
+      "description": "Check if value exists in a list",
+      "inputs": [
+        { "id": "trigger", "label": "Trigger", "type": "bool" }
+      ],
+      "outputs": [
+        { "id": "found", "label": "Found", "type": "bool" },
+        { "id": "notFound", "label": "Not Found", "type": "bool" }
+      ],
+      "implemented": false
+    },
+    "score": {
+      "description": "Anomaly scoring and threshold checking",
+      "inputs": [
+        { "id": "trigger", "label": "Trigger", "type": "bool" },
+        { "id": "score_in", "label": "Score In", "type": "number" }
+      ],
+      "outputs": [
+        { "id": "exceeded", "label": "Exceeded", "type": "bool" },
+        { "id": "ok", "label": "OK", "type": "bool" },
+        { "id": "score_out", "label": "Score Out", "type": "number" }
+      ],
+      "implemented": false
+    },
+    "logic": {
+      "description": "Boolean logic (AND/OR/NOT)",
+      "inputs": [
+        { "id": "a", "label": "A", "type": "bool" },
+        { "id": "b", "label": "B", "type": "bool" }
+      ],
+      "outputs": [
+        { "id": "true", "label": "True", "type": "bool" },
+        { "id": "false", "label": "False", "type": "bool" }
+      ],
+      "implemented": false
+    }
+  },
+  "operators": {
+    "string": [
+      { "id": "equals", "label": "equals" },
+      { "id": "notEquals", "label": "not equals" },
+      { "id": "contains", "label": "contains" },
+      { "id": "notContains", "label": "not contains" },
+      { "id": "startsWith", "label": "starts with" },
+      { "id": "endsWith", "label": "ends with" },
+      { "id": "matches", "label": "matches (regex)" },
+      { "id": "in", "label": "in list" },
+      { "id": "notIn", "label": "not in list" }
+    ],
+    "ip": [
+      { "id": "equals", "label": "equals" },
+      { "id": "inCidr", "label": "in CIDR range" }
+    ]
+  },
+  "fields": [
+    { "id": "path", "label": "Path", "type": "string" },
+    { "id": "method", "label": "Method", "type": "string" },
+    { "id": "clientIp", "label": "Client IP", "type": "ip" },
+    { "id": "country", "label": "Country", "type": "string" },
+    { "id": "userAgent", "label": "User Agent", "type": "string" },
+    { "id": "host", "label": "Host", "type": "string" },
+    { "id": "header", "label": "Header", "type": "string" },
+    { "id": "asn", "label": "ASN", "type": "string" },
+    { "id": "ja3", "label": "JA3 Fingerprint", "type": "string" }
+  ]
+}

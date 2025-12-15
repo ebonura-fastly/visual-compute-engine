@@ -2,16 +2,15 @@
 //!
 //! This module provides structured logging capabilities for security events:
 //! - Detailed request/response information
-//! - Rule evaluation results
+//! - Graph evaluation results
 //! - Performance metrics
 //! - Security actions taken
 
-use crate::rules::types::{ConditionRule, Rule};
 use chrono::Utc;
 use fastly::{Request, Response};
 use serde::Serialize;
 use std::time::Instant;
-use uuid::{timestamp::Timestamp, NoContext, Uuid}; // Fixed import path
+use uuid::{timestamp::Timestamp, NoContext, Uuid};
 
 /// Detailed information about the incoming HTTP request.
 ///
@@ -49,46 +48,10 @@ struct ResponseDetails {
     headers: Vec<(String, String)>,
 }
 
-/// Details about a security rule evaluation.
-///
-/// Records how a rule was processed:
-/// - Rule configuration
-/// - Matched conditions
-/// - Action taken
-/// - Response details if blocked/challenged
-#[derive(Serialize)]
-struct RuleMatch {
-    name: String,
-    enabled: bool,
-    operator: String,
-    conditions: Vec<ConditionMatch>,
-    action_taken: String,
-    action_type: String,
-    response_code: Option<u16>,
-    response_message: Option<String>,
-    challenge_type: Option<String>,
-}
-
-/// Result of evaluating a single condition within a rule.
-///
-/// Tracks the specific condition details and whether it matched:
-/// - Condition type (path, IP, device, etc.)
-/// - Operator used
-/// - Value being checked
-/// - Match result
-#[derive(Serialize)]
-struct ConditionMatch {
-    r#type: String,
-    operator: String,
-    value: String,
-    matched: bool,
-}
-
 /// Complete log entry for a request processed by the WAF.
 ///
 /// This is the main logging structure that combines:
 /// - Request/response details
-/// - Rule evaluation results
 /// - Timing information
 /// - Final security decision
 #[derive(Serialize)]
@@ -96,9 +59,8 @@ pub struct WafLog {
     pub request_id: String,
     pub timestamp: String,
     pub processing_time_ms: u64,
-    pub request: RequestDetails,
-    pub response: Option<ResponseDetails>,
-    pub rules_evaluated: Vec<RuleMatch>,
+    request: RequestDetails,
+    response: Option<ResponseDetails>,
     pub final_action: String,
     pub blocked: bool,
     #[serde(skip)]
@@ -159,7 +121,6 @@ impl WafLog {
                 headers,
             },
             response: None,
-            rules_evaluated: Vec::new(),
             final_action: "initializing".to_string(),
             blocked: false,
         }
@@ -170,116 +131,6 @@ impl WafLog {
     /// Should be called just before writing the log entry.
     pub fn finalize(&mut self) {
         self.processing_time_ms = self.start_time.elapsed().as_millis() as u64;
-    }
-
-    /// Records the evaluation of a security rule.
-    ///
-    /// Tracks:
-    /// - Rule name and configuration
-    /// - Which conditions matched
-    /// - Action taken (if any)
-    /// - Response details for blocks/challenges
-    pub fn add_rule_evaluation(
-        &mut self,
-        name: String,
-        rule: &Rule,
-        matches: Vec<(ConditionRule, bool)>,
-    ) {
-        let any_matches = matches.iter().any(|(_, m)| *m);
-
-        let conditions = matches
-            .into_iter()
-            .map(|(condition, matched)| ConditionMatch {
-                r#type: match &condition {
-                    ConditionRule::Path { .. } => "path",
-                    ConditionRule::IP { .. } => "ip",
-                    ConditionRule::Device { .. } => "device",
-                    ConditionRule::UserAgent { .. } => "user_agent",
-                    ConditionRule::Header { .. } => "header",
-                    ConditionRule::RateLimit { .. } => "rate_limit",
-                }
-                .to_string(),
-                operator: match &condition {
-                    ConditionRule::Path { operator, .. } => format!("{:?}", operator),
-                    ConditionRule::IP { operator, .. } => format!("{:?}", operator),
-                    ConditionRule::Device { operator, .. } => format!("{:?}", operator),
-                    ConditionRule::UserAgent { operator, .. } => format!("{:?}", operator),
-                    ConditionRule::Header { operator, .. } => format!("{:?}", operator),
-                    ConditionRule::RateLimit { .. } => "rate_limit".to_string(),
-                },
-                value: match &condition {
-                    ConditionRule::Path { value, .. } => value.clone(),
-                    ConditionRule::IP { value, .. } => value.join(", "),
-                    ConditionRule::Device { value, .. } => value.clone(),
-                    ConditionRule::UserAgent { value, .. } => value.clone(),
-                    ConditionRule::Header { key, .. } => key.clone(),
-                    ConditionRule::RateLimit {
-                        window,
-                        max_requests,
-                        block_ttl,
-                        counter_name,
-                        penaltybox_name,
-                    } => {
-                        let generated_counter = format!("rate_counter_{}_{}_{}", window, max_requests, block_ttl);
-                        let generated_penalty = format!("penalty_box_{}_{}_{}", window, max_requests, block_ttl);
-                        
-                        let counter_name_str = counter_name.as_deref().unwrap_or(&generated_counter);
-                        let penalty_name_str = penaltybox_name.as_deref().unwrap_or(&generated_penalty);
-                        
-                        // Get rate counter and penalty box instances
-                        let rate_counter = fastly::erl::RateCounter::open(counter_name_str);
-                        let penalty_box = fastly::erl::Penaltybox::open(penalty_name_str);
-                        
-                        // Use stored client IP instead of getting a new request handle
-                        let mut debug_info = format!(
-                            "{} requests per {}, block for {}m, counter: {}, penalty box: {}", 
-                            max_requests, 
-                            window,
-                            block_ttl,
-                            counter_name_str,
-                            penalty_name_str
-                        );
-
-                        // Use the client IP from the request details
-                        if self.request.client_ip != "none" {
-                            let entry = self.request.client_ip.clone();
-                            
-                            // Add rate counter status
-                            if let Ok(rate) = rate_counter.lookup_rate(&entry, (*window).into()) {
-                                debug_info.push_str(&format!("\nRate counter status: {} requests", rate));
-                            }
-                            
-                            // Add penalty box status
-                            if let Ok(true) = penalty_box.has(&entry) {
-                                debug_info.push_str("\nIn penalty box: yes");
-                            } else {
-                                debug_info.push_str("\nIn penalty box: no");
-                            }
-                        }
-                        
-                        debug_info
-                    },
-                },
-                matched,
-            })
-            .collect();
-
-        self.rules_evaluated.push(RuleMatch {
-            name,
-            enabled: rule.enabled,
-            operator: format!("{:?}", rule.conditions.operator),
-            conditions,
-            action_taken: if any_matches {
-                "matched"
-            } else {
-                "not_matched"
-            }
-            .to_string(),
-            action_type: rule.action.type_.clone(),
-            response_code: rule.action.response_code,
-            response_message: rule.action.response_message.clone(),
-            challenge_type: rule.action.challenge_type.clone(),
-        });
     }
 
     /// Adds response information to the log entry.
@@ -314,7 +165,7 @@ impl WafLog {
     /// Records the ultimate decision:
     /// - forwarded: Request allowed through
     /// - blocked: Request denied
-    /// - challenged: Client challenge issued
+    /// - routed: Request sent to specific backend
     pub fn set_final_action(&mut self, action: &str) {
         self.final_action = action.to_string();
     }
