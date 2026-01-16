@@ -51,6 +51,12 @@ const nodeTypes = [
     description: 'Route to origin',
   },
   {
+    type: 'header',
+    label: 'Header',
+    category: 'routing' as const,
+    description: 'Set, append, or remove headers',
+  },
+  {
     type: 'logging',
     label: 'Logging',
     category: 'action' as const,

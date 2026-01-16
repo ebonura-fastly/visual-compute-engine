@@ -38,6 +38,7 @@ pub enum GraphResult {
 #[derive(Debug, Clone)]
 pub enum HeaderMod {
     Set { name: String, value: String },
+    Append { name: String, value: String },
     Remove { name: String },
 }
 
@@ -50,6 +51,8 @@ pub struct GraphInterpreter<'a> {
     rate_counter_debug: Option<RateCounter>,
     /// Cached geo lookup result
     geo_cache: std::cell::RefCell<Option<Option<fastly::geo::Geo>>>,
+    /// Header modifications collected during traversal
+    header_mods: std::cell::RefCell<Vec<HeaderMod>>,
 }
 
 impl<'a> GraphInterpreter<'a> {
@@ -86,7 +89,19 @@ impl<'a> GraphInterpreter<'a> {
             rate_limiter,
             rate_counter_debug,
             geo_cache: std::cell::RefCell::new(None),
+            header_mods: std::cell::RefCell::new(Vec::new()),
         }
+    }
+
+    /// Get the header modifications collected during evaluation.
+    /// Call this after evaluate() to get the mods to apply.
+    pub fn get_header_mods(&self) -> Vec<HeaderMod> {
+        self.header_mods.borrow().clone()
+    }
+
+    /// Clear collected header modifications (for reuse).
+    pub fn clear_header_mods(&self) {
+        self.header_mods.borrow_mut().clear();
     }
 
     /// Get geo data for client IP, caching the result
@@ -325,7 +340,7 @@ impl<'a> GraphInterpreter<'a> {
             }
 
             "header" => {
-                // Header modification node - logs but actual modification happens at forward time
+                // Header modification node - collect the mod and continue
                 let data: HeaderNodeData = match serde_json::from_value(node.data.clone()) {
                     Ok(d) => d,
                     Err(e) => {
@@ -334,14 +349,34 @@ impl<'a> GraphInterpreter<'a> {
                     }
                 };
 
-                match data.operation.as_str() {
-                    "set" => println!("[Graph] Header SET: {} = {}", data.name, data.value.as_deref().unwrap_or("")),
-                    "remove" => println!("[Graph] Header REMOVE: {}", data.name),
-                    _ => println!("[Graph] Header unknown op: {}", data.operation),
+                // Collect the header modification
+                let header_mod = match data.operation.as_str() {
+                    "set" => {
+                        let value = data.value.unwrap_or_default();
+                        println!("[Graph] Header SET: {} = {}", data.name, value);
+                        Some(HeaderMod::Set { name: data.name, value })
+                    }
+                    "append" => {
+                        let value = data.value.unwrap_or_default();
+                        println!("[Graph] Header APPEND: {} += {}", data.name, value);
+                        Some(HeaderMod::Append { name: data.name, value })
+                    }
+                    "remove" => {
+                        println!("[Graph] Header REMOVE: {}", data.name);
+                        Some(HeaderMod::Remove { name: data.name })
+                    }
+                    _ => {
+                        println!("[Graph] Header unknown op: {}", data.operation);
+                        None
+                    }
+                };
+
+                if let Some(hm) = header_mod {
+                    self.header_mods.borrow_mut().push(hm);
                 }
 
-                // Continue to next node (header mods applied at forward time via main.rs)
-                self.follow_outgoing(node_id, None, req)
+                // Continue to next node
+                self.follow_outgoing(node_id, Some("next"), req)
             }
 
             "redirect" => {
@@ -443,6 +478,7 @@ impl<'a> GraphInterpreter<'a> {
                     field: c.field.clone(),
                     operator: c.operator.clone(),
                     value: c.value.clone(),
+                    header_name: c.header_name.clone(),
                 };
                 self.evaluate_condition(&cond, req)
             })
@@ -458,10 +494,16 @@ impl<'a> GraphInterpreter<'a> {
 
     /// Evaluate a single condition against a request.
     fn evaluate_condition(&self, data: &ConditionNodeData, req: &Request) -> bool {
-        let field_value = self.get_field_value(&data.field, req);
+        // For custom header field, use the headerName
+        let effective_field = if data.field == "header" {
+            data.header_name.as_deref().unwrap_or("header")
+        } else {
+            &data.field
+        };
+        let field_value = self.get_field_value(effective_field, req);
         let field_value_str = field_value.as_deref().unwrap_or("");
 
-        println!("[Graph] Checking {} {} {} (actual: {})", data.field, data.operator, data.value, field_value_str);
+        println!("[Graph] Checking {} {} {} (actual: {})", effective_field, data.operator, data.value, field_value_str);
 
         match data.operator.as_str() {
             "equals" => field_value_str == data.value,
@@ -569,6 +611,10 @@ impl<'a> GraphInterpreter<'a> {
                 req.get_header_str("fastly-pop")
                     .map(|s| s.to_string())
                     .or_else(|| std::env::var("FASTLY_POP").ok())
+            }
+            "ddosDetected" => {
+                // Returns "true" if Fastly has detected this request is part of a DDoS attack
+                req.get_client_ddos_detected().map(|v| v.to_string())
             }
 
             // ═══════════════════════════════════════════════════════════════════
