@@ -84,6 +84,7 @@ const operatorOptions = [
   { value: 'matches', label: 'regex' },
   { value: 'in', label: 'in' },
   { value: 'notIn', label: '!in' },
+  { value: 'inCidr', label: 'in CIDR' },
 ]
 
 const HANDLE_SIZE = 12

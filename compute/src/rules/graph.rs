@@ -115,11 +115,6 @@ impl<'a> GraphInterpreter<'a> {
         self.header_mods.borrow().clone()
     }
 
-    /// Clear collected header modifications (for reuse).
-    pub fn clear_header_mods(&self) {
-        self.header_mods.borrow_mut().clear();
-    }
-
     /// Get the cache settings collected during evaluation.
     /// Call this after evaluate() to get the settings to apply.
     pub fn get_cache_settings(&self) -> CacheSettings {
