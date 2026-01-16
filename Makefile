@@ -1,11 +1,11 @@
-# MSS Engine - Development Makefile
+# Visual Compute Engine - Development Makefile
 # Run 'make' or 'make help' for available commands
 
 .PHONY: help dev build serve ui clean install all local local-api
 
 # Default target
 help:
-	@echo "MSS Engine Development Commands"
+	@echo "Visual Compute Engine Development Commands"
 	@echo "================================"
 	@echo ""
 	@echo "  make local      - Run full local dev environment (recommended for demos)"
@@ -42,15 +42,15 @@ install:
 
 # Build the Compute WASM binary
 build:
-	@echo "Building MSS Engine..."
-	cd compute && cargo build --bin mss-engine --release --target wasm32-wasip1
+	@echo "Building Visual Compute Engine..."
+	cd compute && cargo build --bin vce-engine --release --target wasm32-wasip1
 	@echo ""
-	@echo "Binary location: compute/target/wasm32-wasip1/release/mss-engine.wasm"
-	@ls -lh compute/target/wasm32-wasip1/release/mss-engine.wasm
+	@echo "Binary location: compute/target/wasm32-wasip1/release/vce-engine.wasm"
+	@ls -lh compute/target/wasm32-wasip1/release/vce-engine.wasm
 
 # Run Compute engine locally (requires build first)
 serve: build
-	@echo "Starting MSS Engine on http://127.0.0.1:7676"
+	@echo "Starting Visual Compute Engine on http://127.0.0.1:7676"
 	@echo "Test with: curl http://127.0.0.1:7676/_version"
 	@echo ""
 	cd compute && fastly compute serve
@@ -63,7 +63,7 @@ ui:
 # Run both UI and Compute (in foreground - use two terminals or Ctrl+C to stop)
 dev:
 	@echo "==================================================="
-	@echo "  MSS Engine Development Mode"
+	@echo "  Visual Compute Engine Development Mode"
 	@echo "==================================================="
 	@echo ""
 	@echo "Starting services..."
@@ -93,7 +93,7 @@ local-api:
 # Run full local development environment (UI + Local API + Compute)
 local: build
 	@echo "╔═══════════════════════════════════════════════════════════════╗"
-	@echo "║           MSS Engine - Local Development Mode                 ║"
+	@echo "║           Visual Compute Engine - Local Development Mode                 ║"
 	@echo "╠═══════════════════════════════════════════════════════════════╣"
 	@echo "║  Editor UI:    http://localhost:5173                          ║"
 	@echo "║  Local API:    http://localhost:3001 (for saving rules)       ║"
@@ -114,8 +114,8 @@ local: build
 # Build and update the embedded WASM in editor-ui
 embed-wasm: build
 	@echo "Embedding WASM in Editor UI..."
-	base64 -i compute/target/wasm32-wasip1/release/mss-engine.wasm -o editor-ui/src/assets/mss-engine.wasm.b64
-	@echo "Updated editor-ui/src/assets/mss-engine.wasm.b64"
+	base64 -i compute/target/wasm32-wasip1/release/vce-engine.wasm -o editor-ui/src/assets/vce-engine.wasm.b64
+	@echo "Updated editor-ui/src/assets/vce-engine.wasm.b64"
 
 # ============================================================================
 # LOCAL DEMO MODE

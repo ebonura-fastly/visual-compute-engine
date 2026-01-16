@@ -1,16 +1,16 @@
-# MSS Engine
+# Visual Compute Engine
 
 Visual security rules editor and runtime for Fastly Compute@Edge.
 
 ## Overview
 
-MSS Engine provides a visual node-based editor for creating security rules that run on Fastly's edge network. Rules are designed as flow graphs and deployed directly to the edge - no format conversion needed.
+Visual Compute Engine provides a visual node-based editor for creating security rules that run on Fastly's edge network. Rules are designed as flow graphs and deployed directly to the edge - no format conversion needed.
 
 ## Components
 
 ```
 ┌─────────────────┐      ┌──────────────────┐      ┌─────────────────┐
-│   Editor UI     │ ───► │  Config Store    │ ◄─── │   MSS Engine    │
+│   Editor UI     │ ───► │  Config Store    │ ◄─── │   Visual Compute Engine    │
 │  (React Flow)   │      │  (compressed)    │      │     (Rust)      │
 └─────────────────┘      └──────────────────┘      └─────────────────┘
      Design rules         Shared graph format        Execute rules
@@ -22,7 +22,7 @@ MSS Engine provides a visual node-based editor for creating security rules that 
 - Connect nodes with edges to create rule flows
 - Deploy directly to Fastly Config Store
 
-### MSS Engine (`/compute`)
+### Visual Compute Engine (`/compute`)
 - Rust service compiled to WebAssembly
 - Runs on Fastly Compute@Edge
 - Evaluates graph rules at the edge
@@ -124,7 +124,7 @@ npm install
 npm run dev
 ```
 
-### MSS Engine
+### Visual Compute Engine
 ```bash
 cd compute
 fastly compute build
@@ -136,13 +136,13 @@ fastly compute publish  # Deploy
 After deploying, check the version:
 ```bash
 curl https://your-service.edgecompute.app/_version
-# Returns: {"engine":"MSS Engine","version":"1.0.0","format":"graph"}
+# Returns: {"engine":"Visual Compute Engine","version":"1.0.0","format":"graph"}
 ```
 
 Compare package hash:
 ```bash
 # Local build hash
-shasum -a 512 pkg/mss-engine.tar.gz
+shasum -a 512 pkg/vce-engine.tar.gz
 
 # Deployed hash (via API)
 curl -H "Fastly-Key: $TOKEN" "https://api.fastly.com/service/$SERVICE_ID/version/active/package" | jq '.metadata.hashsum'

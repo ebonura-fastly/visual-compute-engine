@@ -1,10 +1,10 @@
 [package]
-name = "rusty-shield-core"
+name = "vce-core"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-authors = ["CSOC Team"]
-description = "Core node graph types and interpreter for Rusty Shield security rules"
+authors = ["Fastly"]
+description = "Core node graph types and interpreter for Visual Compute Engine"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

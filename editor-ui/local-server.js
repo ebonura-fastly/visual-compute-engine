@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Local Development Server for MSS Engine Editor
+ * Local Development Server for Visual Compute Engine Editor
  *
  * This server provides:
  * 1. Static file serving for the Editor UI (Vite dev server proxy)
@@ -123,7 +123,7 @@ const server = createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log('')
   console.log('╔════════════════════════════════════════════════════════════╗')
-  console.log('║           MSS Engine - Local Development Server            ║')
+  console.log('║     Visual Compute Engine - Local Development Server       ║')
   console.log('╠════════════════════════════════════════════════════════════╣')
   console.log(`║  Local API:      http://localhost:${PORT}/local-api/        ║`)
   console.log('║  Rules file:     compute/security-rules.json               ║')

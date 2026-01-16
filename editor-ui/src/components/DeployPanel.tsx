@@ -13,7 +13,7 @@ type Props = {
 }
 
 const defaultConfig: ServiceConfig = {
-  name: 'mss-compute',
+  name: 'vce-service',
   backends: [
     { name: 'protected_origin', host: 'origin.example.com', useTls: true }
   ],

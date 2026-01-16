@@ -437,14 +437,14 @@ function TemplatesTab({
 
 // Fastly Tab - extracted from FastlyPanel
 import { compressRules, decompressRules, convertComputeRulesToGraph, validateGraph, type PackedRules } from '../utils/ruleConverter'
-import { buildMssPackage } from '../lib/fastlyPackage'
+import { buildVcePackage } from '../lib/fastlyPackage'
 
 type FastlyService = {
   id: string
   name: string
   type: string
   version: number
-  isMssEnabled?: boolean
+  isVceEnabled?: boolean
   linkedConfigStore?: string
 }
 
@@ -457,20 +457,20 @@ type EngineVersion = {
 type ConfigStore = {
   id: string
   name: string
-  hasMssManifest?: boolean
+  hasVceManifest?: boolean
 }
 
-type MssManifest = {
+type VceManifest = {
   version: string
   engine: string
   deployedAt: string
   serviceId: string
 }
 
-const MSS_MANIFEST_KEY = 'mss_manifest'
-const MSS_ENGINE_VERSION = '1.1.3'
+const VCE_MANIFEST_KEY = 'vce_manifest'
+const VCE_ENGINE_VERSION = '1.1.3'
 const FASTLY_API_BASE = 'https://api.fastly.com'
-const STORAGE_KEY = 'mss-compute-fastly'
+const STORAGE_KEY = 'vce-fastly'
 
 function loadStoredSettings(): { apiToken: string; selectedService: string; selectedConfigStore: string } {
   try {
@@ -778,10 +778,10 @@ function FastlyTab({
       const newVersionNumber = clonedVersion.number
       console.log('[Engine Update] Created new version:', newVersionNumber)
 
-      setEngineUpdateProgress('Building MSS Engine package...')
+      setEngineUpdateProgress('Building VCE Engine package...')
       // Build the new package
       console.log('[Engine Update] Building package...')
-      const packageB64 = await buildMssPackage(service.name)
+      const packageB64 = await buildVcePackage(service.name)
       console.log('[Engine Update] Package built, size:', packageB64.length, 'bytes (base64)')
       const packageBlob = await fetch(`data:application/gzip;base64,${packageB64}`).then(r => r.blob())
       console.log('[Engine Update] Package blob size:', packageBlob.size, 'bytes')
@@ -812,7 +812,7 @@ function FastlyTab({
       const activateResult = await fastlyFetch(`/service/${service.id}/version/${newVersionNumber}/activate`, { method: 'PUT' })
       console.log('[Engine Update] Version activated:', activateResult)
 
-      setStatus(`MSS Engine updated to v${MSS_ENGINE_VERSION}`)
+      setStatus(`VCE Engine updated to v${VCE_ENGINE_VERSION}`)
       setEngineUpdateProgress('Waiting for edge propagation...')
       console.log('[Engine Update] Update complete! Waiting for edge propagation...')
 
@@ -863,7 +863,7 @@ function FastlyTab({
       const storesWithManifest: ConfigStore[] = []
       for (const store of stores) {
         try {
-          // First, list items in the store to check if mss_manifest exists (avoids 404 errors)
+          // First, list items in the store to check if vce_manifest exists (avoids 404 errors)
           const itemsResponse = await fetch(`${FASTLY_API_BASE}/resources/stores/config/${store.id}/items?limit=100`, {
             headers: { 'Fastly-Key': apiToken, 'Accept': 'application/json' },
           })
@@ -875,7 +875,7 @@ function FastlyTab({
 
           const itemsData = await itemsResponse.json()
           const items = itemsData?.data || itemsData || []
-          const hasManifestItem = items.some((item: any) => item.key === MSS_MANIFEST_KEY || item.item_key === MSS_MANIFEST_KEY)
+          const hasManifestItem = items.some((item: any) => item.key === VCE_MANIFEST_KEY || item.item_key === VCE_MANIFEST_KEY)
 
           if (!hasManifestItem) {
             storesWithManifest.push(store)
@@ -883,18 +883,18 @@ function FastlyTab({
           }
 
           // Only fetch the manifest if we know it exists
-          const response = await fetch(`${FASTLY_API_BASE}/resources/stores/config/${store.id}/item/${MSS_MANIFEST_KEY}`, {
+          const response = await fetch(`${FASTLY_API_BASE}/resources/stores/config/${store.id}/item/${VCE_MANIFEST_KEY}`, {
             headers: { 'Fastly-Key': apiToken, 'Accept': 'application/json' },
           })
 
           if (response.ok) {
             const manifestData = await response.json()
             if (manifestData?.value || manifestData?.item_value) {
-              const manifest: MssManifest = JSON.parse(manifestData.value || manifestData.item_value)
-              storesWithManifest.push({ ...store, hasMssManifest: true })
+              const manifest: VceManifest = JSON.parse(manifestData.value || manifestData.item_value)
+              storesWithManifest.push({ ...store, hasVceManifest: true })
               const serviceIdx = computeServices.findIndex(s => s.id === manifest.serviceId)
               if (serviceIdx !== -1) {
-                computeServices[serviceIdx].isMssEnabled = true
+                computeServices[serviceIdx].isVceEnabled = true
                 computeServices[serviceIdx].linkedConfigStore = store.id
               }
             } else {
@@ -908,34 +908,34 @@ function FastlyTab({
         }
       }
 
-      // Sort: MSS-enabled first, then by name
+      // Sort: VCE-enabled first, then by name
       computeServices.sort((a, b) => {
-        if (a.isMssEnabled && !b.isMssEnabled) return -1
-        if (!a.isMssEnabled && b.isMssEnabled) return 1
+        if (a.isVceEnabled && !b.isVceEnabled) return -1
+        if (!a.isVceEnabled && b.isVceEnabled) return 1
         return a.name.localeCompare(b.name)
       })
 
-      // Also detect services by name pattern (mss-*) even without manifest
+      // Also detect services by name pattern (vce-*) even without manifest
       // This helps show newly created services before they're fully configured
       for (const service of computeServices) {
-        if (!service.isMssEnabled && service.name.toLowerCase().startsWith('mss-')) {
-          service.isMssEnabled = true // Mark as MSS service by naming convention
+        if (!service.isVceEnabled && service.name.toLowerCase().startsWith('vce-')) {
+          service.isVceEnabled = true // Mark as VCE service by naming convention
         }
       }
 
-      // Check if we have a previously selected service or auto-select the first MSS service
-      const mssServices = computeServices.filter(s => s.isMssEnabled)
+      // Check if we have a previously selected service or auto-select the first VCE service
+      const vceServices = computeServices.filter(s => s.isVceEnabled)
       let serviceToSelect = selectedService
       let storeToSelect = selectedConfigStore
 
-      // If previously selected service exists and is MSS-enabled, use it
-      const previousService = computeServices.find(s => s.id === selectedService && s.isMssEnabled)
+      // If previously selected service exists and is VCE-enabled, use it
+      const previousService = computeServices.find(s => s.id === selectedService && s.isVceEnabled)
       if (previousService) {
         storeToSelect = previousService.linkedConfigStore || ''
-      } else if (mssServices.length > 0) {
-        // Auto-select the first MSS service
-        serviceToSelect = mssServices[0].id
-        storeToSelect = mssServices[0].linkedConfigStore || ''
+      } else if (vceServices.length > 0) {
+        // Auto-select the first VCE service
+        serviceToSelect = vceServices[0].id
+        storeToSelect = vceServices[0].linkedConfigStore || ''
       }
 
       updateFastlyState({
@@ -1050,14 +1050,14 @@ function FastlyTab({
       setStatus('Loading rules from Config Store...')
       await loadRulesFromStore(linkedStore, service?.name || '')
       setLoading(false)
-    } else if (service && !service.isMssEnabled) {
-      // Non-MSS service selected - clear canvas and show setup prompt
+    } else if (service && !service.isVceEnabled) {
+      // Non-VCE service selected - clear canvas and show setup prompt
       if (onLoadRules) {
         onLoadRules([], [])
       }
-      setStatus(`Selected ${service.name} - Click "Enable MSS" to configure`)
+      setStatus(`Selected ${service.name} - Click "Enable VCE" to configure`)
     } else if (service) {
-      // MSS service without linked store (detected by name pattern)
+      // VCE service without linked store (detected by name pattern)
       if (onLoadRules) {
         onLoadRules([], [])
       }
@@ -1084,8 +1084,8 @@ function FastlyTab({
     setStatus(`Refreshed ${service.name}`)
   }
 
-  // Enable MSS on an existing Compute service
-  const handleEnableMss = async () => {
+  // Enable VCE on an existing Compute service
+  const handleEnableVce = async () => {
     const service = services.find(s => s.id === selectedService)
     if (!service) {
       setError('No service selected')
@@ -1126,10 +1126,10 @@ function FastlyTab({
         method: 'POST',
         body: JSON.stringify({ resource_id: configStoreId, name: 'security_rules' }),
       })
-      setCreateProgress('Building and uploading MSS Engine...')
+      setCreateProgress('Building and uploading VCE Engine...')
 
       // Build and upload the WASM package
-      const packageB64 = await buildMssPackage(service.name)
+      const packageB64 = await buildVcePackage(service.name)
       const packageBlob = await fetch(`data:application/gzip;base64,${packageB64}`).then(r => r.blob())
       const formData = new FormData()
       formData.append('package', packageBlob, 'package.tar.gz')
@@ -1148,19 +1148,19 @@ function FastlyTab({
 
       // Activate the new version
       await fastlyFetch(`/service/${service.id}/version/${versionToUse}/activate`, { method: 'PUT' })
-      setCreateProgress('Deploying MSS manifest...')
+      setCreateProgress('Deploying VCE manifest...')
 
       // Create manifest in Config Store
-      const manifest: MssManifest = {
-        version: MSS_ENGINE_VERSION,
-        engine: 'mss-compute',
+      const manifest: VceManifest = {
+        version: VCE_ENGINE_VERSION,
+        engine: 'visual-compute-engine',
         deployedAt: new Date().toISOString(),
         serviceId: service.id,
       }
       const manifestFormData = new URLSearchParams()
       manifestFormData.append('item_value', JSON.stringify(manifest))
 
-      await fetch(`${FASTLY_API_BASE}/resources/stores/config/${configStoreId}/item/${MSS_MANIFEST_KEY}`, {
+      await fetch(`${FASTLY_API_BASE}/resources/stores/config/${configStoreId}/item/${VCE_MANIFEST_KEY}`, {
         method: 'PUT',
         headers: { 'Fastly-Key': apiToken, 'Content-Type': 'application/x-www-form-urlencoded' },
         body: manifestFormData.toString(),
@@ -1170,24 +1170,24 @@ function FastlyTab({
       const newConfigStore: ConfigStore = {
         id: configStoreId,
         name: configStoreName,
-        hasMssManifest: true,
+        hasVceManifest: true,
       }
 
       updateFastlyState({
         services: services.map(s =>
-          s.id === service.id ? { ...s, isMssEnabled: true, linkedConfigStore: configStoreId } : s
+          s.id === service.id ? { ...s, isVceEnabled: true, linkedConfigStore: configStoreId } : s
         ),
         configStores: [newConfigStore, ...configStores],
         selectedConfigStore: configStoreId,
       })
       saveSettings({ apiToken, selectedService: service.id, selectedConfigStore: configStoreId })
-      setStatus(`MSS enabled on "${service.name}"!`)
+      setStatus(`VCE enabled on "${service.name}"!`)
 
       // Fetch engine version after a delay
       setTimeout(() => fetchEngineVersion(service.name), 3000)
 
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to enable MSS')
+      setError(err instanceof Error ? err.message : 'Failed to enable VCE')
     } finally {
       setLoading(false)
       setCreateProgress(null)
@@ -1234,7 +1234,7 @@ function FastlyTab({
       })
       setCreateProgress('Building and uploading WASM package...')
 
-      const packageB64 = await buildMssPackage(createForm.serviceName)
+      const packageB64 = await buildVcePackage(createForm.serviceName)
       const packageBlob = await fetch(`data:application/gzip;base64,${packageB64}`).then(r => r.blob())
       const formData = new FormData()
       formData.append('package', packageBlob, 'package.tar.gz')
@@ -1253,18 +1253,18 @@ function FastlyTab({
       setCreateProgress('Activating service version...')
 
       await fastlyFetch(`/service/${serviceId}/version/${serviceVersion}/activate`, { method: 'PUT' })
-      setCreateProgress('Deploying MSS manifest...')
+      setCreateProgress('Deploying VCE manifest...')
 
-      const manifest: MssManifest = {
-        version: MSS_ENGINE_VERSION,
-        engine: 'mss-compute',
+      const manifest: VceManifest = {
+        version: VCE_ENGINE_VERSION,
+        engine: 'visual-compute-engine',
         deployedAt: new Date().toISOString(),
         serviceId: serviceId,
       }
       const manifestFormData = new URLSearchParams()
       manifestFormData.append('item_value', JSON.stringify(manifest))
 
-      await fetch(`${FASTLY_API_BASE}/resources/stores/config/${configStoreId}/item/${MSS_MANIFEST_KEY}`, {
+      await fetch(`${FASTLY_API_BASE}/resources/stores/config/${configStoreId}/item/${VCE_MANIFEST_KEY}`, {
         method: 'PUT',
         headers: { 'Fastly-Key': apiToken, 'Content-Type': 'application/x-www-form-urlencoded' },
         body: manifestFormData.toString(),
@@ -1281,13 +1281,13 @@ function FastlyTab({
         name: createForm.serviceName,
         type: 'wasm',
         version: serviceVersion,
-        isMssEnabled: true,
+        isVceEnabled: true,
         linkedConfigStore: configStoreId,
       }
       const newConfigStore: ConfigStore = {
         id: configStoreId,
         name: configStoreName,
-        hasMssManifest: true,
+        hasVceManifest: true,
       }
 
       updateFastlyState({
@@ -1299,7 +1299,7 @@ function FastlyTab({
       saveSettings({ apiToken, selectedService: serviceId, selectedConfigStore: configStoreId })
       setShowCreateForm(false)
       setCreateForm({ serviceName: '' })
-      setStatus(`MSS service "${createForm.serviceName}" created successfully!`)
+      setStatus(`VCE service "${createForm.serviceName}" created successfully!`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Service creation failed')
     } finally {
@@ -1336,9 +1336,9 @@ function FastlyTab({
       const compressed = await compressRules(JSON.stringify(graphPayload))
       console.log('[Deploy] Compressed length:', compressed.length)
 
-      const manifest: MssManifest = {
-        version: MSS_ENGINE_VERSION,
-        engine: 'mss-compute',
+      const manifest: VceManifest = {
+        version: VCE_ENGINE_VERSION,
+        engine: 'visual-compute-engine',
         deployedAt: new Date().toISOString(),
         serviceId: selectedService,
       }
@@ -1359,7 +1359,7 @@ function FastlyTab({
         throw new Error(`Failed to save rules: ${rulesResponse.status} - ${errorText}`)
       }
 
-      const manifestResponse = await fetch(`${FASTLY_API_BASE}/resources/stores/config/${selectedConfigStore}/item/${MSS_MANIFEST_KEY}`, {
+      const manifestResponse = await fetch(`${FASTLY_API_BASE}/resources/stores/config/${selectedConfigStore}/item/${VCE_MANIFEST_KEY}`, {
         method: 'PUT',
         headers: { 'Fastly-Key': apiToken, 'Content-Type': 'application/x-www-form-urlencoded' },
         body: manifestFormData.toString(),
@@ -1371,10 +1371,10 @@ function FastlyTab({
 
       updateFastlyState({
         services: services.map(s =>
-          s.id === selectedService ? { ...s, isMssEnabled: true, linkedConfigStore: selectedConfigStore } : s
+          s.id === selectedService ? { ...s, isVceEnabled: true, linkedConfigStore: selectedConfigStore } : s
         ),
         configStores: configStores.map(s =>
-          s.id === selectedConfigStore ? { ...s, hasMssManifest: true } : s
+          s.id === selectedConfigStore ? { ...s, hasVceManifest: true } : s
         ),
       })
 
@@ -1856,7 +1856,7 @@ function FastlyTab({
             alignItems: 'center',
             marginBottom: 10,
           }}>
-            <span style={{ color: theme.text, fontSize: 12, fontWeight: 500 }}>New MSS Service</span>
+            <span style={{ color: theme.text, fontSize: 12, fontWeight: 500 }}>New VCE Service</span>
             <button
               onClick={() => setShowCreateForm(false)}
               style={{
@@ -1882,7 +1882,7 @@ function FastlyTab({
             type="text"
             value={createForm.serviceName}
             onChange={(e) => setCreateForm(prev => ({ ...prev, serviceName: e.target.value }))}
-            placeholder="my-mss-service"
+            placeholder="my-vce-service"
             style={{
               width: '100%',
               padding: '6px 8px',
@@ -1955,7 +1955,7 @@ function FastlyTab({
             marginBottom: 12,
           }}
         >
-          + Create New MSS Service
+          + Create New VCE Service
         </button>
       )}
 
@@ -1968,7 +1968,7 @@ function FastlyTab({
         marginBottom: 4,
         textTransform: 'uppercase',
         letterSpacing: '0.5px',
-      }}>MSS Service</label>
+      }}>VCE Service</label>
 
       {services.length === 0 ? (
         <div style={{
@@ -2000,16 +2000,16 @@ function FastlyTab({
           }}
         >
           <option value="">Select a Compute service...</option>
-          {services.filter(s => s.isMssEnabled).length > 0 && (
-            <optgroup label="MSS Services">
-              {services.filter(s => s.isMssEnabled).map((s) => (
+          {services.filter(s => s.isVceEnabled).length > 0 && (
+            <optgroup label="VCE Services">
+              {services.filter(s => s.isVceEnabled).map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </optgroup>
           )}
-          {services.filter(s => !s.isMssEnabled).length > 0 && (
+          {services.filter(s => !s.isVceEnabled).length > 0 && (
             <optgroup label="Other Compute Services">
-              {services.filter(s => !s.isMssEnabled).map((s) => (
+              {services.filter(s => !s.isVceEnabled).map((s) => (
                 <option key={s.id} value={s.id}>{s.name} (not configured)</option>
               ))}
             </optgroup>
@@ -2191,7 +2191,7 @@ function FastlyTab({
                       }}>
                         {engineVersion.engine} v{engineVersion.version}
                       </span>
-                      {engineVersion.engine !== 'MSS Engine' ? (
+                      {engineVersion.engine !== 'VCE Engine' ? (
                         <span style={{
                           marginLeft: 6,
                           padding: '1px 4px',
@@ -2202,7 +2202,7 @@ function FastlyTab({
                           fontSize: 8,
                           fontWeight: 500,
                         }}>UNKNOWN ENGINE</span>
-                      ) : engineVersion.version === MSS_ENGINE_VERSION ? (
+                      ) : engineVersion.version === VCE_ENGINE_VERSION ? (
                         <span style={{
                           marginLeft: 6,
                           padding: '1px 4px',
@@ -2228,7 +2228,7 @@ function FastlyTab({
                     </div>
                   </div>
                   {/* Update button - show if version mismatch or unknown engine */}
-                  {(engineVersion.engine !== 'MSS Engine' || engineVersion.version !== MSS_ENGINE_VERSION) && (
+                  {(engineVersion.engine !== 'VCE Engine' || engineVersion.version !== VCE_ENGINE_VERSION) && (
                     <>
                       <p style={{
                         color: theme.textMuted,
@@ -2254,7 +2254,7 @@ function FastlyTab({
                           opacity: loading ? 0.6 : 1,
                         }}
                       >
-                        Update to MSS Engine v{MSS_ENGINE_VERSION}
+                        Update to VCE Engine v{VCE_ENGINE_VERSION}
                       </button>
                     </>
                   )}
@@ -2296,7 +2296,7 @@ function FastlyTab({
                       opacity: loading ? 0.6 : 1,
                     }}
                   >
-                    Deploy MSS Engine v{MSS_ENGINE_VERSION}
+                    Deploy VCE Engine v{VCE_ENGINE_VERSION}
                   </button>
                 </>
               )}
@@ -2331,7 +2331,7 @@ function FastlyTab({
         </>
       )}
 
-      {/* Enable MSS button for non-configured services */}
+      {/* Enable VCE button for non-configured services */}
       {selectedService && !selectedConfigStore && (() => {
         const service = services.find(s => s.id === selectedService)
         if (!service || service.linkedConfigStore) return null
@@ -2349,7 +2349,7 @@ function FastlyTab({
               margin: '0 0 8px 0',
               lineHeight: 1.4,
             }}>
-              This Compute service is not configured for MSS. Enable MSS to deploy security rules.
+              This Compute service is not configured for VCE. Enable VCE to deploy security rules.
             </p>
             <p style={{
               color: theme.textMuted,
@@ -2374,7 +2374,7 @@ function FastlyTab({
               </div>
             )}
             <button
-              onClick={handleEnableMss}
+              onClick={handleEnableVce}
               disabled={loading}
               style={{
                 width: '100%',
@@ -2389,7 +2389,7 @@ function FastlyTab({
                 opacity: loading ? 0.6 : 1,
               }}
             >
-              {loading ? 'Enabling...' : 'Enable MSS on this service'}
+              {loading ? 'Enabling...' : 'Enable VCE on this service'}
             </button>
           </div>
         )

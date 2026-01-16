@@ -1,4 +1,4 @@
-declare module 'mss-core' {
+declare module 'vce-core' {
   export class WasmGraph {
     constructor(name: string)
     free(): void
