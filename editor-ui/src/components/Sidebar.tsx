@@ -82,13 +82,15 @@ export function Sidebar({ nodes, edges, onAddTemplate, onLoadRules }: SidebarPro
 
   // Fastly connection state - lifted up to persist across tab switches
   const stored = loadStoredSettings()
-  const [fastlyState, setFastlyState] = useState({
+  const [fastlyState, setFastlyState] = useState<FastlyState>({
     apiToken: stored.apiToken,
     isConnected: false,
     services: [] as FastlyService[],
     configStores: [] as ConfigStore[],
     selectedService: stored.selectedService,
     selectedConfigStore: stored.selectedConfigStore,
+    engineVersion: null,
+    engineVersionLoading: false,
   })
 
   // Local development mode state - lifted up to persist across tab switches
@@ -452,6 +454,9 @@ type EngineVersion = {
   engine: string
   version: string
   format: string
+  rules_hash?: string
+  nodes_count?: number
+  edges_count?: number
 } | null
 
 type ConfigStore = {
@@ -468,9 +473,53 @@ type VceManifest = {
 }
 
 const VCE_MANIFEST_KEY = 'vce_manifest'
-const VCE_ENGINE_VERSION = '1.1.3'
+// Version must match compute/Cargo.toml - that is the source of truth
+const VCE_ENGINE_VERSION = '1.1.5'
 const FASTLY_API_BASE = 'https://api.fastly.com'
 const STORAGE_KEY = 'vce-fastly'
+
+// Edge propagation check result
+interface EdgeCheckResult {
+  totalPops: number
+  successPops: number
+  failedPops: number
+  percent: number
+  allSuccess: boolean
+}
+
+// Check deployment propagation across all Fastly POPs
+async function checkEdgePropagation(
+  serviceUrl: string,
+  apiToken: string
+): Promise<EdgeCheckResult> {
+  const response = await fetch(
+    `${FASTLY_API_BASE}/content/edge_check?url=${encodeURIComponent(serviceUrl)}`,
+    { headers: { 'Fastly-Key': apiToken } }
+  )
+
+  if (!response.ok) {
+    throw new Error(`Edge check failed: ${response.status}`)
+  }
+
+  const data = await response.json() as Array<{
+    pop: string
+    response: { status: number }
+    hash: string
+  }>
+
+  const totalPops = data.length
+  const successPops = data.filter(p => p.response?.status === 200).length
+  const failedPops = totalPops - successPops
+  const percent = Math.floor((successPops / totalPops) * 100)
+
+  return {
+    totalPops,
+    successPops,
+    failedPops,
+    percent,
+    allSuccess: failedPops === 0
+  }
+}
 
 function loadStoredSettings(): { apiToken: string; selectedService: string; selectedConfigStore: string } {
   try {
@@ -500,6 +549,188 @@ function generateDomainName(serviceName: string): string {
   return `${sanitized}.edgecompute.app`
 }
 
+/**
+ * Find an existing config store by name, or create a new one.
+ * Config stores are account-level resources, so we check for existing ones to avoid duplicates.
+ * @returns { id: string, created: boolean } - Store ID and whether it was newly created
+ */
+async function findOrCreateConfigStore(
+  storeName: string,
+  existingStores: ConfigStore[],
+  fastlyFetch: (endpoint: string, options?: RequestInit) => Promise<unknown>
+): Promise<{ id: string; created: boolean }> {
+  // Check if store already exists (case-insensitive match)
+  const existingStore = existingStores.find(
+    s => s.name.toLowerCase() === storeName.toLowerCase()
+  )
+
+  if (existingStore) {
+    console.log(`[ConfigStore] Found existing store: ${existingStore.name} (${existingStore.id})`)
+    return { id: existingStore.id, created: false }
+  }
+
+  // Create new store
+  console.log(`[ConfigStore] Creating new store: ${storeName}`)
+  const configStoreData = await fastlyFetch('/resources/stores/config', {
+    method: 'POST',
+    body: JSON.stringify({ name: storeName }),
+  }) as { id: string }
+
+  return { id: configStoreData.id, created: true }
+}
+
+/**
+ * Check if a config store is already linked to a service
+ * Returns the resource link info if found, null otherwise
+ */
+async function getServiceConfigStoreLink(
+  serviceId: string,
+  version: number,
+  fastlyFetch: (endpoint: string, options?: RequestInit) => Promise<unknown>
+): Promise<{ resourceId: string; linkName: string } | null> {
+  try {
+    const resources = await fastlyFetch(`/service/${serviceId}/version/${version}/resource`) as Array<{
+      resource_id: string
+      name: string
+      resource_type?: string
+    }>
+
+    // Find a config store resource link (name 'security_rules' is what we use)
+    const configStoreLink = resources.find(r => r.name === 'security_rules')
+    if (configStoreLink) {
+      return { resourceId: configStoreLink.resource_id, linkName: configStoreLink.name }
+    }
+    return null
+  } catch (err) {
+    console.log('[ConfigStore] Error checking service resource links:', err)
+    return null
+  }
+}
+
+/**
+ * Get config store status for a service
+ * Returns detailed info about the config store state
+ */
+interface ConfigStoreStatus {
+  status: 'not_linked' | 'linked_no_manifest' | 'linked_outdated' | 'linked_ok' | 'error'
+  storeId?: string
+  storeName?: string
+  manifestVersion?: string
+  currentVersion: string
+  message: string
+}
+
+async function getConfigStoreStatus(
+  serviceId: string,
+  version: number,
+  configStores: ConfigStore[],
+  apiToken: string,
+  fastlyFetch: (endpoint: string, options?: RequestInit) => Promise<unknown>
+): Promise<ConfigStoreStatus> {
+  const currentVersion = VCE_ENGINE_VERSION
+
+  try {
+    // Check if config store is linked to service
+    const link = await getServiceConfigStoreLink(serviceId, version, fastlyFetch)
+    if (!link) {
+      return {
+        status: 'not_linked',
+        currentVersion,
+        message: 'No Config Store linked to this service'
+      }
+    }
+
+    // Find store name
+    const store = configStores.find(s => s.id === link.resourceId)
+    const storeName = store?.name || link.resourceId
+
+    // Try to fetch the manifest
+    try {
+      const response = await fetch(
+        `${FASTLY_API_BASE}/resources/stores/config/${link.resourceId}/item/${VCE_MANIFEST_KEY}`,
+        { headers: { 'Fastly-Key': apiToken } }
+      )
+
+      if (!response.ok) {
+        return {
+          status: 'linked_no_manifest',
+          storeId: link.resourceId,
+          storeName,
+          currentVersion,
+          message: `Config Store "${storeName}" linked but missing VCE manifest`
+        }
+      }
+
+      const manifest = await response.json() as VceManifest
+
+      if (manifest.version !== currentVersion) {
+        return {
+          status: 'linked_outdated',
+          storeId: link.resourceId,
+          storeName,
+          manifestVersion: manifest.version,
+          currentVersion,
+          message: `Config Store "${storeName}" has VCE v${manifest.version} (v${currentVersion} available)`
+        }
+      }
+
+      return {
+        status: 'linked_ok',
+        storeId: link.resourceId,
+        storeName,
+        manifestVersion: manifest.version,
+        currentVersion,
+        message: `Config Store "${storeName}" linked with VCE v${manifest.version}`
+      }
+    } catch {
+      return {
+        status: 'linked_no_manifest',
+        storeId: link.resourceId,
+        storeName,
+        currentVersion,
+        message: `Config Store "${storeName}" linked but manifest not readable`
+      }
+    }
+  } catch (err) {
+    return {
+      status: 'error',
+      currentVersion,
+      message: `Error checking config store: ${err instanceof Error ? err.message : 'Unknown error'}`
+    }
+  }
+}
+
+// Compute rules hash matching the Rust engine's HMAC-SHA256 implementation
+// WebCrypto doesn't allow empty keys, so we compute HMAC manually
+async function computeRulesHash(rulesPacked: string): Promise<string> {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(rulesPacked)
+
+  // HMAC with empty key: key is padded to block size (64 bytes) with zeros
+  // ipad = 0x36 repeated, opad = 0x5c repeated
+  const blockSize = 64
+  const ipad = new Uint8Array(blockSize).fill(0x36)
+  const opad = new Uint8Array(blockSize).fill(0x5c)
+
+  // Inner hash: SHA256(ipad || message)
+  const innerData = new Uint8Array(blockSize + data.length)
+  innerData.set(ipad, 0)
+  innerData.set(data, blockSize)
+  const innerHash = await crypto.subtle.digest('SHA-256', innerData)
+
+  // Outer hash: SHA256(opad || inner_hash)
+  const outerData = new Uint8Array(blockSize + 32)
+  outerData.set(opad, 0)
+  outerData.set(new Uint8Array(innerHash), blockSize)
+  const signature = await crypto.subtle.digest('SHA-256', outerData)
+
+  // Take first 8 bytes, convert to hex (16 chars)
+  const hashArray = new Uint8Array(signature).slice(0, 8)
+  return Array.from(hashArray).map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+type DeployStatus = 'idle' | 'deploying' | 'verifying' | 'verified' | 'timeout' | 'error'
+
 type FastlyState = {
   apiToken: string
   isConnected: boolean
@@ -507,6 +738,8 @@ type FastlyState = {
   configStores: ConfigStore[]
   selectedService: string
   selectedConfigStore: string
+  engineVersion: EngineVersion
+  engineVersionLoading: boolean
 }
 
 type LocalModeState = {
@@ -536,12 +769,20 @@ function FastlyTab({
   localModeState: LocalModeState
   setLocalModeState: React.Dispatch<React.SetStateAction<LocalModeState>>
 }) {
-  const { apiToken, isConnected, services, configStores, selectedService, selectedConfigStore } = fastlyState
+  const { apiToken, isConnected, services, configStores, selectedService, selectedConfigStore, engineVersion, engineVersionLoading } = fastlyState
   const { localMode, localServerAvailable, localComputeRunning, localEngineVersion, hasLoadedRules } = localModeState
 
   // Helper to update local mode state
   const updateLocalModeState = (updates: Partial<LocalModeState>) => {
     setLocalModeState(prev => ({ ...prev, ...updates }))
+  }
+
+  // Helper to update engine version state (lifted to parent)
+  const setEngineVersion = (version: EngineVersion) => {
+    setFastlyState(prev => ({ ...prev, engineVersion: version }))
+  }
+  const setEngineVersionLoading = (loading: boolean) => {
+    setFastlyState(prev => ({ ...prev, engineVersionLoading: loading }))
   }
 
   // Local UI state (doesn't need to persist)
@@ -551,9 +792,21 @@ function FastlyTab({
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [createForm, setCreateForm] = useState({ serviceName: '' })
   const [createProgress, setCreateProgress] = useState<string | null>(null)
-  const [engineVersion, setEngineVersion] = useState<EngineVersion>(null)
-  const [engineVersionLoading, setEngineVersionLoading] = useState(false)
   const [engineUpdateProgress, setEngineUpdateProgress] = useState<string | null>(null)
+  const [deployStatus, setDeployStatus] = useState<DeployStatus>('idle')
+  const [deployProgress, setDeployProgress] = useState<string | null>(null)
+
+  // Config store preview state
+  const [storePreview, setStorePreview] = useState<{
+    storeId: string
+    items: Array<{ key: string; value: string; truncated: boolean }>
+    loading: boolean
+    error: string | null
+  } | null>(null)
+
+  // Config store status for the selected service
+  const [configStoreStatus, setConfigStoreStatus] = useState<ConfigStoreStatus | null>(null)
+  const [configStoreStatusLoading, setConfigStoreStatusLoading] = useState(false)
 
   const LOCAL_API_URL = 'http://localhost:3001/local-api'
 
@@ -724,7 +977,8 @@ function FastlyTab({
 
   const fetchEngineVersion = useCallback(async (serviceName: string) => {
     setEngineVersionLoading(true)
-    setEngineVersion(null)
+    // Don't clear engineVersion here - keep showing the old value while loading
+    // This prevents the "Not detected" flash when switching tabs
 
     try {
       const domain = generateDomainName(serviceName)
@@ -737,15 +991,59 @@ function FastlyTab({
         const data = await response.json()
         if (data.engine && data.version) {
           setEngineVersion(data)
+        } else {
+          // Response OK but no valid version data - clear it
+          setEngineVersion(null)
         }
+      } else {
+        // Response not OK (404, 500, etc) - service not deployed or error
+        setEngineVersion(null)
       }
     } catch (err) {
       console.log('[Version] Failed to fetch engine version:', err)
-      // Not an error - service might not be deployed yet or unreachable
+      // Network error - service might not be deployed yet or unreachable
+      setEngineVersion(null)
     } finally {
       setEngineVersionLoading(false)
     }
   }, [])
+
+  // Fetch config store items for preview
+  const fetchStorePreview = useCallback(async (storeId: string) => {
+    if (storePreview?.storeId === storeId && !storePreview.error) {
+      // Toggle off if already showing
+      setStorePreview(null)
+      return
+    }
+
+    setStorePreview({ storeId, items: [], loading: true, error: null })
+
+    try {
+      const response = await fetch(`${FASTLY_API_BASE}/resources/stores/config/${storeId}/items?limit=100`, {
+        headers: { 'Fastly-Key': apiToken, 'Accept': 'application/json' },
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch items: ${response.status}`)
+      }
+
+      const data = await response.json()
+      const items = (data.data || []).map((item: { item_key: string; item_value?: string }) => ({
+        key: item.item_key,
+        value: item.item_value?.substring(0, 200) || '[no value]',
+        truncated: (item.item_value?.length || 0) > 200,
+      }))
+
+      setStorePreview({ storeId, items, loading: false, error: null })
+    } catch (err) {
+      setStorePreview({
+        storeId,
+        items: [],
+        loading: false,
+        error: err instanceof Error ? err.message : 'Failed to fetch',
+      })
+    }
+  }, [apiToken, storePreview])
 
   const handleUpdateEngine = async () => {
     const service = services.find(s => s.id === selectedService)
@@ -760,23 +1058,39 @@ function FastlyTab({
     console.log('[Engine Update] Starting update for service:', service.name, service.id)
 
     try {
-      // Get the active version number
+      // Get the version to work with
       console.log('[Engine Update] Fetching service details...')
       const serviceData = await fastlyFetch(`/service/${service.id}/details`)
       const activeVersion = serviceData.active_version?.number
-      console.log('[Engine Update] Active version:', activeVersion)
-      if (!activeVersion) {
-        throw new Error('No active version found for service')
-      }
+      const latestVersion = serviceData.versions?.[serviceData.versions.length - 1]?.number || 1
+      console.log('[Engine Update] Active version:', activeVersion, 'Latest version:', latestVersion)
 
-      setEngineUpdateProgress('Cloning service version...')
-      // Clone the active version to create a new one
-      console.log('[Engine Update] Cloning version', activeVersion)
-      const clonedVersion = await fastlyFetch(`/service/${service.id}/version/${activeVersion}/clone`, {
-        method: 'PUT',
-      })
-      const newVersionNumber = clonedVersion.number
-      console.log('[Engine Update] Created new version:', newVersionNumber)
+      let newVersionNumber: number
+      if (activeVersion) {
+        // Clone the active version to create a new one
+        setEngineUpdateProgress('Cloning service version...')
+        console.log('[Engine Update] Cloning version', activeVersion)
+        const clonedVersion = await fastlyFetch(`/service/${service.id}/version/${activeVersion}/clone`, {
+          method: 'PUT',
+        })
+        newVersionNumber = clonedVersion.number
+        console.log('[Engine Update] Created new version:', newVersionNumber)
+      } else {
+        // No active version - this is a new service, use the latest draft version
+        // Check if the latest version is locked, if so clone it
+        const versionData = await fastlyFetch(`/service/${service.id}/version/${latestVersion}`)
+        if (versionData.locked) {
+          setEngineUpdateProgress('Cloning locked version...')
+          const clonedVersion = await fastlyFetch(`/service/${service.id}/version/${latestVersion}/clone`, {
+            method: 'PUT',
+          })
+          newVersionNumber = clonedVersion.number
+        } else {
+          // Use the existing draft version
+          newVersionNumber = latestVersion
+        }
+        console.log('[Engine Update] Using version:', newVersionNumber, '(new service, no active version)')
+      }
 
       setEngineUpdateProgress('Building VCE Engine package...')
       // Build the new package
@@ -812,18 +1126,72 @@ function FastlyTab({
       const activateResult = await fastlyFetch(`/service/${service.id}/version/${newVersionNumber}/activate`, { method: 'PUT' })
       console.log('[Engine Update] Version activated:', activateResult)
 
-      setStatus(`VCE Engine updated to v${VCE_ENGINE_VERSION}`)
-      setEngineUpdateProgress('Waiting for edge propagation...')
-      console.log('[Engine Update] Update complete! Waiting for edge propagation...')
+      setStatus(`VCE Engine deployed, checking global propagation...`)
+      console.log('[Engine Update] Update complete! Checking edge propagation...')
 
-      // Refetch the engine version after a short delay to let the edge propagate
-      setTimeout(async () => {
-        console.log('[Engine Update] Re-checking engine version...')
-        setEngineUpdateProgress('Verifying deployment...')
-        await fetchEngineVersion(service.name)
-        setEngineUpdateProgress(null)
-        setLoading(false)
-      }, 3000)
+      // Check edge propagation across all Fastly POPs
+      const domain = generateDomainName(service.name)
+      const serviceUrl = `https://${domain}/_version`
+      const maxAttempts = 30  // 30 attempts * 2s = 60s max
+      const pollInterval = 2000  // 2 seconds between polls
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          const edgeStatus = await checkEdgePropagation(serviceUrl, apiToken)
+          console.log(`[Engine Update] Edge check ${attempt}/${maxAttempts}:`, edgeStatus)
+
+          setEngineUpdateProgress(
+            `Propagating to edge: ${edgeStatus.successPops}/${edgeStatus.totalPops} POPs (${edgeStatus.percent}%)`
+          )
+
+          // Consider success when 95%+ POPs respond with 200
+          if (edgeStatus.percent >= 95) {
+            console.log('[Engine Update] Edge propagation complete!')
+
+            // Now verify the engine version
+            setEngineUpdateProgress('Verifying engine version...')
+            const versionResponse = await fetch(serviceUrl, {
+              method: 'GET',
+              headers: { 'Accept': 'application/json' },
+              cache: 'no-store',
+            })
+
+            if (versionResponse.ok) {
+              const versionData = await versionResponse.json()
+              if (versionData.engine === 'Visual Compute Engine' && versionData.version === VCE_ENGINE_VERSION) {
+                setEngineVersion(versionData)
+                setEngineUpdateProgress(null)
+                setStatus(`VCE Engine v${VCE_ENGINE_VERSION} deployed to ${edgeStatus.successPops} POPs globally!`)
+                setLoading(false)
+                return
+              }
+            }
+
+            // Propagated but version check failed - still good enough
+            setEngineUpdateProgress(null)
+            setStatus(`Engine deployed to ${edgeStatus.successPops}/${edgeStatus.totalPops} POPs`)
+            await fetchEngineVersion(service.name)
+            setLoading(false)
+            return
+          }
+        } catch (pollErr) {
+          const errMsg = pollErr instanceof Error ? pollErr.message : 'Unknown error'
+          setEngineUpdateProgress(`Checking propagation (${attempt}/${maxAttempts}): ${errMsg}`)
+          console.log('[Engine Update] Edge check error:', pollErr)
+        }
+
+        // Wait before next attempt
+        if (attempt < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, pollInterval))
+        }
+      }
+
+      // Timeout - but deployment likely succeeded
+      console.log('[Engine Update] Propagation check timeout')
+      setEngineUpdateProgress(null)
+      setStatus('Engine deployed (propagation still in progress)')
+      await fetchEngineVersion(service.name)
+      setLoading(false)
 
     } catch (err) {
       console.error('[Engine Update] Error:', err)
@@ -1029,6 +1397,39 @@ function FastlyTab({
     saveSettings({ apiToken: '', selectedService: '', selectedConfigStore: '' })
   }
 
+  // Fetch config store status for a service
+  const fetchConfigStoreStatus = async (serviceId: string) => {
+    const service = services.find(s => s.id === serviceId)
+    if (!service) {
+      setConfigStoreStatus(null)
+      return
+    }
+
+    setConfigStoreStatusLoading(true)
+    try {
+      // Get the latest version number
+      const serviceData = await fastlyFetch(`/service/${serviceId}/details`)
+      const latestVersion = serviceData.versions?.[serviceData.versions.length - 1]?.number || 1
+
+      const status = await getConfigStoreStatus(
+        serviceId,
+        latestVersion,
+        configStores,
+        apiToken,
+        fastlyFetch
+      )
+      setConfigStoreStatus(status)
+    } catch (err) {
+      setConfigStoreStatus({
+        status: 'error',
+        currentVersion: VCE_ENGINE_VERSION,
+        message: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`
+      })
+    } finally {
+      setConfigStoreStatusLoading(false)
+    }
+  }
+
   const handleServiceChange = async (serviceId: string) => {
     console.log('[Load] Service changed to:', serviceId)
     const service = services.find(s => s.id === serviceId)
@@ -1043,6 +1444,13 @@ function FastlyTab({
     // Fetch engine version from deployed service
     if (service?.name) {
       fetchEngineVersion(service.name)
+    }
+
+    // Fetch config store status for non-VCE services (to show setup UI)
+    if (service && !service.linkedConfigStore) {
+      fetchConfigStoreStatus(serviceId)
+    } else {
+      setConfigStoreStatus(null)
     }
 
     if (linkedStore) {
@@ -1065,27 +1473,22 @@ function FastlyTab({
     }
   }
 
-  // Refresh the selected service (re-check engine version)
+  // Refresh the selected service (re-check engine version only)
+  // NOTE: Does NOT reload rules from config store to avoid overwriting unsaved canvas changes
   const handleRefreshService = async () => {
     const service = services.find(s => s.id === selectedService)
     if (!service) return
 
-    setEngineVersionLoading(true)
-    setStatus('Checking service status...')
+    setStatus('Checking engine status...')
 
-    // Re-fetch engine version
+    // Re-fetch engine version only
     await fetchEngineVersion(service.name)
 
-    // Also reload rules if there's a linked config store
-    if (service.linkedConfigStore) {
-      await loadRulesFromStore(service.linkedConfigStore, service.name)
-    }
-
-    setStatus(`Refreshed ${service.name}`)
+    setStatus(`Engine status refreshed`)
   }
 
-  // Enable VCE on an existing Compute service
-  const handleEnableVce = async () => {
+  // Setup Config Store ONLY (Step 2) - does NOT deploy engine
+  const handleSetupConfigStore = async () => {
     const service = services.find(s => s.id === selectedService)
     if (!service) {
       setError('No service selected')
@@ -1094,62 +1497,62 @@ function FastlyTab({
 
     setLoading(true)
     setError(null)
-    setCreateProgress('Creating Config Store...')
+    setCreateProgress('Setting up Config Store...')
 
     try {
       // Get the latest version number
       const serviceData = await fastlyFetch(`/service/${service.id}/details`)
+      const activeVersion = serviceData.active_version?.number
       const latestVersion = serviceData.versions?.[serviceData.versions.length - 1]?.number || 1
 
-      // Check if we need to clone (if version is active/locked)
-      let versionToUse = latestVersion
-      const versionData = await fastlyFetch(`/service/${service.id}/version/${latestVersion}`)
+      // Use active version if available, otherwise latest
+      let versionToUse = activeVersion || latestVersion
+      const versionData = await fastlyFetch(`/service/${service.id}/version/${versionToUse}`)
+
+      // Clone if version is active/locked
       if (versionData.active || versionData.locked) {
         setCreateProgress('Cloning service version...')
-        const clonedVersion = await fastlyFetch(`/service/${service.id}/version/${latestVersion}/clone`, {
+        const clonedVersion = await fastlyFetch(`/service/${service.id}/version/${versionToUse}/clone`, {
           method: 'PUT',
         })
         versionToUse = clonedVersion.number
       }
 
-      // Create Config Store
+      // Find or create Config Store (account-level resource)
       const configStoreName = `${service.name}-rules`
-      const configStoreData = await fastlyFetch('/resources/stores/config', {
-        method: 'POST',
-        body: JSON.stringify({ name: configStoreName }),
-      })
-      const configStoreId = configStoreData.id
-      setCreateProgress('Linking Config Store to service...')
+      const { id: configStoreId, created: storeCreated } = await findOrCreateConfigStore(
+        configStoreName,
+        configStores,
+        fastlyFetch
+      )
+      setCreateProgress(storeCreated ? 'Linking Config Store to service...' : 'Using existing Config Store...')
 
-      // Link Config Store to service
-      await fastlyFetch(`/service/${service.id}/version/${versionToUse}/resource`, {
-        method: 'POST',
-        body: JSON.stringify({ resource_id: configStoreId, name: 'security_rules' }),
-      })
-      setCreateProgress('Building and uploading VCE Engine...')
-
-      // Build and upload the WASM package
-      const packageB64 = await buildVcePackage(service.name)
-      const packageBlob = await fetch(`data:application/gzip;base64,${packageB64}`).then(r => r.blob())
-      const formData = new FormData()
-      formData.append('package', packageBlob, 'package.tar.gz')
-
-      const uploadResponse = await fetch(`${FASTLY_API_BASE}/service/${service.id}/version/${versionToUse}/package`, {
-        method: 'PUT',
-        headers: { 'Fastly-Key': apiToken },
-        body: formData,
-      })
-
-      if (!uploadResponse.ok) {
-        const text = await uploadResponse.text()
-        throw new Error(`Package upload failed: ${uploadResponse.status} - ${text}`)
+      // Check if Config Store is already linked to this service
+      const existingLink = await getServiceConfigStoreLink(service.id, versionToUse, fastlyFetch)
+      if (!existingLink || existingLink.resourceId !== configStoreId) {
+        // Link Config Store to service (only if not already linked)
+        try {
+          await fastlyFetch(`/service/${service.id}/version/${versionToUse}/resource`, {
+            method: 'POST',
+            body: JSON.stringify({ resource_id: configStoreId, name: 'security_rules' }),
+          })
+        } catch (err) {
+          // Handle 409 Duplicate link error - store is already linked, which is fine
+          if (err instanceof Error && err.message.includes('409')) {
+            console.log('[ConfigStore] Store already linked, continuing...')
+          } else {
+            throw err
+          }
+        }
+      } else {
+        console.log('[ConfigStore] Store already linked to service, skipping link step')
       }
-      setCreateProgress('Activating service version...')
 
+      setCreateProgress('Activating service version...')
       // Activate the new version
       await fastlyFetch(`/service/${service.id}/version/${versionToUse}/activate`, { method: 'PUT' })
-      setCreateProgress('Deploying VCE manifest...')
 
+      setCreateProgress('Creating VCE manifest...')
       // Create manifest in Config Store
       const manifest: VceManifest = {
         version: VCE_ENGINE_VERSION,
@@ -1181,13 +1584,13 @@ function FastlyTab({
         selectedConfigStore: configStoreId,
       })
       saveSettings({ apiToken, selectedService: service.id, selectedConfigStore: configStoreId })
-      setStatus(`VCE enabled on "${service.name}"!`)
+      setStatus(`Config Store linked to "${service.name}"!`)
 
-      // Fetch engine version after a delay
-      setTimeout(() => fetchEngineVersion(service.name), 3000)
+      // Clear config store status since it's now set up
+      setConfigStoreStatus(null)
 
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to enable VCE')
+      setError(err instanceof Error ? err.message : 'Failed to setup Config Store')
     } finally {
       setLoading(false)
       setCreateProgress(null)
@@ -1211,20 +1614,31 @@ function FastlyTab({
       })
       const serviceId = serviceData.id
       const serviceVersion = serviceData.versions?.[0]?.number || 1
-      setCreateProgress('Creating Config Store...')
+      setCreateProgress('Setting up Config Store...')
 
+      // Find or create Config Store (account-level resource)
       const configStoreName = `${createForm.serviceName}-rules`
-      const configStoreData = await fastlyFetch('/resources/stores/config', {
-        method: 'POST',
-        body: JSON.stringify({ name: configStoreName }),
-      })
-      const configStoreId = configStoreData.id
-      setCreateProgress('Linking Config Store to service...')
+      const { id: configStoreId, created: storeCreated } = await findOrCreateConfigStore(
+        configStoreName,
+        configStores,
+        fastlyFetch
+      )
+      setCreateProgress(storeCreated ? 'Linking Config Store to service...' : 'Using existing Config Store...')
 
-      await fastlyFetch(`/service/${serviceId}/version/${serviceVersion}/resource`, {
-        method: 'POST',
-        body: JSON.stringify({ resource_id: configStoreId, name: 'security_rules' }),
-      })
+      // Link Config Store to service (handle case where it might already be linked)
+      try {
+        await fastlyFetch(`/service/${serviceId}/version/${serviceVersion}/resource`, {
+          method: 'POST',
+          body: JSON.stringify({ resource_id: configStoreId, name: 'security_rules' }),
+        })
+      } catch (err) {
+        // Handle 409 Duplicate link error - store is already linked, which is fine
+        if (err instanceof Error && err.message.includes('409')) {
+          console.log('[ConfigStore] Store already linked, continuing...')
+        } else {
+          throw err
+        }
+      }
       setCreateProgress('Adding domain...')
 
       const domain = generateDomainName(createForm.serviceName)
@@ -1326,15 +1740,20 @@ function FastlyTab({
 
     setLoading(true)
     setError(null)
+    setDeployStatus('deploying')
+    setDeployProgress(null)
 
     try {
       // Store the full graph - nodes and edges as-is
       const graphPayload = { nodes, edges }
       console.log('[Deploy] Nodes count:', nodes.length)
       console.log('[Deploy] Edges count:', edges.length)
-      console.log('[Deploy] Graph payload:', JSON.stringify(graphPayload, null, 2))
       const compressed = await compressRules(JSON.stringify(graphPayload))
       console.log('[Deploy] Compressed length:', compressed.length)
+
+      // Compute expected hash for verification
+      const expectedHash = await computeRulesHash(compressed)
+      console.log('[Deploy] Expected rules hash:', expectedHash)
 
       const manifest: VceManifest = {
         version: VCE_ENGINE_VERSION,
@@ -1378,15 +1797,74 @@ function FastlyTab({
         ),
       })
 
-      console.log('[Deploy] Rules response:', await rulesResponse.clone().json())
-      console.log('[Deploy] Manifest response:', await manifestResponse.clone().json())
-
       const storeName = configStores.find(s => s.id === selectedConfigStore)?.name
       const serviceName = services.find(s => s.id === selectedService)?.name
-      console.log('[Deploy] Success! Deployed to', storeName, 'for', serviceName)
-      setStatus(`Rules deployed to ${storeName} for ${serviceName}`)
+      console.log('[Deploy] Config Store updated, starting verification...')
+      setStatus(`Deployed to ${storeName}, verifying...`)
+      setDeployStatus('verifying')
+      setDeployProgress('Starting verification...')
+
+      // Poll /_version endpoint to verify deployment
+      const domain = generateDomainName(serviceName || '')
+      const maxAttempts = 30  // 30 attempts * 2s = 60s max
+      const pollInterval = 2000  // 2 seconds between polls
+      const verifyStartTime = Date.now()
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          setDeployProgress(`Waiting for Config Store to propagate... (${attempt}/${maxAttempts})`)
+          console.log(`[Deploy] Verification attempt ${attempt}/${maxAttempts}...`)
+          const versionResponse = await fetch(`https://${domain}/_version`, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+            cache: 'no-store',
+          })
+
+          if (versionResponse.ok) {
+            const versionData = await versionResponse.json()
+            console.log('[Deploy] Engine response:', versionData)
+
+            if (versionData.rules_hash === expectedHash) {
+              const elapsedSec = ((Date.now() - verifyStartTime) / 1000).toFixed(1)
+              console.log(`[Deploy] Verified! Hash matches in ${elapsedSec}s`)
+              setDeployStatus('verified')
+              setDeployProgress(null)
+              setEngineVersion(versionData)
+              setStatus(`Deployed and verified in ${elapsedSec}s (${versionData.nodes_count} nodes, ${versionData.edges_count} edges)`)
+              return
+            } else {
+              // Hash mismatch is expected while Config Store propagates - edge still has old data
+              const oldHash = versionData.rules_hash?.slice(0, 8) || 'none'
+              setDeployProgress(`Waiting for Config Store to propagate... (${attempt}/${maxAttempts}) - edge still has old rules`)
+              console.log(`[Deploy] Still propagating: edge has ${oldHash}, waiting for ${expectedHash.slice(0, 8)}`)
+            }
+          } else {
+            setDeployProgress(`Waiting for edge... (${attempt}/${maxAttempts}) - HTTP ${versionResponse.status}`)
+          }
+        } catch (pollErr) {
+          const errMsg = pollErr instanceof Error ? pollErr.message : 'Unknown error'
+          setDeployProgress(`Waiting for edge... (${attempt}/${maxAttempts}) - ${errMsg}`)
+          console.log('[Deploy] Poll error:', pollErr)
+        }
+
+        // Wait before next attempt (unless this was the last one)
+        if (attempt < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, pollInterval))
+        }
+      }
+
+      // Timeout - rules pushed but couldn't verify
+      const elapsedSec = ((Date.now() - verifyStartTime) / 1000).toFixed(1)
+      setDeployProgress(null)
+      console.log(`[Deploy] Verification timeout after ${elapsedSec}s - rules may still be propagating`)
+      setDeployStatus('timeout')
+      setStatus(`Deployed to ${storeName} - Config Store still propagating after ${elapsedSec}s, refresh in a few seconds`)
+
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Deployment failed')
+      const errMsg = err instanceof Error ? err.message : 'Deployment failed'
+      setError(errMsg)
+      setDeployProgress(errMsg)
+      setDeployStatus('error')
     } finally {
       setLoading(false)
     }
@@ -1413,8 +1891,7 @@ function FastlyTab({
           <span>Local Dev Mode</span>
           <button
             onClick={() => {
-              setLocalMode(false)
-              setLocalServerAvailable(false)
+              updateLocalModeState({ localMode: false, localServerAvailable: false })
             }}
             style={{
               background: 'none',
@@ -2150,16 +2627,52 @@ function FastlyTab({
                 fontWeight: 500,
                 marginBottom: 2,
                 textTransform: 'uppercase',
-              }}>Engine Version</label>
+              }}>Step 1: Engine (WASM Binary)</label>
+              <p style={{
+                color: theme.textMuted,
+                fontSize: 9,
+                margin: '0 0 4px 0',
+                opacity: 0.8,
+              }}>The code that runs on Fastly's edge servers</p>
               {engineUpdateProgress ? (
                 <div style={{
-                  padding: '4px 6px',
+                  padding: '8px',
                   background: theme.bg,
                   borderRadius: 4,
-                  color: theme.textMuted,
-                  fontSize: 10,
+                  border: `1px solid ${theme.border}`,
                 }}>
-                  {engineUpdateProgress}
+                  <div style={{
+                    color: theme.textSecondary,
+                    fontSize: 10,
+                    marginBottom: 6,
+                  }}>
+                    {engineUpdateProgress}
+                  </div>
+                  {/* Progress bar for edge propagation */}
+                  {engineUpdateProgress.includes('POPs') && (() => {
+                    const match = engineUpdateProgress.match(/(\d+)\/(\d+) POPs \((\d+)%\)/)
+                    if (match) {
+                      const percent = parseInt(match[3], 10)
+                      return (
+                        <div style={{
+                          width: '100%',
+                          height: 6,
+                          background: theme.bgTertiary,
+                          borderRadius: 3,
+                          overflow: 'hidden',
+                        }}>
+                          <div style={{
+                            width: `${percent}%`,
+                            height: '100%',
+                            background: percent >= 95 ? '#10B981' : '#3B82F6',
+                            borderRadius: 3,
+                            transition: 'width 0.3s ease',
+                          }} />
+                        </div>
+                      )
+                    }
+                    return null
+                  })()}
                 </div>
               ) : engineVersionLoading ? (
                 <div style={{
@@ -2191,7 +2704,7 @@ function FastlyTab({
                       }}>
                         {engineVersion.engine} v{engineVersion.version}
                       </span>
-                      {engineVersion.engine !== 'VCE Engine' ? (
+                      {engineVersion.engine !== 'Visual Compute Engine' ? (
                         <span style={{
                           marginLeft: 6,
                           padding: '1px 4px',
@@ -2228,7 +2741,7 @@ function FastlyTab({
                     </div>
                   </div>
                   {/* Update button - show if version mismatch or unknown engine */}
-                  {(engineVersion.engine !== 'VCE Engine' || engineVersion.version !== VCE_ENGINE_VERSION) && (
+                  {(engineVersion.engine !== 'Visual Compute Engine' || engineVersion.version !== VCE_ENGINE_VERSION) ? (
                     <>
                       <p style={{
                         color: theme.textMuted,
@@ -2236,7 +2749,7 @@ function FastlyTab({
                         margin: '6px 0 4px 0',
                         fontStyle: 'italic',
                       }}>
-                        Updates take ~1 minute to propagate.
+                        Updates typically take ~30-60s to propagate.
                       </p>
                       <button
                         onClick={handleUpdateEngine}
@@ -2254,9 +2767,27 @@ function FastlyTab({
                           opacity: loading ? 0.6 : 1,
                         }}
                       >
-                        Update to VCE Engine v{VCE_ENGINE_VERSION}
+                        Update Engine to v{VCE_ENGINE_VERSION}
                       </button>
                     </>
+                  ) : (
+                    <button
+                      onClick={handleUpdateEngine}
+                      disabled={loading}
+                      style={{
+                        marginTop: 4,
+                        padding: '4px 8px',
+                        background: 'transparent',
+                        color: theme.textMuted,
+                        border: `1px solid ${theme.border}`,
+                        borderRadius: 4,
+                        cursor: loading ? 'not-allowed' : 'pointer',
+                        fontSize: 9,
+                        opacity: loading ? 0.6 : 1,
+                      }}
+                    >
+                      {loading ? 'Re-deploying...' : 'Force Re-deploy Engine'}
+                    </button>
                   )}
                 </>
               ) : (
@@ -2271,33 +2802,66 @@ function FastlyTab({
                     <span style={{ color: theme.error }}>Not detected</span>
                     <span style={{ marginLeft: 4, fontSize: 9 }}>- service may not be deployed</span>
                   </div>
-                  {/* Deploy button - show if no engine detected */}
-                  <p style={{
-                    color: theme.textMuted,
-                    fontSize: 9,
-                    margin: '6px 0 4px 0',
-                    fontStyle: 'italic',
-                  }}>
-                    Deployment takes ~1 minute to propagate.
-                  </p>
-                  <button
-                    onClick={handleUpdateEngine}
-                    disabled={loading}
-                    style={{
-                      width: '100%',
-                      padding: '6px 8px',
-                      background: loading ? theme.bgTertiary : theme.primary,
-                      color: loading ? theme.textMuted : '#FFFFFF',
-                      border: `1px solid ${loading ? theme.border : theme.primary}`,
-                      borderRadius: 4,
-                      cursor: loading ? 'not-allowed' : 'pointer',
-                      fontSize: 10,
-                      fontWeight: 500,
-                      opacity: loading ? 0.6 : 1,
-                    }}
-                  >
-                    Deploy VCE Engine v{VCE_ENGINE_VERSION}
-                  </button>
+                  {/* Deploy button - only show if config store is already set up */}
+                  {selectedConfigStore ? (
+                    <>
+                      <p style={{
+                        color: theme.textMuted,
+                        fontSize: 9,
+                        margin: '6px 0 4px 0',
+                        fontStyle: 'italic',
+                      }}>
+                        Deployment typically takes ~30-60s to propagate.
+                      </p>
+                      <button
+                        onClick={handleUpdateEngine}
+                        disabled={loading}
+                        style={{
+                          width: '100%',
+                          padding: '6px 8px',
+                          background: loading ? theme.bgTertiary : theme.primary,
+                          color: loading ? theme.textMuted : '#FFFFFF',
+                          border: `1px solid ${loading ? theme.border : theme.primary}`,
+                          borderRadius: 4,
+                          cursor: loading ? 'not-allowed' : 'pointer',
+                          fontSize: 10,
+                          fontWeight: 500,
+                          opacity: loading ? 0.6 : 1,
+                        }}
+                      >
+                        Deploy Engine v{VCE_ENGINE_VERSION}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p style={{
+                        color: theme.textMuted,
+                        fontSize: 9,
+                        margin: '6px 0 4px 0',
+                        fontStyle: 'italic',
+                      }}>
+                        Deploy the engine first, then setup Config Store.
+                      </p>
+                      <button
+                        onClick={handleUpdateEngine}
+                        disabled={loading}
+                        style={{
+                          width: '100%',
+                          padding: '6px 8px',
+                          background: loading ? theme.bgTertiary : theme.primary,
+                          color: loading ? theme.textMuted : '#FFFFFF',
+                          border: `1px solid ${loading ? theme.border : theme.primary}`,
+                          borderRadius: 4,
+                          cursor: loading ? 'not-allowed' : 'pointer',
+                          fontSize: 10,
+                          fontWeight: 500,
+                          opacity: loading ? 0.6 : 1,
+                        }}
+                      >
+                        Deploy Engine v{VCE_ENGINE_VERSION}
+                      </button>
+                    </>
+                  )}
                 </>
               )}
             </div>
@@ -2313,21 +2877,87 @@ function FastlyTab({
             color: theme.textSecondary,
             fontSize: 10,
             fontWeight: 500,
-            marginBottom: 4,
+            marginBottom: 2,
             marginTop: 10,
             textTransform: 'uppercase',
             letterSpacing: '0.5px',
-          }}>Config Store</label>
+          }}>Step 2: Config Store</label>
+          <p style={{
+            color: theme.textMuted,
+            fontSize: 9,
+            margin: '0 0 4px 0',
+            opacity: 0.8,
+          }}>Where your rules are stored (edge key-value store)</p>
           <div style={{
             padding: '8px 10px',
             background: theme.bgTertiary,
-            border: `1px solid ${theme.border}`,
+            border: `1px solid ${theme.successBorder}`,
             borderRadius: 6,
             color: theme.text,
             fontSize: 12,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
           }}>
-            {configStores.find(s => s.id === selectedConfigStore)?.name || selectedConfigStore}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ color: theme.success }}>✓</span>
+              {configStores.find(s => s.id === selectedConfigStore)?.name || selectedConfigStore}
+            </div>
+            <button
+              onClick={() => fetchStorePreview(selectedConfigStore)}
+              style={{
+                padding: '2px 8px',
+                background: 'transparent',
+                border: `1px solid ${theme.border}`,
+                borderRadius: 3,
+                color: theme.textSecondary,
+                fontSize: 10,
+                cursor: 'pointer',
+              }}
+            >
+              {storePreview?.storeId === selectedConfigStore ? 'Hide' : 'View'}
+            </button>
           </div>
+
+          {/* Config Store Preview */}
+          {storePreview?.storeId === selectedConfigStore && (
+            <div style={{
+              marginTop: 6,
+              padding: '8px',
+              background: theme.bg,
+              border: `1px solid ${theme.border}`,
+              borderRadius: 4,
+              fontSize: 10,
+              maxHeight: 200,
+              overflowY: 'auto',
+            }}>
+              {storePreview.loading && (
+                <div style={{ color: theme.textMuted, textAlign: 'center' }}>Loading...</div>
+              )}
+              {storePreview.error && (
+                <div style={{ color: theme.error }}>{storePreview.error}</div>
+              )}
+              {!storePreview.loading && !storePreview.error && storePreview.items.length === 0 && (
+                <div style={{ color: theme.textMuted, textAlign: 'center' }}>Empty store</div>
+              )}
+              {storePreview.items.map((item, idx) => (
+                <div key={idx} style={{
+                  padding: '4px 0',
+                  borderBottom: idx < storePreview.items.length - 1 ? `1px solid ${theme.border}` : 'none',
+                }}>
+                  <div style={{ color: theme.text, fontWeight: 500, marginBottom: 2 }}>{item.key}</div>
+                  <div style={{
+                    color: theme.textMuted,
+                    fontSize: 9,
+                    wordBreak: 'break-all',
+                    fontFamily: 'monospace',
+                  }}>
+                    {item.value}{item.truncated && '...'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </>
       )}
 
@@ -2335,6 +2965,28 @@ function FastlyTab({
       {selectedService && !selectedConfigStore && (() => {
         const service = services.find(s => s.id === selectedService)
         if (!service || service.linkedConfigStore) return null
+
+        // Determine status color and icon
+        const getStatusStyle = () => {
+          if (configStoreStatusLoading) return { color: theme.textMuted, icon: '...' }
+          if (!configStoreStatus) return { color: theme.textMuted, icon: '○' }
+          switch (configStoreStatus.status) {
+            case 'linked_ok':
+              return { color: '#10B981', icon: '✓' }
+            case 'linked_outdated':
+              return { color: '#F59E0B', icon: '⚠' }
+            case 'linked_no_manifest':
+              return { color: '#F59E0B', icon: '⚠' }
+            case 'not_linked':
+              return { color: theme.textMuted, icon: '○' }
+            case 'error':
+              return { color: '#EF4444', icon: '✕' }
+            default:
+              return { color: theme.textMuted, icon: '○' }
+          }
+        }
+        const statusStyle = getStatusStyle()
+
         return (
           <div style={{
             marginTop: 10,
@@ -2343,23 +2995,67 @@ function FastlyTab({
             border: `1px solid ${theme.border}`,
             borderRadius: 6,
           }}>
-            <p style={{
-              color: theme.textMuted,
+            <label style={{
+              display: 'block',
+              color: theme.textSecondary,
               fontSize: 10,
-              margin: '0 0 8px 0',
-              lineHeight: 1.4,
+              fontWeight: 500,
+              marginBottom: 2,
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+            }}>Step 2: Config Store</label>
+
+            {/* Status display */}
+            <div style={{
+              padding: '6px 8px',
+              background: theme.bg,
+              border: `1px solid ${theme.border}`,
+              borderRadius: 4,
+              marginBottom: 8,
             }}>
-              This Compute service is not configured for VCE. Enable VCE to deploy security rules.
-            </p>
-            <p style={{
-              color: theme.textMuted,
-              fontSize: 9,
-              margin: '0 0 8px 0',
-              lineHeight: 1.4,
-              fontStyle: 'italic',
-            }}>
-              This takes 1-2 minutes. Use the refresh button to check status.
-            </p>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}>
+                <span style={{ color: statusStyle.color, fontSize: 12 }}>{statusStyle.icon}</span>
+                <span style={{
+                  color: configStoreStatusLoading ? theme.textMuted : theme.textSecondary,
+                  fontSize: 10,
+                  flex: 1,
+                }}>
+                  {configStoreStatusLoading ? 'Checking config store...' :
+                   configStoreStatus ? configStoreStatus.message :
+                   'Click to check config store status'}
+                </span>
+                {!configStoreStatusLoading && (
+                  <button
+                    onClick={() => fetchConfigStoreStatus(selectedService)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: theme.textMuted,
+                      cursor: 'pointer',
+                      fontSize: 10,
+                      padding: '2px 4px',
+                    }}
+                    title="Refresh status"
+                  >
+                    ↻
+                  </button>
+                )}
+              </div>
+              {configStoreStatus?.status === 'linked_outdated' && (
+                <div style={{
+                  marginTop: 4,
+                  fontSize: 9,
+                  color: '#F59E0B',
+                }}>
+                  Update available: v{configStoreStatus.manifestVersion} → v{configStoreStatus.currentVersion}
+                </div>
+              )}
+            </div>
+
             {createProgress && (
               <div style={{
                 padding: '6px 8px',
@@ -2374,7 +3070,7 @@ function FastlyTab({
               </div>
             )}
             <button
-              onClick={handleEnableVce}
+              onClick={handleSetupConfigStore}
               disabled={loading}
               style={{
                 width: '100%',
@@ -2389,32 +3085,106 @@ function FastlyTab({
                 opacity: loading ? 0.6 : 1,
               }}
             >
-              {loading ? 'Enabling...' : 'Enable VCE on this service'}
+              {loading ? 'Setting up...' :
+               configStoreStatus?.status === 'linked_ok' ? 'Re-deploy VCE Engine' :
+               configStoreStatus?.status === 'linked_outdated' ? 'Update VCE Engine' :
+               configStoreStatus?.status === 'linked_no_manifest' ? 'Initialize Config Store' :
+               'Setup Config Store'}
             </button>
           </div>
         )
       })()}
 
-      {/* Deploy Button */}
-      <button
-        onClick={handleDeployRules}
-        disabled={loading || !selectedConfigStore || !selectedService}
-        style={{
-          width: '100%',
-          padding: '10px 14px',
-          background: loading || !selectedConfigStore || !selectedService ? theme.bgTertiary : theme.primary,
-          color: loading || !selectedConfigStore || !selectedService ? theme.textMuted : '#FFFFFF',
-          border: `1px solid ${loading || !selectedConfigStore || !selectedService ? theme.border : theme.primary}`,
-          borderRadius: 6,
-          cursor: loading || !selectedConfigStore || !selectedService ? 'not-allowed' : 'pointer',
-          fontSize: 12,
+      {/* Deploy Rules - Step 3 */}
+      <div style={{ marginTop: 12 }}>
+        <label style={{
+          display: 'block',
+          color: theme.textSecondary,
+          fontSize: 10,
           fontWeight: 500,
-          marginTop: 12,
-          opacity: loading || !selectedConfigStore || !selectedService ? 0.5 : 1,
-        }}
-      >
-        {loading ? 'Deploying...' : 'Deploy Rules'}
-      </button>
+          marginBottom: 2,
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px',
+        }}>Step 3: Deploy Rules</label>
+        <p style={{
+          color: theme.textMuted,
+          fontSize: 9,
+          margin: '0 0 6px 0',
+          opacity: 0.8,
+        }}>Push your graph to the edge (updates in ~2-5 seconds)</p>
+        <button
+          onClick={handleDeployRules}
+          disabled={loading || !selectedConfigStore || !selectedService}
+          style={{
+            width: '100%',
+            padding: '10px 14px',
+            background: loading || !selectedConfigStore || !selectedService ? theme.bgTertiary : theme.primary,
+            color: loading || !selectedConfigStore || !selectedService ? theme.textMuted : '#FFFFFF',
+            border: `1px solid ${loading || !selectedConfigStore || !selectedService ? theme.border : theme.primary}`,
+            borderRadius: 6,
+            cursor: loading || !selectedConfigStore || !selectedService ? 'not-allowed' : 'pointer',
+            fontSize: 12,
+            fontWeight: 500,
+            opacity: loading || !selectedConfigStore || !selectedService ? 0.5 : 1,
+          }}
+        >
+          {deployStatus === 'deploying' ? 'Deploying...' :
+           deployStatus === 'verifying' ? 'Verifying...' :
+           'Deploy Rules'}
+        </button>
+      </div>
+
+      {/* Deployment Status */}
+      {deployStatus !== 'idle' && (
+        <div style={{
+          marginTop: 8,
+          padding: '6px 10px',
+          borderRadius: 4,
+          fontSize: 11,
+          background: deployStatus === 'verified' ? '#052e16' :
+                     deployStatus === 'timeout' ? '#422006' :
+                     deployStatus === 'error' ? '#450a0a' :
+                     theme.bgTertiary,
+          border: `1px solid ${
+            deployStatus === 'verified' ? '#166534' :
+            deployStatus === 'timeout' ? '#a16207' :
+            deployStatus === 'error' ? '#991b1b' :
+            theme.border
+          }`,
+          color: deployStatus === 'verified' ? '#4ade80' :
+                 deployStatus === 'timeout' ? '#fbbf24' :
+                 deployStatus === 'error' ? '#f87171' :
+                 theme.textMuted,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 13 }}>
+              {deployStatus === 'deploying' ? '...' :
+               deployStatus === 'verifying' ? '...' :
+               deployStatus === 'verified' ? '✓' :
+               deployStatus === 'timeout' ? '!' :
+               deployStatus === 'error' ? '✗' : ''}
+            </span>
+            <span>
+              {deployStatus === 'deploying' ? 'Pushing to Config Store...' :
+               deployStatus === 'verifying' ? 'Verifying deployment...' :
+               deployStatus === 'verified' ? 'Deployment verified' :
+               deployStatus === 'timeout' ? 'Verification timed out (may still propagate)' :
+               deployStatus === 'error' ? 'Deployment failed' : ''}
+            </span>
+          </div>
+          {deployProgress && (
+            <div style={{
+              marginTop: 4,
+              fontSize: 9,
+              opacity: 0.8,
+              fontFamily: 'monospace',
+              wordBreak: 'break-all',
+            }}>
+              {deployProgress}
+            </div>
+          )}
+        </div>
+      )}
 
       <p style={{
         color: theme.textMuted,
@@ -2500,93 +3270,3 @@ function FastlyTab({
   )
 }
 
-// Helper functions
-function getData(node: Node): Record<string, any> {
-  return node.data as Record<string, any>
-}
-
-function convertToRulesFormat(nodes: Node[], edges: Edge[]) {
-  const ruleList: string[] = []
-  const ruleDefs: Record<string, any> = {}
-  const backends: Record<string, any> = {}
-
-  const backendNodes = nodes.filter(n => n.type === 'backend')
-  backendNodes.forEach((backendNode) => {
-    const data = getData(backendNode)
-    const name = data.name || `backend_${backendNode.id}`
-    backends[name] = {
-      host: data.host || 'origin.example.com',
-      port: data.port ?? 443,
-      useTLS: data.useTLS ?? true,
-      connectTimeout: data.connectTimeout,
-      firstByteTimeout: data.firstByteTimeout,
-      betweenBytesTimeout: data.betweenBytesTimeout,
-    }
-  })
-
-  const actionNodes = nodes.filter(n => n.type === 'action')
-  actionNodes.forEach((actionNode, idx) => {
-    const ruleName = `rule_${idx}`
-    ruleList.push(ruleName)
-    const actionData = getData(actionNode)
-
-    const outgoingEdge = edges.find(e => e.source === actionNode.id)
-    const targetNode = outgoingEdge ? nodes.find(n => n.id === outgoingEdge.target) : null
-    const routeToBackend = targetNode?.type === 'backend' ? (getData(targetNode).name || `backend_${targetNode.id}`) : undefined
-
-    const actionType = routeToBackend ? 'route' : (actionData.action || 'block')
-    const action: Record<string, any> = { type: actionType }
-
-    if (routeToBackend) {
-      action.backend = routeToBackend
-    } else {
-      action.response_code = actionData.statusCode || 403
-      action.response_message = actionData.message || ''
-    }
-
-    ruleDefs[ruleName] = {
-      enabled: true,
-      conditions: buildConditions(actionNode, nodes, edges),
-      action,
-    }
-  })
-
-  return {
-    v: '1.0',
-    r: ruleList,
-    d: ruleDefs,
-    ...(Object.keys(backends).length > 0 && { backends }),
-  }
-}
-
-function buildConditions(actionNode: Node, nodes: Node[], edges: Edge[]): any {
-  const incomingEdges = edges.filter(e => e.target === actionNode.id)
-
-  if (incomingEdges.length === 0) {
-    return { operator: 'and', rules: [] }
-  }
-
-  const conditions: any[] = []
-
-  incomingEdges.forEach(edge => {
-    const sourceNode = nodes.find(n => n.id === edge.source)
-    if (!sourceNode) return
-
-    const sourceData = getData(sourceNode)
-    if (sourceNode.type === 'condition') {
-      conditions.push({
-        field: sourceData.field,
-        operator: sourceData.operator,
-        value: sourceData.value,
-      })
-    } else if (sourceNode.type === 'logic') {
-      const logicConditions = buildConditions(sourceNode, nodes, edges)
-      conditions.push({
-        operator: (sourceData.operation || 'AND').toLowerCase(),
-        rules: logicConditions.rules || [],
-      })
-    }
-  })
-
-  return { operator: 'and', rules: conditions }
-}
