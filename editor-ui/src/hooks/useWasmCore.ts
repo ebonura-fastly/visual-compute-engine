@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import type { Node, Edge } from '@xyflow/react'
 
 // We'll dynamically import the WASM module
-let wasmModule: typeof import('mss-core') | null = null
+let wasmModule: typeof import('vce-core') | null = null
 
 export function useWasmCore() {
   const [isLoaded, setIsLoaded] = useState(false)
@@ -11,7 +11,7 @@ export function useWasmCore() {
   useEffect(() => {
     async function loadWasm() {
       try {
-        wasmModule = await import('mss-core')
+        wasmModule = await import('vce-core')
         setIsLoaded(true)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load WASM')

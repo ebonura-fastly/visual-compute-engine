@@ -140,7 +140,7 @@ function Flow() {
         fontFamily: fonts.sans,
       }}>
         <span style={{ fontSize: 16, fontWeight: 600, color: theme.text }}>
-          MSS at Compute
+          Visual Compute Engine
         </span>
         <button
           onClick={toggleTheme}

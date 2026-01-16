@@ -5,6 +5,6 @@ import wasm from 'vite-plugin-wasm'
 export default defineConfig({
   plugins: [react(), wasm()],
   optimizeDeps: {
-    exclude: ['mss-core']
+    exclude: ['vce-core']
   }
 })

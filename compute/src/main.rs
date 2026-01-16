@@ -1,9 +1,9 @@
-//! MSS Engine - Edge security rules processing for Fastly Compute.
+//! Visual Compute Engine - Edge rules processing for Fastly Compute.
 //!
-//! This service provides edge-based security filtering through:
-//! - Visual graph-based security rules
+//! This service provides edge-based request processing through:
+//! - Visual graph-based rules
 //! - Edge authentication
-//! - Detailed security logging
+//! - Detailed logging
 //! - Request blocking and routing
 //!
 //! Rules are designed in the visual editor and deployed as graphs (nodes + edges).
@@ -20,9 +20,9 @@ use hmac_sha256::HMAC;
 mod rules;
 use rules::{GraphInterpreter, GraphResult, WafLog, load_graph_from_store, send_to_backend};
 
-/// MSS Engine version - update this on each release
+/// Engine version - update this on each release
 const VERSION: &str = env!("CARGO_PKG_VERSION");
-const ENGINE_NAME: &str = "MSS Engine";
+const ENGINE_NAME: &str = "Visual Compute Engine";
 
 /// Main request handler for the security service.
 ///
@@ -98,7 +98,7 @@ fn main(req: Request) -> Result<Response, Error> {
 
             let mut response = Response::from_status(StatusCode::from_u16(status_code).unwrap_or(StatusCode::FORBIDDEN))
                 .with_body_text_plain(&message);
-            response.set_header("X-MSS-Action", "blocked");
+            response.set_header("X-VCE-Action", "blocked");
 
             log_entry.add_response(&response);
             log_entry.finalize();
@@ -120,7 +120,7 @@ fn main(req: Request) -> Result<Response, Error> {
 
             match send_to_backend(backend_req, &backend_name, &backend_host, backend_port, use_tls) {
                 Ok(mut response) => {
-                    response.set_header("X-MSS-Action", &action);
+                    response.set_header("X-VCE-Action", &action);
                     log_entry.add_response(&response);
                     log_entry.finalize();
                     writeln!(logger, "{}", serde_json::to_string(&log_entry)?)?;
@@ -148,7 +148,7 @@ fn main(req: Request) -> Result<Response, Error> {
 
 /// Forward request to the default protected_origin backend with a reason header.
 ///
-/// The `X-MSS-Action` header indicates why this routing decision was made:
+/// The `X-VCE-Action` header indicates why this routing decision was made:
 /// - `routed:<backend>` - Graph explicitly routed to this backend
 /// - `allowed` - Graph action node set to allow
 /// - `nomatch` - No matching path in graph, default routing
@@ -170,7 +170,7 @@ fn forward_to_default_backend_with_reason(
     println!("Forwarded to {} (reason: {}), status: {}", BACKEND_NAME, reason, response.get_status());
 
     // Add routing reason header
-    response.set_header("X-MSS-Action", reason);
+    response.set_header("X-VCE-Action", reason);
 
     log_entry.add_response(&response);
     log_entry.set_final_action(reason);
@@ -190,7 +190,7 @@ fn forward_to_default_backend_with_reason(
 /// Format: timestamp,pop,signature
 fn add_edge_auth(req: &mut Request) -> Result<(), Error> {
     // Get shared secret - use try_open to avoid panic if store doesn't exist
-    let store = match ConfigStore::try_open("mss_shared_secret") {
+    let store = match ConfigStore::try_open("vce_shared_secret") {
         Ok(s) => s,
         Err(_) => {
             println!("Auth store not found, skipping auth header");

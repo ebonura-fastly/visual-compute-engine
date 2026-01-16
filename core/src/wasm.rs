@@ -1,4 +1,4 @@
-//! WASM bindings for rusty-shield-core.
+//! WASM bindings for vce-core.
 //!
 //! Exposes the graph manipulation and execution APIs to JavaScript.
 

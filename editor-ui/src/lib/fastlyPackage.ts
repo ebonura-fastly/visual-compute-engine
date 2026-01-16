@@ -12,10 +12,10 @@
 import pako from 'pako'
 
 // Import the base64-encoded WASM binary
-import mssEngineB64 from '../assets/mss-engine.wasm.b64?raw'
+import vceEngineB64 from '../assets/vce-engine.wasm.b64?raw'
 
-const MSS_ENGINE_NAME = 'fastly-compute-mss'
-const MSS_ENGINE_DESCRIPTION = 'MSS Security Engine - Edge security rules processing'
+const VCE_ENGINE_NAME = 'visual-compute-engine'
+const VCE_ENGINE_DESCRIPTION = 'Visual Compute Engine - Edge rules processing'
 
 type TarEntry = {
   name: string
@@ -123,11 +123,11 @@ function createTarArchive(entries: TarEntry[]): Uint8Array {
 
 /**
  * Generate fastly.toml manifest content
- * No static backends needed - MSS uses dynamic backends defined in rules
+ * No static backends needed - VCE uses dynamic backends defined in rules
  */
 function generateFastlyToml(serviceName: string): string {
-  return `authors = ["mss-ui@fastly.com"]
-description = "${MSS_ENGINE_DESCRIPTION}"
+  return `authors = ["Fastly"]
+description = "${VCE_ENGINE_DESCRIPTION}"
 language = "rust"
 manifest_version = 3
 name = "${serviceName}"
@@ -161,11 +161,11 @@ function sanitizePackageName(serviceName: string): string {
 }
 
 /**
- * Build a Fastly Compute package (tar.gz) for the MSS engine
+ * Build a Fastly Compute package (tar.gz) for the VCE engine
  * @param serviceName Name for the service
  * @returns Base64-encoded tar.gz package ready for upload
  */
-export async function buildMssPackage(serviceName: string): Promise<string> {
+export async function buildVcePackage(serviceName: string): Promise<string> {
   const encoder = new TextEncoder()
   const pkgName = sanitizePackageName(serviceName)
 
@@ -174,7 +174,7 @@ export async function buildMssPackage(serviceName: string): Promise<string> {
   const fastlyTomlBytes = encoder.encode(fastlyToml)
 
   // Decode the WASM binary
-  const wasmBytes = base64ToUint8Array(mssEngineB64)
+  const wasmBytes = base64ToUint8Array(vceEngineB64)
 
   // Create tar archive with required structure:
   // pkgName/
@@ -203,12 +203,12 @@ export async function buildMssPackage(serviceName: string): Promise<string> {
 }
 
 /**
- * Get the MSS engine info
+ * Get the VCE engine info
  */
-export function getMssEngineInfo() {
+export function getVceEngineInfo() {
   return {
-    name: MSS_ENGINE_NAME,
-    description: MSS_ENGINE_DESCRIPTION,
-    wasmSize: base64ToUint8Array(mssEngineB64.replace(/\s/g, '')).length,
+    name: VCE_ENGINE_NAME,
+    description: VCE_ENGINE_DESCRIPTION,
+    wasmSize: base64ToUint8Array(vceEngineB64.replace(/\s/g, '')).length,
   }
 }

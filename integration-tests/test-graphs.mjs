@@ -1,5 +1,5 @@
 /**
- * Integration tests for MSS Engine graph evaluation.
+ * Integration tests for Visual Compute Engine graph evaluation.
  *
  * These tests verify that graphs created in the UI are correctly
  * interpreted by the Rust engine.
@@ -10,7 +10,7 @@
  *
  * Requires:
  *   - Local: fastly compute serve running (viceroy on localhost:7676)
- *   - Deployed: MSS_TEST_DOMAIN env var set
+ *   - Deployed: VCE_TEST_DOMAIN env var set
  *
  * Note: When running locally with Viceroy, the Config Store is loaded once
  * at startup and not reloaded between tests. To run all tests locally:
@@ -37,14 +37,14 @@ const gzip = promisify(createGzip().constructor.prototype.flush ?
 
 // Configuration
 const LOCAL_URL = 'http://127.0.0.1:7676'
-const DEPLOYED_URL = process.env.MSS_TEST_DOMAIN ?
-  `https://${process.env.MSS_TEST_DOMAIN}` : null
+const DEPLOYED_URL = process.env.VCE_TEST_DOMAIN ?
+  `https://${process.env.VCE_TEST_DOMAIN}` : null
 
 const useDeployed = process.argv.includes('--deployed')
 const BASE_URL = useDeployed ? DEPLOYED_URL : LOCAL_URL
 
 if (useDeployed && !DEPLOYED_URL) {
-  console.error('Error: --deployed requires MSS_TEST_DOMAIN environment variable')
+  console.error('Error: --deployed requires VCE_TEST_DOMAIN environment variable')
   process.exit(1)
 }
 
@@ -486,7 +486,7 @@ const methodGraph = {
 // ============================================================================
 
 async function main() {
-  console.log('MSS Engine Integration Tests')
+  console.log('Visual Compute Engine Integration Tests')
   console.log('============================')
   console.log('')
 
@@ -506,11 +506,11 @@ async function main() {
   console.log('')
 
   // Test 1: Simple routing
-  // Note: Viceroy returns 503 for dynamic backends, but the x-mss-action header confirms correct routing
+  // Note: Viceroy returns 503 for dynamic backends, but the x-vce-action header confirms correct routing
   await runTest('Simple routing to backend', simpleRoutingGraph, [
     {
       path: '/get',
-      expectHeader: ['x-mss-action', 'routed:httpbin'],
+      expectHeader: ['x-vce-action', 'routed:httpbin'],
       // Don't check status - Viceroy returns 503 for dynamic backends
     },
   ])
@@ -520,12 +520,12 @@ async function main() {
     {
       path: '/blocked',
       expectStatus: 403,
-      expectHeader: ['x-mss-action', 'blocked'],
+      expectHeader: ['x-vce-action', 'blocked'],
       expectBodyContains: 'Access denied',
     },
     {
       path: '/allowed',
-      expectHeader: ['x-mss-action', 'routed:httpbin'],
+      expectHeader: ['x-vce-action', 'routed:httpbin'],
       // Don't check status - Viceroy returns 503 for dynamic backends
     },
   ])
@@ -541,12 +541,12 @@ async function main() {
     {
       path: '/admin/users',
       options: { method: 'GET' },
-      expectHeader: ['x-mss-action', 'routed:httpbin'],  // GET doesn't match (AND requires both)
+      expectHeader: ['x-vce-action', 'routed:httpbin'],  // GET doesn't match (AND requires both)
     },
     {
       path: '/public',
       options: { method: 'POST' },
-      expectHeader: ['x-mss-action', 'routed:httpbin'],  // Not /admin, doesn't match
+      expectHeader: ['x-vce-action', 'routed:httpbin'],  // Not /admin, doesn't match
     },
   ])
 
@@ -560,11 +560,11 @@ async function main() {
     {
       path: '/my-secret-page',
       expectStatus: 403,
-      expectHeader: ['x-mss-action', 'blocked'],
+      expectHeader: ['x-vce-action', 'blocked'],
     },
     {
       path: '/public/data',
-      expectHeader: ['x-mss-action', 'routed:httpbin'],
+      expectHeader: ['x-vce-action', 'routed:httpbin'],
     },
   ])
 
@@ -579,12 +579,12 @@ async function main() {
     {
       path: '/resource',
       options: { method: 'GET' },
-      expectHeader: ['x-mss-action', 'routed:httpbin'],
+      expectHeader: ['x-vce-action', 'routed:httpbin'],
     },
     {
       path: '/resource',
       options: { method: 'POST' },
-      expectHeader: ['x-mss-action', 'routed:httpbin'],
+      expectHeader: ['x-vce-action', 'routed:httpbin'],
     },
   ])
 

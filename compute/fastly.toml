@@ -1,11 +1,11 @@
-authors = ["Fastly <mss@fastly.com>"]
-description = "MSS Engine v1.0.0 - Graph-based edge security rules"
+authors = ["Fastly"]
+description = "Visual Compute Engine - Graph-based edge rules for Fastly Compute"
 language = "rust"
 manifest_version = 3
-name = "mss-engine"
+name = "vce-engine"
 
 [scripts]
-build = "cargo build --bin mss-engine --release --target wasm32-wasip1 --color always"
+build = "cargo build --bin vce-engine --release --target wasm32-wasip1 --color always"
 
 [setup]
 [setup.backends]
@@ -24,7 +24,7 @@ use_ssl = true
 format = "json"
 file = "security-rules.json"
 
-[local_server.config_stores.mss_shared_secret]
+[local_server.config_stores.vce_shared_secret]
 format = "inline-toml"
 contents.compute_auth_key = "development-secret-key-123"
 
@@ -35,7 +35,7 @@ override_host = "httpbingo.org"
 
 # Edge Rate Limiting resources
 [local_server.rate_counter]
-[local_server.rate_counter.mss_rate_counter]
+[local_server.rate_counter.vce_rate_counter]
 
 [local_server.penalty_box]
-[local_server.penalty_box.mss_penalty_box]
+[local_server.penalty_box.vce_penalty_box]

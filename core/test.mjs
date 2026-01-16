@@ -9,9 +9,9 @@ import {
   getRequestFields,
   getStringOperators,
   getNodeMetadata,
-} from './pkg/rusty_shield_core.js';
+} from './pkg/vce_core.js';
 
-console.log('=== Testing rusty-shield-core WASM bindings ===\n');
+console.log('=== Testing vce-core WASM bindings ===\n');
 
 // 1. Test schema helpers
 console.log('1. Available request fields:');

@@ -1,5 +1,5 @@
 {
-  "name": "mss-editor",
+  "name": "vce-editor",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,7 +11,7 @@
   "dependencies": {
     "@types/pako": "^2.0.4",
     "@xyflow/react": "^12.10.0",
-    "mss-core": "file:../core/pkg",
+    "vce-core": "file:../core/pkg",
     "pako": "^2.1.0",
     "react": "^19.2.1",
     "react-dom": "^19.2.1"

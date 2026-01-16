@@ -1,13 +1,13 @@
-//! # Rusty Shield Core
+//! # Visual Compute Engine Core
 //!
-//! Core node graph types and interpreter for Rusty Shield security rules.
+//! Core node graph types and interpreter for Visual Compute Engine.
 //!
-//! This crate defines the visual programming model for security rules,
+//! This crate defines the visual programming model for edge rules,
 //! inspired by Unreal Blueprints and Blender Geometry Nodes.
 //!
 //! ## Architecture
 //!
-//! A security rule is represented as a directed acyclic graph (DAG) of nodes:
+//! A rule is represented as a directed acyclic graph (DAG) of nodes:
 //! - **Input nodes** extract data from the request (IP, headers, fingerprints)
 //! - **Match nodes** check conditions (string match, regex, table lookup)
 //! - **Logic nodes** combine signals (AND, OR, NOT)

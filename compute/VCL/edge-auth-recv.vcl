@@ -19,7 +19,7 @@ sub vcl_recv {
     set var.data = var.timestamp + "," + var.pop;
     
     # Get the secret using hardcoded ID
-    set var.secret = table.lookup(mss_shared_secret, "compute_auth_key");
+    set var.secret = table.lookup(vce_shared_secret, "compute_auth_key");
     
     if (!var.secret) {
         error 403 "Secret not configured";
