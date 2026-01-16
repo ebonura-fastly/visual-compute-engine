@@ -11,11 +11,11 @@ build = "cargo build --bin mss-engine --release --target wasm32-wasip1 --color a
 [setup.backends]
 [setup.backends.protected_origin]
 description = "Default backend for unmatched requests"
-address = "httpbin.org"
+address = "httpbingo.org"
 port = 443
-ssl_cert_hostname = "httpbin.org"
+ssl_cert_hostname = "httpbingo.org"
 ssl_check_cert = true
-ssl_sni_hostname = "httpbin.org"
+ssl_sni_hostname = "httpbingo.org"
 use_ssl = true
 
 [local_server]
@@ -30,8 +30,8 @@ contents.compute_auth_key = "development-secret-key-123"
 
 [local_server.backends]
 [local_server.backends.protected_origin]
-url = "https://httpbin.org"
-override_host = "httpbin.org"
+url = "https://httpbingo.org"
+override_host = "httpbingo.org"
 
 # Edge Rate Limiting resources
 [local_server.rate_counter]
