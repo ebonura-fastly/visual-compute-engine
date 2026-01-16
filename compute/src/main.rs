@@ -34,7 +34,7 @@ const ENGINE_NAME: &str = "Visual Compute Engine";
 /// 5. Log security events
 #[fastly::main]
 fn main(req: Request) -> Result<Response, Error> {
-    // Handle CORS preflight for version endpoint
+    // Handle CORS preflight for system endpoints
     if req.get_method() == "OPTIONS" && (req.get_path() == "/_version" || req.get_path() == "/_health") {
         return Ok(Response::from_status(StatusCode::NO_CONTENT)
             .with_header("Access-Control-Allow-Origin", "*")
@@ -43,12 +43,33 @@ fn main(req: Request) -> Result<Response, Error> {
             .with_header("Access-Control-Max-Age", "86400"));
     }
 
-    // Handle version endpoint
+    // Handle version/health endpoint - includes rules hash for deployment verification
     if req.get_path() == "/_version" || req.get_path() == "/_health" {
+        let store = ConfigStore::open("security_rules");
+
+        // Get the raw rules_packed value to compute hash for deployment verification
+        let rules_packed = store.get("rules_packed").unwrap_or_default();
+        let rules_hash = if rules_packed.is_empty() {
+            "none".to_string()
+        } else {
+            // Hash: first 16 hex chars of HMAC-SHA256 (using empty key as simple hash)
+            let hash_bytes = HMAC::mac(rules_packed.as_bytes(), b"");
+            hex::encode(&hash_bytes[..8])
+        };
+
+        // Load and parse graph to get stats
+        let (nodes_count, edges_count) = match rules::load_graph_from_store(&store) {
+            Ok(g) => (g.nodes.len(), g.edges.len()),
+            Err(_) => (0, 0),
+        };
+
         let version_info = serde_json::json!({
             "engine": ENGINE_NAME,
             "version": VERSION,
-            "format": "graph"
+            "format": "graph",
+            "rules_hash": rules_hash,
+            "nodes_count": nodes_count,
+            "edges_count": edges_count,
         });
         return Ok(Response::from_status(StatusCode::OK)
             .with_content_type(fastly::mime::APPLICATION_JSON)
@@ -178,30 +199,40 @@ fn main(req: Request) -> Result<Response, Error> {
     }
 }
 
-/// Forward request to the default protected_origin backend with a reason header.
+/// Return an error response when no backend is configured.
 ///
-/// The `X-VCE-Action` header indicates why this routing decision was made:
-/// - `routed:<backend>` - Graph explicitly routed to this backend
-/// - `allowed` - Graph action node set to allow
-/// - `nomatch` - No matching path in graph, default routing
-/// - `failopen:*` - Error occurred, failing open to preserve availability
+/// This is called when:
+/// - `allowed` - Graph action node set to allow but no backend configured
+/// - `nomatch` - No matching path in graph and no default backend
+/// - `failopen:*` - Error occurred during graph evaluation
+///
+/// Returns a 503 Service Unavailable with a clear error message.
 fn forward_to_default_backend_with_reason(
-    req: Request,
+    _req: Request,
     logger: &mut Endpoint,
     mut log_entry: WafLog,
     reason: &str,
 ) -> Result<Response, Error> {
-    const BACKEND_NAME: &str = "protected_origin";
+    println!("No backend configured (reason: {})", reason);
 
-    let mut backend_req = req.clone_without_body();
-    if let Err(e) = add_edge_auth(&mut backend_req) {
-        println!("Auth header error: {}", e);
-    }
+    let error_message = match reason {
+        "allowed" => "No backend configured. Add a Backend node to your graph to route traffic.",
+        "nomatch" => "No matching rule in graph. Ensure your graph has a complete path from Request to Backend.",
+        r if r.starts_with("failopen:") => "Graph evaluation error. Check your graph configuration.",
+        _ => "Backend not configured.",
+    };
 
-    let mut response = backend_req.send(BACKEND_NAME)?;
-    println!("Forwarded to {} (reason: {}), status: {}", BACKEND_NAME, reason, response.get_status());
+    let body = serde_json::json!({
+        "error": "backend_not_configured",
+        "message": error_message,
+        "reason": reason,
+        "engine": "Visual Compute Engine",
+    });
 
-    // Add routing reason header
+    let mut response = Response::from_status(StatusCode::SERVICE_UNAVAILABLE)
+        .with_content_type(fastly::mime::APPLICATION_JSON)
+        .with_body(body.to_string());
+
     response.set_header("X-VCE-Action", reason);
 
     log_entry.add_response(&response);
