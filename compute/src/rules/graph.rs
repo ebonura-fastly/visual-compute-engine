@@ -17,7 +17,7 @@ use ipnet::IpNet;
 use super::types::{
     GraphPayload, GraphNode, GraphEdge,
     BackendNodeData, ActionNodeData, RuleGroupNodeData, ConditionNodeData, RateLimitNodeData,
-    HeaderNodeData, RedirectNodeData, CacheNodeData,
+    HeaderNodeData, RedirectNodeData, CacheNodeData, TransformNodeData,
 };
 
 /// Result of evaluating the graph for a request.
@@ -68,6 +68,8 @@ pub struct GraphInterpreter<'a> {
     header_mods: std::cell::RefCell<Vec<HeaderMod>>,
     /// Cache settings collected during traversal
     cache_settings: std::cell::RefCell<CacheSettings>,
+    /// Transform results stored by variable name
+    transform_results: std::cell::RefCell<HashMap<String, String>>,
 }
 
 impl<'a> GraphInterpreter<'a> {
@@ -106,6 +108,7 @@ impl<'a> GraphInterpreter<'a> {
             geo_cache: std::cell::RefCell::new(None),
             header_mods: std::cell::RefCell::new(Vec::new()),
             cache_settings: std::cell::RefCell::new(CacheSettings::default()),
+            transform_results: std::cell::RefCell::new(HashMap::new()),
         }
     }
 
@@ -119,6 +122,12 @@ impl<'a> GraphInterpreter<'a> {
     /// Call this after evaluate() to get the settings to apply.
     pub fn get_cache_settings(&self) -> CacheSettings {
         self.cache_settings.borrow().clone()
+    }
+
+    /// Get transform results collected during evaluation.
+    /// Returns a map of variable name -> transformed value.
+    pub fn get_transform_results(&self) -> HashMap<String, String> {
+        self.transform_results.borrow().clone()
     }
 
     /// Get geo data for client IP, caching the result
@@ -477,6 +486,35 @@ impl<'a> GraphInterpreter<'a> {
                     status_code: data.status_code.unwrap_or(302),
                     preserve_query: data.preserve_query.unwrap_or(true),
                 }
+            }
+
+            "transform" => {
+                // Transform node - apply transformation and continue
+                let data: TransformNodeData = match serde_json::from_value(node.data.clone()) {
+                    Ok(d) => d,
+                    Err(e) => {
+                        println!("[Graph] Failed to parse transform data: {}", e);
+                        return self.follow_outgoing(node_id, Some("value_out"), req);
+                    }
+                };
+
+                // Get the source field value
+                let source_value = self.get_field_value(&data.field, req).unwrap_or_default();
+                println!("[Graph] Transform: {} on '{}' (input: '{}')", data.operation, data.field, source_value);
+
+                // Apply the transformation
+                let result = self.apply_transform(&data.operation, &source_value, data.pattern.as_deref());
+
+                // Store the result if outputVar is specified
+                if let Some(ref var_name) = data.output_var {
+                    println!("[Graph] Transform result stored in '{}': '{}'", var_name, result);
+                    self.transform_results.borrow_mut().insert(var_name.clone(), result.clone());
+                } else {
+                    println!("[Graph] Transform result (no var): '{}'", result);
+                }
+
+                // Continue to next node
+                self.follow_outgoing(node_id, Some("value_out"), req)
             }
 
             _ => {
@@ -901,6 +939,159 @@ impl<'a> GraphInterpreter<'a> {
                 req.get_header_str(field).map(|s| s.to_string())
             }
         }
+    }
+
+    /// Apply a transformation operation to a value.
+    fn apply_transform(&self, operation: &str, value: &str, pattern: Option<&str>) -> String {
+        match operation {
+            "lowercase" => value.to_lowercase(),
+            "uppercase" => value.to_uppercase(),
+            "urlDecode" => {
+                // URL decode the value
+                Self::url_decode(value)
+            }
+            "base64Decode" => {
+                // Base64 decode the value
+                use base64::{Engine as _, engine::general_purpose::STANDARD};
+                STANDARD.decode(value)
+                    .ok()
+                    .and_then(|bytes| String::from_utf8(bytes).ok())
+                    .unwrap_or_else(|| {
+                        println!("[Graph] Base64 decode failed for: {}", value);
+                        value.to_string()
+                    })
+            }
+            "htmlDecode" => {
+                // HTML entity decode
+                Self::html_decode(value)
+            }
+            "removeWhitespace" => {
+                // Remove all whitespace characters
+                value.chars().filter(|c| !c.is_whitespace()).collect()
+            }
+            "extract" => {
+                // Regex extract - use capture group 1 if available
+                if let Some(pat) = pattern {
+                    match regex::Regex::new(pat) {
+                        Ok(re) => {
+                            re.captures(value)
+                                .and_then(|caps| caps.get(1).map(|m| m.as_str().to_string()))
+                                .unwrap_or_else(|| {
+                                    println!("[Graph] No match for pattern '{}' in '{}'", pat, value);
+                                    String::new()
+                                })
+                        }
+                        Err(e) => {
+                            println!("[Graph] Invalid regex pattern '{}': {}", pat, e);
+                            String::new()
+                        }
+                    }
+                } else {
+                    println!("[Graph] Extract operation requires a pattern");
+                    String::new()
+                }
+            }
+            _ => {
+                println!("[Graph] Unknown transform operation: {}", operation);
+                value.to_string()
+            }
+        }
+    }
+
+    /// URL decode a string (percent-encoding).
+    fn url_decode(input: &str) -> String {
+        let mut result = String::with_capacity(input.len());
+        let mut chars = input.chars().peekable();
+
+        while let Some(c) = chars.next() {
+            if c == '%' {
+                // Try to read two hex digits
+                let hex: String = chars.by_ref().take(2).collect();
+                if hex.len() == 2 {
+                    if let Ok(byte) = u8::from_str_radix(&hex, 16) {
+                        result.push(byte as char);
+                        continue;
+                    }
+                }
+                // Failed to decode, keep the original
+                result.push('%');
+                result.push_str(&hex);
+            } else if c == '+' {
+                // Plus sign is space in query strings
+                result.push(' ');
+            } else {
+                result.push(c);
+            }
+        }
+        result
+    }
+
+    /// HTML entity decode common entities.
+    fn html_decode(input: &str) -> String {
+        let mut result = input.to_string();
+
+        // Named entities
+        result = result.replace("&amp;", "&");
+        result = result.replace("&lt;", "<");
+        result = result.replace("&gt;", ">");
+        result = result.replace("&quot;", "\"");
+        result = result.replace("&apos;", "'");
+        result = result.replace("&nbsp;", " ");
+
+        // Numeric entities (basic support)
+        // Handle &#NNN; format
+        let mut output = String::with_capacity(result.len());
+        let mut chars = result.chars().peekable();
+
+        while let Some(c) = chars.next() {
+            if c == '&' && chars.peek() == Some(&'#') {
+                chars.next(); // consume '#'
+                let mut num_str = String::new();
+                let is_hex = chars.peek() == Some(&'x') || chars.peek() == Some(&'X');
+                if is_hex {
+                    chars.next(); // consume 'x'
+                }
+
+                // Collect digits
+                while let Some(&d) = chars.peek() {
+                    if d == ';' {
+                        chars.next(); // consume ';'
+                        break;
+                    }
+                    if (is_hex && d.is_ascii_hexdigit()) || (!is_hex && d.is_ascii_digit()) {
+                        num_str.push(chars.next().unwrap());
+                    } else {
+                        break;
+                    }
+                }
+
+                // Parse and convert
+                let code_point = if is_hex {
+                    u32::from_str_radix(&num_str, 16).ok()
+                } else {
+                    num_str.parse::<u32>().ok()
+                };
+
+                if let Some(cp) = code_point {
+                    if let Some(ch) = char::from_u32(cp) {
+                        output.push(ch);
+                        continue;
+                    }
+                }
+
+                // Failed to decode, keep original
+                output.push('&');
+                output.push('#');
+                if is_hex {
+                    output.push('x');
+                }
+                output.push_str(&num_str);
+            } else {
+                output.push(c);
+            }
+        }
+
+        output
     }
 }
 

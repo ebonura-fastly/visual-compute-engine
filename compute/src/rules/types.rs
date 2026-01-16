@@ -237,6 +237,21 @@ pub struct RedirectNodeData {
     pub preserve_query: Option<bool>,
 }
 
+/// Node data for transform nodes.
+/// Transforms field values using various operations.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct TransformNodeData {
+    /// Transform operation: lowercase, uppercase, urlDecode, base64Decode, htmlDecode, removeWhitespace, extract
+    pub operation: String,
+    /// Source field to transform: path, query, body, userAgent, header, cookie
+    pub field: String,
+    /// Regex pattern for extract operation (capture group 1 is used)
+    pub pattern: Option<String>,
+    /// Output variable name to store the result
+    #[serde(rename = "outputVar")]
+    pub output_var: Option<String>,
+}
+
 // ============================================================================
 // Tests
 // ============================================================================
@@ -1114,5 +1129,166 @@ mod tests {
 
         assert_eq!(cache_data.mode, "pass");
         assert_eq!(cache_data.ttl, None);
+    }
+
+    // ========================================================================
+    // Transform Node Tests
+    // ========================================================================
+
+    #[test]
+    fn test_transform_node_lowercase() {
+        let json = r#"{
+            "operation": "lowercase",
+            "field": "path"
+        }"#;
+
+        let data: TransformNodeData = serde_json::from_str(json).unwrap();
+        assert_eq!(data.operation, "lowercase");
+        assert_eq!(data.field, "path");
+        assert_eq!(data.pattern, None);
+        assert_eq!(data.output_var, None);
+    }
+
+    #[test]
+    fn test_transform_node_uppercase() {
+        let json = r#"{
+            "operation": "uppercase",
+            "field": "userAgent"
+        }"#;
+
+        let data: TransformNodeData = serde_json::from_str(json).unwrap();
+        assert_eq!(data.operation, "uppercase");
+        assert_eq!(data.field, "userAgent");
+    }
+
+    #[test]
+    fn test_transform_node_url_decode() {
+        let json = r#"{
+            "operation": "urlDecode",
+            "field": "query"
+        }"#;
+
+        let data: TransformNodeData = serde_json::from_str(json).unwrap();
+        assert_eq!(data.operation, "urlDecode");
+        assert_eq!(data.field, "query");
+    }
+
+    #[test]
+    fn test_transform_node_base64_decode() {
+        let json = r#"{
+            "operation": "base64Decode",
+            "field": "header",
+            "outputVar": "decoded_auth"
+        }"#;
+
+        let data: TransformNodeData = serde_json::from_str(json).unwrap();
+        assert_eq!(data.operation, "base64Decode");
+        assert_eq!(data.field, "header");
+        assert_eq!(data.output_var, Some("decoded_auth".to_string()));
+    }
+
+    #[test]
+    fn test_transform_node_extract_with_pattern() {
+        let json = r#"{
+            "operation": "extract",
+            "field": "path",
+            "pattern": "/api/v(\\d+)/.*",
+            "outputVar": "api_version"
+        }"#;
+
+        let data: TransformNodeData = serde_json::from_str(json).unwrap();
+        assert_eq!(data.operation, "extract");
+        assert_eq!(data.field, "path");
+        assert_eq!(data.pattern, Some("/api/v(\\d+)/.*".to_string()));
+        assert_eq!(data.output_var, Some("api_version".to_string()));
+    }
+
+    #[test]
+    fn test_transform_node_remove_whitespace() {
+        let json = r#"{
+            "operation": "removeWhitespace",
+            "field": "body"
+        }"#;
+
+        let data: TransformNodeData = serde_json::from_str(json).unwrap();
+        assert_eq!(data.operation, "removeWhitespace");
+        assert_eq!(data.field, "body");
+    }
+
+    #[test]
+    fn test_transform_node_html_decode() {
+        let json = r#"{
+            "operation": "htmlDecode",
+            "field": "query"
+        }"#;
+
+        let data: TransformNodeData = serde_json::from_str(json).unwrap();
+        assert_eq!(data.operation, "htmlDecode");
+        assert_eq!(data.field, "query");
+    }
+
+    #[test]
+    fn test_transform_node_serialization_roundtrip() {
+        let original = TransformNodeData {
+            operation: "extract".to_string(),
+            field: "path".to_string(),
+            pattern: Some("([a-z]+)".to_string()),
+            output_var: Some("extracted_value".to_string()),
+        };
+
+        let json = serde_json::to_string(&original).unwrap();
+        let deserialized: TransformNodeData = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(original.operation, deserialized.operation);
+        assert_eq!(original.field, deserialized.field);
+        assert_eq!(original.pattern, deserialized.pattern);
+        assert_eq!(original.output_var, deserialized.output_var);
+    }
+
+    #[test]
+    fn test_graph_payload_with_transform_node() {
+        let json = r#"{
+            "nodes": [
+                {
+                    "id": "req-1",
+                    "type": "request",
+                    "position": { "x": 100, "y": 100 },
+                    "data": {}
+                },
+                {
+                    "id": "transform-1",
+                    "type": "transform",
+                    "position": { "x": 200, "y": 100 },
+                    "data": {
+                        "operation": "lowercase",
+                        "field": "path"
+                    }
+                },
+                {
+                    "id": "backend-1",
+                    "type": "backend",
+                    "position": { "x": 300, "y": 100 },
+                    "data": {
+                        "name": "origin",
+                        "host": "example.com"
+                    }
+                }
+            ],
+            "edges": [
+                { "id": "e1", "source": "req-1", "sourceHandle": "request", "target": "transform-1", "targetHandle": "trigger" },
+                { "id": "e2", "source": "transform-1", "sourceHandle": "value_out", "target": "backend-1", "targetHandle": "route" }
+            ]
+        }"#;
+
+        let graph: GraphPayload = serde_json::from_str(json).unwrap();
+        assert_eq!(graph.nodes.len(), 3);
+        assert_eq!(graph.edges.len(), 2);
+
+        // Find and verify the transform node
+        let transform_node = graph.nodes.iter().find(|n| n.node_type == "transform").unwrap();
+        let transform_data: TransformNodeData = serde_json::from_value(transform_node.data.clone()).unwrap();
+
+        assert_eq!(transform_data.operation, "lowercase");
+        assert_eq!(transform_data.field, "path");
     }
 }

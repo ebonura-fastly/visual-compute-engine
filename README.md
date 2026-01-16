@@ -132,6 +132,52 @@ fastly compute serve  # Local testing
 fastly compute publish  # Deploy
 ```
 
+## Testing
+
+### Prerequisites
+
+Install wasmtime (WebAssembly runtime) for running unit tests:
+```bash
+brew install wasmtime
+```
+
+### Unit Tests (Rust)
+
+The compute service has 34 unit tests covering node data serialization and graph parsing:
+
+```bash
+cd compute
+cargo test --lib
+```
+
+Tests run via wasmtime executing the WASM binary. Coverage includes:
+- Backend node configuration (timeouts, TLS, pooling)
+- Header node operations (set, append, remove)
+- Cache node settings (TTL, SWR, pass mode)
+- Condition node operators and custom headers
+- Graph payload serialization roundtrips
+
+### Integration Tests
+
+End-to-end tests verify graph evaluation using Viceroy (Fastly's local runtime):
+
+```bash
+cd integration-tests
+node test-graphs.mjs
+```
+
+This spawns Viceroy per test for isolation. Tests cover:
+- Simple routing to backend
+- Condition matching (equals, contains, regex, CIDR)
+- RuleGroup logic (AND/OR)
+- Redirect nodes (301/302)
+- Backend configuration
+
+To test against a deployed service:
+```bash
+VCE_TEST_DOMAIN=your-service.edgecompute.app node test-graphs.mjs --deployed
+```
+
 ### Verify Deployment
 After deploying, check the version:
 ```bash
