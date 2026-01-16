@@ -25,3 +25,7 @@ getrandom = { version = "0.2", features = ["js"] }
 [features]
 default = []
 wasm = []
+
+[dev-dependencies]
+flate2 = "1.0"
+base64 = "0.22"

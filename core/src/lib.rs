@@ -36,6 +36,9 @@ mod value;
 mod interpreter;
 pub mod wasm;
 
+#[cfg(test)]
+mod bench_compression;
+
 pub use graph::*;
 pub use nodes::*;
 pub use ports::*;
