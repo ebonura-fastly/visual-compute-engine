@@ -9,22 +9,62 @@ use crate::{
 };
 use std::collections::{HashMap, HashSet};
 use std::net::IpAddr;
+use regex::Regex;
+use ipnet::IpNet;
 
 /// Request data available during graph execution.
 #[derive(Debug, Clone, Default)]
 pub struct RequestContext {
+    // Connection
     pub client_ip: Option<IpAddr>,
-    pub path: String,
-    pub method: String,
-    pub host: String,
-    pub user_agent: String,
-    pub ja3: Option<String>,
-    pub ja4: Option<String>,
     pub asn: Option<u32>,
+
+    // Geolocation
     pub country: Option<String>,
+    pub country_code3: Option<String>,
+    pub continent: Option<String>,
+    pub city: Option<String>,
+    pub region: Option<String>,
+    pub postal_code: Option<String>,
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
+    pub metro_code: Option<i32>,
+    pub utc_offset: Option<i32>,
+    pub conn_speed: Option<String>,
+    pub conn_type: Option<String>,
+
+    // Proxy detection
     pub proxy_type: Option<String>,
     pub proxy_description: Option<String>,
     pub is_hosting_provider: bool,
+
+    // Device detection
+    pub is_bot: bool,
+    pub bot_name: Option<String>,
+    pub is_mobile: bool,
+    pub is_tablet: bool,
+    pub is_desktop: bool,
+    pub is_smart_tv: bool,
+    pub is_game_console: bool,
+    pub device_name: Option<String>,
+    pub device_brand: Option<String>,
+    pub device_model: Option<String>,
+    pub browser_name: Option<String>,
+    pub browser_version: Option<String>,
+    pub os_name: Option<String>,
+    pub os_version: Option<String>,
+
+    // Request
+    pub method: String,
+    pub path: String,
+    pub host: String,
+    pub user_agent: String,
+
+    // TLS
+    pub ja3: Option<String>,
+    pub ja4: Option<String>,
+
+    // Headers
     pub headers: HashMap<String, String>,
 }
 
@@ -36,18 +76,50 @@ impl RequestContext {
     /// Create a mock request for testing/preview
     pub fn mock() -> Self {
         Self {
+            // Connection
             client_ip: Some("192.168.1.100".parse().unwrap()),
-            path: "/api/users".to_string(),
-            method: "GET".to_string(),
-            host: "example.com".to_string(),
-            user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)".to_string(),
-            ja3: Some("e7d705a3286e19ea42f587b344ee6865".to_string()),
-            ja4: Some("t13d1516h2_8daaf6152771_b186095e22b6".to_string()),
             asn: Some(15169),
+            // Geo
             country: Some("US".to_string()),
+            country_code3: Some("USA".to_string()),
+            continent: Some("NA".to_string()),
+            city: Some("San Francisco".to_string()),
+            region: Some("CA".to_string()),
+            postal_code: Some("94107".to_string()),
+            latitude: Some(37.7749),
+            longitude: Some(-122.4194),
+            metro_code: Some(807),
+            utc_offset: Some(-8),
+            conn_speed: Some("broadband".to_string()),
+            conn_type: Some("wired".to_string()),
+            // Proxy
             proxy_type: None,
             proxy_description: None,
             is_hosting_provider: false,
+            // Device
+            is_bot: false,
+            bot_name: None,
+            is_mobile: false,
+            is_tablet: false,
+            is_desktop: true,
+            is_smart_tv: false,
+            is_game_console: false,
+            device_name: Some("Windows Desktop".to_string()),
+            device_brand: None,
+            device_model: None,
+            browser_name: Some("Chrome".to_string()),
+            browser_version: Some("120.0".to_string()),
+            os_name: Some("Windows".to_string()),
+            os_version: Some("10".to_string()),
+            // Request
+            method: "GET".to_string(),
+            path: "/api/users".to_string(),
+            host: "example.com".to_string(),
+            user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36".to_string(),
+            // TLS
+            ja3: Some("e7d705a3286e19ea42f587b344ee6865".to_string()),
+            ja4: Some("t13d1516h2_8daaf6152771_b186095e22b6".to_string()),
+            // Headers
             headers: HashMap::new(),
         }
     }
@@ -55,18 +127,50 @@ impl RequestContext {
     /// Get a field value from the request
     pub fn get_field(&self, field: &RequestField) -> Value {
         match field {
+            // Connection
             RequestField::ClientIp => self.client_ip.map(Value::Ip).unwrap_or(Value::None),
             RequestField::Asn => self.asn.map(|n| Value::Number(n as f64)).unwrap_or(Value::None),
+            // Geo
             RequestField::Country => self.country.clone().map(Value::String).unwrap_or(Value::None),
+            RequestField::CountryCode3 => self.country_code3.clone().map(Value::String).unwrap_or(Value::None),
+            RequestField::Continent => self.continent.clone().map(Value::String).unwrap_or(Value::None),
+            RequestField::City => self.city.clone().map(Value::String).unwrap_or(Value::None),
+            RequestField::Region => self.region.clone().map(Value::String).unwrap_or(Value::None),
+            RequestField::PostalCode => self.postal_code.clone().map(Value::String).unwrap_or(Value::None),
+            RequestField::Latitude => self.latitude.map(Value::Number).unwrap_or(Value::None),
+            RequestField::Longitude => self.longitude.map(Value::Number).unwrap_or(Value::None),
+            RequestField::MetroCode => self.metro_code.map(|n| Value::Number(n as f64)).unwrap_or(Value::None),
+            RequestField::UtcOffset => self.utc_offset.map(|n| Value::Number(n as f64)).unwrap_or(Value::None),
+            RequestField::ConnSpeed => self.conn_speed.clone().map(Value::String).unwrap_or(Value::None),
+            RequestField::ConnType => self.conn_type.clone().map(Value::String).unwrap_or(Value::None),
+            // Proxy
+            RequestField::ProxyType => self.proxy_type.clone().map(Value::String).unwrap_or(Value::None),
+            RequestField::ProxyDescription => self.proxy_description.clone().map(Value::String).unwrap_or(Value::None),
+            RequestField::IsHostingProvider => Value::Bool(self.is_hosting_provider),
+            // Device
+            RequestField::IsBot => Value::Bool(self.is_bot),
+            RequestField::BotName => self.bot_name.clone().map(Value::String).unwrap_or(Value::None),
+            RequestField::IsMobile => Value::Bool(self.is_mobile),
+            RequestField::IsTablet => Value::Bool(self.is_tablet),
+            RequestField::IsDesktop => Value::Bool(self.is_desktop),
+            RequestField::IsSmartTV => Value::Bool(self.is_smart_tv),
+            RequestField::IsGameConsole => Value::Bool(self.is_game_console),
+            RequestField::DeviceName => self.device_name.clone().map(Value::String).unwrap_or(Value::None),
+            RequestField::DeviceBrand => self.device_brand.clone().map(Value::String).unwrap_or(Value::None),
+            RequestField::DeviceModel => self.device_model.clone().map(Value::String).unwrap_or(Value::None),
+            RequestField::BrowserName => self.browser_name.clone().map(Value::String).unwrap_or(Value::None),
+            RequestField::BrowserVersion => self.browser_version.clone().map(Value::String).unwrap_or(Value::None),
+            RequestField::OsName => self.os_name.clone().map(Value::String).unwrap_or(Value::None),
+            RequestField::OsVersion => self.os_version.clone().map(Value::String).unwrap_or(Value::None),
+            // Request
             RequestField::Method => Value::String(self.method.clone()),
             RequestField::Path => Value::String(self.path.clone()),
             RequestField::Host => Value::String(self.host.clone()),
             RequestField::UserAgent => Value::String(self.user_agent.clone()),
+            // TLS
             RequestField::Ja3 => self.ja3.clone().map(Value::String).unwrap_or(Value::None),
             RequestField::Ja4 => self.ja4.clone().map(Value::String).unwrap_or(Value::None),
-            RequestField::ProxyType => self.proxy_type.clone().map(Value::String).unwrap_or(Value::None),
-            RequestField::ProxyDescription => self.proxy_description.clone().map(Value::String).unwrap_or(Value::None),
-            RequestField::IsHostingProvider => Value::Bool(self.is_hosting_provider),
+            // Header
             RequestField::Header { name } => {
                 self.headers.get(name).cloned().map(Value::String).unwrap_or(Value::None)
             }
@@ -194,7 +298,7 @@ fn execute_node(
             vec![Value::Bool(!input)]
         }
 
-        NodeKind::RateLimit { mode, counter_name, threshold, penalty_ttl_seconds, .. } => {
+        NodeKind::RateLimit { mode, counter_name, threshold, penalty_ttl_seconds: _, .. } => {
             let entry = request.client_ip.map(|ip| ip.to_string()).unwrap_or_default();
 
             match mode {
@@ -259,9 +363,14 @@ fn evaluate_condition(field_value: &Value, operator: &Operator, cond_value: &Con
             _ => false,
         },
 
-        Operator::Matches => {
-            // TODO: Regex support
-            false
+        Operator::Matches => match (field_value, cond_value) {
+            (Value::String(text), ConditionValue::String(pattern)) => {
+                // Compile regex and check for match
+                Regex::new(pattern)
+                    .map(|re| re.is_match(text))
+                    .unwrap_or(false)
+            }
+            _ => false,
         }
 
         Operator::GreaterThan => match (field_value, cond_value) {
@@ -287,9 +396,21 @@ fn evaluate_condition(field_value: &Value, operator: &Operator, cond_value: &Con
         },
         Operator::NotIn => !evaluate_condition(field_value, &Operator::In, cond_value),
 
-        Operator::InCidr => {
-            // TODO: CIDR matching
-            false
+        Operator::InCidr => match (field_value, cond_value) {
+            (Value::Ip(ip), ConditionValue::CidrList(cidrs)) => {
+                cidrs.iter().any(|cidr| {
+                    cidr.parse::<IpNet>()
+                        .map(|net| net.contains(ip))
+                        .unwrap_or(false)
+                })
+            }
+            (Value::Ip(ip), ConditionValue::String(cidr)) => {
+                // Single CIDR as string
+                cidr.parse::<IpNet>()
+                    .map(|net| net.contains(ip))
+                    .unwrap_or(false)
+            }
+            _ => false,
         }
 
         Operator::Exists => !matches!(field_value, Value::None),

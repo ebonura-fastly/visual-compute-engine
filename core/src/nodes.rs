@@ -121,45 +121,120 @@ pub enum NodeKind {
 /// All available request fields that can be checked
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RequestField {
-    // Connection
+    // ═══════════════════════════════════════════════════════════════════════
+    // CONNECTION
+    // ═══════════════════════════════════════════════════════════════════════
     ClientIp,
     Asn,
-    Country,
 
-    // Request
+    // ═══════════════════════════════════════════════════════════════════════
+    // GEOLOCATION (from fastly::geo::Geo)
+    // ═══════════════════════════════════════════════════════════════════════
+    Country,          // ISO 3166-1 alpha-2 (US, GB, DE)
+    CountryCode3,     // ISO 3166-1 alpha-3 (USA, GBR, DEU)
+    Continent,        // AF, AN, AS, EU, NA, OC, SA
+    City,
+    Region,           // ISO 3166-2 subdivision (CA, TX, etc.)
+    PostalCode,
+    Latitude,
+    Longitude,
+    MetroCode,        // Nielsen DMA code
+    UtcOffset,        // Timezone offset in hours
+    ConnSpeed,        // broadband, cable, dialup, mobile, etc.
+    ConnType,         // wired, wifi, mobile, satellite
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // PROXY/VPN DETECTION
+    // ═══════════════════════════════════════════════════════════════════════
+    ProxyType,        // anonymous, public, transparent, vpn
+    ProxyDescription, // tor-exit, tor-relay, hosting, etc.
+    IsHostingProvider,
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // DEVICE DETECTION (from fastly::device_detection::Device)
+    // ═══════════════════════════════════════════════════════════════════════
+    IsBot,
+    BotName,
+    IsMobile,
+    IsTablet,
+    IsDesktop,
+    IsSmartTV,
+    IsGameConsole,
+    DeviceName,
+    DeviceBrand,
+    DeviceModel,
+    BrowserName,
+    BrowserVersion,
+    OsName,
+    OsVersion,
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // REQUEST
+    // ═══════════════════════════════════════════════════════════════════════
     Method,
     Path,
     Host,
     UserAgent,
 
-    // TLS Fingerprints
+    // ═══════════════════════════════════════════════════════════════════════
+    // TLS FINGERPRINTS
+    // ═══════════════════════════════════════════════════════════════════════
     Ja3,
     Ja4,
 
-    // Geo/Proxy detection
-    ProxyType,      // anonymous, public, transparent, vpn
-    ProxyDescription, // tor-exit, tor-relay, etc.
-    IsHostingProvider,
-
-    // Custom header
+    // ═══════════════════════════════════════════════════════════════════════
+    // CUSTOM HEADER
+    // ═══════════════════════════════════════════════════════════════════════
     Header { name: String },
 }
 
 impl RequestField {
     pub fn display_name(&self) -> &str {
         match self {
+            // Connection
             RequestField::ClientIp => "Client IP",
             RequestField::Asn => "ASN",
+            // Geo
             RequestField::Country => "Country",
+            RequestField::CountryCode3 => "Country Code (3)",
+            RequestField::Continent => "Continent",
+            RequestField::City => "City",
+            RequestField::Region => "Region",
+            RequestField::PostalCode => "Postal Code",
+            RequestField::Latitude => "Latitude",
+            RequestField::Longitude => "Longitude",
+            RequestField::MetroCode => "Metro Code",
+            RequestField::UtcOffset => "UTC Offset",
+            RequestField::ConnSpeed => "Connection Speed",
+            RequestField::ConnType => "Connection Type",
+            // Proxy
+            RequestField::ProxyType => "Proxy Type",
+            RequestField::ProxyDescription => "Proxy Description",
+            RequestField::IsHostingProvider => "Is Hosting Provider",
+            // Device
+            RequestField::IsBot => "Is Bot",
+            RequestField::BotName => "Bot Name",
+            RequestField::IsMobile => "Is Mobile",
+            RequestField::IsTablet => "Is Tablet",
+            RequestField::IsDesktop => "Is Desktop",
+            RequestField::IsSmartTV => "Is Smart TV",
+            RequestField::IsGameConsole => "Is Game Console",
+            RequestField::DeviceName => "Device Name",
+            RequestField::DeviceBrand => "Device Brand",
+            RequestField::DeviceModel => "Device Model",
+            RequestField::BrowserName => "Browser Name",
+            RequestField::BrowserVersion => "Browser Version",
+            RequestField::OsName => "OS Name",
+            RequestField::OsVersion => "OS Version",
+            // Request
             RequestField::Method => "Method",
             RequestField::Path => "Path",
             RequestField::Host => "Host",
             RequestField::UserAgent => "User Agent",
+            // TLS
             RequestField::Ja3 => "JA3",
             RequestField::Ja4 => "JA4",
-            RequestField::ProxyType => "Proxy Type",
-            RequestField::ProxyDescription => "Proxy Description",
-            RequestField::IsHostingProvider => "Is Hosting Provider",
+            // Header
             RequestField::Header { .. } => "Header",
         }
     }
@@ -167,19 +242,72 @@ impl RequestField {
     /// Returns all non-header fields for the UI picker
     pub fn all_standard() -> &'static [RequestField] {
         &[
+            // Connection
             RequestField::ClientIp,
             RequestField::Asn,
+            // Geo
             RequestField::Country,
+            RequestField::CountryCode3,
+            RequestField::Continent,
+            RequestField::City,
+            RequestField::Region,
+            RequestField::PostalCode,
+            RequestField::Latitude,
+            RequestField::Longitude,
+            RequestField::MetroCode,
+            RequestField::UtcOffset,
+            RequestField::ConnSpeed,
+            RequestField::ConnType,
+            // Proxy
+            RequestField::ProxyType,
+            RequestField::ProxyDescription,
+            RequestField::IsHostingProvider,
+            // Device Detection
+            RequestField::IsBot,
+            RequestField::BotName,
+            RequestField::IsMobile,
+            RequestField::IsTablet,
+            RequestField::IsDesktop,
+            RequestField::IsSmartTV,
+            RequestField::IsGameConsole,
+            RequestField::DeviceName,
+            RequestField::DeviceBrand,
+            RequestField::DeviceModel,
+            RequestField::BrowserName,
+            RequestField::BrowserVersion,
+            RequestField::OsName,
+            RequestField::OsVersion,
+            // Request
             RequestField::Method,
             RequestField::Path,
             RequestField::Host,
             RequestField::UserAgent,
+            // TLS
             RequestField::Ja3,
             RequestField::Ja4,
-            RequestField::ProxyType,
-            RequestField::ProxyDescription,
-            RequestField::IsHostingProvider,
         ]
+    }
+
+    /// Get field category for UI grouping
+    pub fn category(&self) -> &'static str {
+        match self {
+            RequestField::ClientIp | RequestField::Asn => "Connection",
+            RequestField::Country | RequestField::CountryCode3 | RequestField::Continent |
+            RequestField::City | RequestField::Region | RequestField::PostalCode |
+            RequestField::Latitude | RequestField::Longitude | RequestField::MetroCode |
+            RequestField::UtcOffset | RequestField::ConnSpeed | RequestField::ConnType => "Geolocation",
+            RequestField::ProxyType | RequestField::ProxyDescription |
+            RequestField::IsHostingProvider => "Proxy Detection",
+            RequestField::IsBot | RequestField::BotName | RequestField::IsMobile |
+            RequestField::IsTablet | RequestField::IsDesktop | RequestField::IsSmartTV |
+            RequestField::IsGameConsole | RequestField::DeviceName | RequestField::DeviceBrand |
+            RequestField::DeviceModel | RequestField::BrowserName | RequestField::BrowserVersion |
+            RequestField::OsName | RequestField::OsVersion => "Device Detection",
+            RequestField::Method | RequestField::Path | RequestField::Host |
+            RequestField::UserAgent => "Request",
+            RequestField::Ja3 | RequestField::Ja4 => "TLS Fingerprint",
+            RequestField::Header { .. } => "Custom",
+        }
     }
 }
 

@@ -5,9 +5,9 @@
 use wasm_bindgen::prelude::*;
 use serde::{Deserialize, Serialize};
 use crate::{
-    Graph, Node, NodeKind, Edge, GraphError,
-    RequestField, Operator, ConditionValue, ActionType, ChallengeType, LogSeverity,
-    RateLimitMode, RateWindow, HeaderOp, NodeCategory,
+    Graph, Node, NodeKind, GraphError,
+    RequestField, Operator, ConditionValue, ActionType, ChallengeType,
+    RateLimitMode, RateWindow, NodeCategory,
     RequestContext, ExecutionState, ExecutionResult, execute,
 };
 use std::collections::HashMap;
@@ -220,32 +220,95 @@ pub fn execute_graph(graph: &WasmGraph, request_json: &str) -> Result<String, Js
 }
 
 // JSON-friendly version of RequestContext (IpAddr as string)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 struct RequestContextJson {
+    // Connection
     #[serde(default)]
     pub client_ip: Option<String>,
     #[serde(default)]
-    pub path: String,
-    #[serde(default)]
-    pub method: String,
-    #[serde(default)]
-    pub host: String,
-    #[serde(default)]
-    pub user_agent: String,
-    #[serde(default)]
-    pub ja3: Option<String>,
-    #[serde(default)]
-    pub ja4: Option<String>,
-    #[serde(default)]
     pub asn: Option<u32>,
+
+    // Geolocation
     #[serde(default)]
     pub country: Option<String>,
+    #[serde(default)]
+    pub country_code3: Option<String>,
+    #[serde(default)]
+    pub continent: Option<String>,
+    #[serde(default)]
+    pub city: Option<String>,
+    #[serde(default)]
+    pub region: Option<String>,
+    #[serde(default)]
+    pub postal_code: Option<String>,
+    #[serde(default)]
+    pub latitude: Option<f64>,
+    #[serde(default)]
+    pub longitude: Option<f64>,
+    #[serde(default)]
+    pub metro_code: Option<i32>,
+    #[serde(default)]
+    pub utc_offset: Option<i32>,
+    #[serde(default)]
+    pub conn_speed: Option<String>,
+    #[serde(default)]
+    pub conn_type: Option<String>,
+
+    // Proxy detection
     #[serde(default)]
     pub proxy_type: Option<String>,
     #[serde(default)]
     pub proxy_description: Option<String>,
     #[serde(default)]
     pub is_hosting_provider: bool,
+
+    // Device detection
+    #[serde(default)]
+    pub is_bot: bool,
+    #[serde(default)]
+    pub bot_name: Option<String>,
+    #[serde(default)]
+    pub is_mobile: bool,
+    #[serde(default)]
+    pub is_tablet: bool,
+    #[serde(default)]
+    pub is_desktop: bool,
+    #[serde(default)]
+    pub is_smart_tv: bool,
+    #[serde(default)]
+    pub is_game_console: bool,
+    #[serde(default)]
+    pub device_name: Option<String>,
+    #[serde(default)]
+    pub device_brand: Option<String>,
+    #[serde(default)]
+    pub device_model: Option<String>,
+    #[serde(default)]
+    pub browser_name: Option<String>,
+    #[serde(default)]
+    pub browser_version: Option<String>,
+    #[serde(default)]
+    pub os_name: Option<String>,
+    #[serde(default)]
+    pub os_version: Option<String>,
+
+    // Request
+    #[serde(default)]
+    pub method: String,
+    #[serde(default)]
+    pub path: String,
+    #[serde(default)]
+    pub host: String,
+    #[serde(default)]
+    pub user_agent: String,
+
+    // TLS
+    #[serde(default)]
+    pub ja3: Option<String>,
+    #[serde(default)]
+    pub ja4: Option<String>,
+
+    // Headers
     #[serde(default)]
     pub headers: HashMap<String, String>,
 }
@@ -253,18 +316,50 @@ struct RequestContextJson {
 impl From<RequestContextJson> for RequestContext {
     fn from(json: RequestContextJson) -> Self {
         RequestContext {
+            // Connection
             client_ip: json.client_ip.and_then(|s| s.parse().ok()),
-            path: json.path,
-            method: json.method,
-            host: json.host,
-            user_agent: json.user_agent,
-            ja3: json.ja3,
-            ja4: json.ja4,
             asn: json.asn,
+            // Geo
             country: json.country,
+            country_code3: json.country_code3,
+            continent: json.continent,
+            city: json.city,
+            region: json.region,
+            postal_code: json.postal_code,
+            latitude: json.latitude,
+            longitude: json.longitude,
+            metro_code: json.metro_code,
+            utc_offset: json.utc_offset,
+            conn_speed: json.conn_speed,
+            conn_type: json.conn_type,
+            // Proxy
             proxy_type: json.proxy_type,
             proxy_description: json.proxy_description,
             is_hosting_provider: json.is_hosting_provider,
+            // Device
+            is_bot: json.is_bot,
+            bot_name: json.bot_name,
+            is_mobile: json.is_mobile,
+            is_tablet: json.is_tablet,
+            is_desktop: json.is_desktop,
+            is_smart_tv: json.is_smart_tv,
+            is_game_console: json.is_game_console,
+            device_name: json.device_name,
+            device_brand: json.device_brand,
+            device_model: json.device_model,
+            browser_name: json.browser_name,
+            browser_version: json.browser_version,
+            os_name: json.os_name,
+            os_version: json.os_version,
+            // Request
+            method: json.method,
+            path: json.path,
+            host: json.host,
+            user_agent: json.user_agent,
+            // TLS
+            ja3: json.ja3,
+            ja4: json.ja4,
+            // Headers
             headers: json.headers,
         }
     }

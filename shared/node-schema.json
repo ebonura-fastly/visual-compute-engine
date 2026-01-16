@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Visual Compute Engine Node Schema",
   "description": "Shared schema defining node types and their handles. Used by both editor-ui and compute engine.",
-  "version": "1.1.2",
+  "version": "1.1.4",
   "nodes": {
     "request": {
       "description": "Entry point for incoming requests",
@@ -139,15 +139,59 @@
       { "id": "inCidr", "label": "in CIDR range" }
     ]
   },
+  "fieldCategories": {
+    "Connection": ["clientIp", "asn"],
+    "Geolocation": ["country", "countryCode3", "continent", "city", "region", "postalCode", "latitude", "longitude", "metroCode", "utcOffset", "connSpeed", "connType"],
+    "Proxy Detection": ["proxyType", "proxyDescription", "isHostingProvider"],
+    "Device Detection": ["isBot", "botName", "isMobile", "isTablet", "isDesktop", "isSmartTV", "isGameConsole", "deviceName", "deviceBrand", "deviceModel", "browserName", "browserVersion", "osName", "osVersion"],
+    "Request": ["method", "path", "host", "userAgent"],
+    "TLS Fingerprint": ["ja3", "ja4"],
+    "Custom": ["header"]
+  },
   "fields": [
-    { "id": "path", "label": "Path", "type": "string" },
-    { "id": "method", "label": "Method", "type": "string" },
-    { "id": "clientIp", "label": "Client IP", "type": "ip" },
-    { "id": "country", "label": "Country", "type": "string" },
-    { "id": "userAgent", "label": "User Agent", "type": "string" },
-    { "id": "host", "label": "Host", "type": "string" },
-    { "id": "header", "label": "Header", "type": "string" },
-    { "id": "asn", "label": "ASN", "type": "string" },
-    { "id": "ja3", "label": "JA3 Fingerprint", "type": "string" }
+    { "id": "clientIp", "label": "Client IP", "type": "ip", "category": "Connection" },
+    { "id": "asn", "label": "ASN", "type": "number", "category": "Connection" },
+
+    { "id": "country", "label": "Country", "type": "string", "category": "Geolocation", "description": "ISO 3166-1 alpha-2 (US, GB, DE)" },
+    { "id": "countryCode3", "label": "Country Code (3)", "type": "string", "category": "Geolocation", "description": "ISO 3166-1 alpha-3 (USA, GBR, DEU)" },
+    { "id": "continent", "label": "Continent", "type": "string", "category": "Geolocation", "description": "AF, AN, AS, EU, NA, OC, SA" },
+    { "id": "city", "label": "City", "type": "string", "category": "Geolocation" },
+    { "id": "region", "label": "Region", "type": "string", "category": "Geolocation", "description": "ISO 3166-2 subdivision (CA, TX, etc.)" },
+    { "id": "postalCode", "label": "Postal Code", "type": "string", "category": "Geolocation" },
+    { "id": "latitude", "label": "Latitude", "type": "number", "category": "Geolocation" },
+    { "id": "longitude", "label": "Longitude", "type": "number", "category": "Geolocation" },
+    { "id": "metroCode", "label": "Metro Code", "type": "number", "category": "Geolocation", "description": "Nielsen DMA code" },
+    { "id": "utcOffset", "label": "UTC Offset", "type": "number", "category": "Geolocation", "description": "Timezone offset in hours" },
+    { "id": "connSpeed", "label": "Connection Speed", "type": "string", "category": "Geolocation", "description": "broadband, cable, dialup, mobile, etc." },
+    { "id": "connType", "label": "Connection Type", "type": "string", "category": "Geolocation", "description": "wired, wifi, mobile, satellite" },
+
+    { "id": "proxyType", "label": "Proxy Type", "type": "string", "category": "Proxy Detection", "description": "anonymous, public, transparent, vpn" },
+    { "id": "proxyDescription", "label": "Proxy Description", "type": "string", "category": "Proxy Detection", "description": "tor-exit, tor-relay, hosting, etc." },
+    { "id": "isHostingProvider", "label": "Is Hosting Provider", "type": "boolean", "category": "Proxy Detection" },
+
+    { "id": "isBot", "label": "Is Bot", "type": "boolean", "category": "Device Detection" },
+    { "id": "botName", "label": "Bot Name", "type": "string", "category": "Device Detection" },
+    { "id": "isMobile", "label": "Is Mobile", "type": "boolean", "category": "Device Detection" },
+    { "id": "isTablet", "label": "Is Tablet", "type": "boolean", "category": "Device Detection" },
+    { "id": "isDesktop", "label": "Is Desktop", "type": "boolean", "category": "Device Detection" },
+    { "id": "isSmartTV", "label": "Is Smart TV", "type": "boolean", "category": "Device Detection" },
+    { "id": "isGameConsole", "label": "Is Game Console", "type": "boolean", "category": "Device Detection" },
+    { "id": "deviceName", "label": "Device Name", "type": "string", "category": "Device Detection" },
+    { "id": "deviceBrand", "label": "Device Brand", "type": "string", "category": "Device Detection" },
+    { "id": "deviceModel", "label": "Device Model", "type": "string", "category": "Device Detection" },
+    { "id": "browserName", "label": "Browser Name", "type": "string", "category": "Device Detection" },
+    { "id": "browserVersion", "label": "Browser Version", "type": "string", "category": "Device Detection" },
+    { "id": "osName", "label": "OS Name", "type": "string", "category": "Device Detection" },
+    { "id": "osVersion", "label": "OS Version", "type": "string", "category": "Device Detection" },
+
+    { "id": "method", "label": "Method", "type": "string", "category": "Request" },
+    { "id": "path", "label": "Path", "type": "string", "category": "Request" },
+    { "id": "host", "label": "Host", "type": "string", "category": "Request" },
+    { "id": "userAgent", "label": "User Agent", "type": "string", "category": "Request" },
+
+    { "id": "ja3", "label": "JA3 Fingerprint", "type": "string", "category": "TLS Fingerprint" },
+    { "id": "ja4", "label": "JA4 Fingerprint", "type": "string", "category": "TLS Fingerprint" },
+
+    { "id": "header", "label": "Header", "type": "string", "category": "Custom", "hasParam": true, "paramLabel": "Header Name" }
   ]
 }
