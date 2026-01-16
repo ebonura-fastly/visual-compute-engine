@@ -1,6 +1,6 @@
 import { type NodeProps, useReactFlow } from '@xyflow/react'
 import { useCallback } from 'react'
-import { NodeBase, NodeField, NodeSelect, NodeInput } from './NodeBase'
+import { NodeBase, NodeField, NodeSelect, NodeTextarea } from './NodeBase'
 
 export type ConditionNodeData = {
   field: string
@@ -155,10 +155,12 @@ export function ConditionNode({ id, data, selected }: NodeProps) {
       </NodeField>
 
       <NodeField label="Value">
-        <NodeInput
+        <NodeTextarea
           value={nodeData.value || ''}
           onChange={(v) => updateData('value', v)}
           placeholder="Enter value..."
+          minRows={1}
+          maxRows={4}
         />
       </NodeField>
     </NodeBase>

@@ -1,4 +1,4 @@
-import { Handle, Position } from '@xyflow/react'
+import { Handle, Position, NodeResizer } from '@xyflow/react'
 import { useState, type ReactNode } from 'react'
 import { useTheme, fonts } from '../../styles/theme'
 
@@ -17,6 +17,9 @@ type NodeBaseProps = {
   outputs?: PortDef[]
   children?: ReactNode
   width?: number
+  minWidth?: number
+  maxWidth?: number
+  resizable?: boolean
 }
 
 // Layout constants
@@ -33,7 +36,10 @@ export function NodeBase({
   inputs = [],
   outputs = [],
   children,
-  width = 220
+  width = 220,
+  minWidth = 180,
+  maxWidth = 400,
+  resizable = false,
 }: NodeBaseProps) {
   const [collapsed, setCollapsed] = useState(initialCollapsed)
   const { theme } = useTheme()
@@ -78,9 +84,22 @@ export function NodeBase({
       boxShadow: selected
         ? `0 0 0 2px ${theme.primary}40, 0 4px 6px -1px rgba(0, 0, 0, 0.1)`
         : '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-      width,
+      width: resizable ? '100%' : width,
+      minWidth: resizable ? minWidth : undefined,
+      maxWidth: resizable ? maxWidth : undefined,
+      height: resizable ? '100%' : undefined,
       background: colors.body,
     }}>
+      {resizable && (
+        <NodeResizer
+          minWidth={minWidth}
+          maxWidth={maxWidth}
+          minHeight={100}
+          isVisible={selected}
+          lineStyle={{ borderColor: theme.primary, borderWidth: 1 }}
+          handleStyle={{ backgroundColor: theme.primary, width: 8, height: 8, borderRadius: 2 }}
+        />
+      )}
       {/* Header */}
       <div
         style={{
@@ -314,6 +333,50 @@ export function NodeCheckbox({
       />
       {label}
     </label>
+  )
+}
+
+export function NodeTextarea({
+  value,
+  onChange,
+  placeholder,
+  minRows = 1,
+  maxRows = 5,
+}: {
+  value: string
+  onChange: (value: string) => void
+  placeholder?: string
+  minRows?: number
+  maxRows?: number
+}) {
+  const { theme } = useTheme()
+
+  // Calculate rows based on content (newlines + wrapping estimate)
+  const lineCount = (value || '').split('\n').length
+  const estimatedWrapLines = Math.ceil((value || '').length / 25) // rough estimate for 25 chars per line
+  const rows = Math.min(maxRows, Math.max(minRows, lineCount, estimatedWrapLines))
+
+  return (
+    <textarea
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      rows={rows}
+      style={{
+        width: '100%',
+        padding: '6px 10px',
+        background: theme.bgTertiary,
+        border: `1px solid ${theme.border}`,
+        borderRadius: 6,
+        color: theme.text,
+        fontSize: 12,
+        boxSizing: 'border-box',
+        outline: 'none',
+        resize: 'vertical',
+        fontFamily: 'inherit',
+        lineHeight: 1.4,
+      }}
+    />
   )
 }
 

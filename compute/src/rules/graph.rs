@@ -11,7 +11,7 @@ use fastly::geo::geo_lookup;
 use fastly::device_detection::lookup as device_lookup;
 
 use std::time::Duration;
-use fastly::erl::{ERL, RateCounter, Penaltybox, RateWindow};
+use fastly::erl::{ERL, RateCounter, Penaltybox, RateWindow, CounterDuration};
 use ipnet::IpNet;
 
 use super::types::{
@@ -46,6 +46,8 @@ pub struct GraphInterpreter<'a> {
     nodes: HashMap<String, &'a GraphNode>,
     edges_from: HashMap<String, Vec<&'a GraphEdge>>,
     rate_limiter: Option<ERL>,
+    /// Separate rate counter for debug lookups (ERL takes ownership of the main one)
+    rate_counter_debug: Option<RateCounter>,
     /// Cached geo lookup result
     geo_cache: std::cell::RefCell<Option<Option<fastly::geo::Geo>>>,
 }
@@ -66,20 +68,23 @@ impl<'a> GraphInterpreter<'a> {
 
         // Initialize rate limiter if graph contains rateLimit nodes
         let has_rate_limit = graph.nodes.iter().any(|n| n.node_type == "rateLimit");
-        let rate_limiter = if has_rate_limit {
+        let (rate_limiter, rate_counter_debug) = if has_rate_limit {
             // Try to open the rate counter and penalty box
             // These must be configured in fastly.toml and linked to the service
             let counter = RateCounter::open("vce_rate_counter");
             let penaltybox = Penaltybox::open("vce_penalty_box");
-            Some(ERL::open(counter, penaltybox))
+            // Open a second counter handle for debug lookups
+            let counter_debug = RateCounter::open("vce_rate_counter");
+            (Some(ERL::open(counter, penaltybox)), Some(counter_debug))
         } else {
-            None
+            (None, None)
         };
 
         Self {
             nodes,
             edges_from,
             rate_limiter,
+            rate_counter_debug,
             geo_cache: std::cell::RefCell::new(None),
         }
     }
@@ -247,21 +252,40 @@ impl<'a> GraphInterpreter<'a> {
                     }
                 };
 
+                // Warning for local development
+                println!("[Graph] ⚠️  Rate limiting in local dev (Viceroy) may not persist counters between requests.");
+                println!("[Graph]    Deploy to Fastly to test rate limiting behavior accurately.");
+
                 // Get the client identifier based on keyBy
                 let entry = self.get_rate_limit_key(&data, req);
-                println!("[Graph] Rate limit check for entry: {} (limit: {}/{})", entry, data.limit, data.window_unit);
+
+                // Map window unit to RateWindow enum (for check_rate)
+                let window = match data.window_unit.as_str() {
+                    "second" => RateWindow::OneSec,
+                    "minute" => RateWindow::SixtySecs,
+                    "hour" => RateWindow::SixtySecs, // Use 60s window for hourly, limit is adjusted
+                    _ => RateWindow::SixtySecs,
+                };
+
+                // Helper to get CounterDuration for lookup_count debug
+                let get_counter_duration = || match data.window_unit.as_str() {
+                    "second" => CounterDuration::TenSec, // Closest to 1 second
+                    "minute" => CounterDuration::SixtySecs,
+                    "hour" => CounterDuration::SixtySecs,
+                    _ => CounterDuration::SixtySecs,
+                };
+
+                // Debug: lookup current count before check
+                let count_before = self.rate_counter_debug.as_ref()
+                    .and_then(|c| c.lookup_count(&entry, get_counter_duration()).ok())
+                    .unwrap_or(0);
+
+                println!("[Graph] Rate limit check for entry: {} (count: {}, limit: {}/{})",
+                    entry, count_before, data.limit, data.window_unit);
 
                 // Check if we have a rate limiter
                 let exceeded = match &self.rate_limiter {
                     Some(erl) => {
-                        // Map window unit to RateWindow enum
-                        let window = match data.window_unit.as_str() {
-                            "second" => RateWindow::OneSec,
-                            "minute" => RateWindow::SixtySecs,
-                            "hour" => RateWindow::SixtySecs, // Use 60s window for hourly, limit is adjusted
-                            _ => RateWindow::SixtySecs,
-                        };
-
                         // Calculate the rate limit based on window
                         // ERL checks requests per second, so we need to convert
                         let rps_limit = match data.window_unit.as_str() {
@@ -279,7 +303,12 @@ impl<'a> GraphInterpreter<'a> {
 
                         match erl.check_rate(&entry, 1, window, rps_limit, ttl) {
                             Ok(is_blocked) => {
-                                println!("[Graph] Rate limit result: blocked={}", is_blocked);
+                                // Debug: lookup count after increment
+                                let count_after = self.rate_counter_debug.as_ref()
+                                    .and_then(|c| c.lookup_count(&entry, get_counter_duration()).ok())
+                                    .unwrap_or(0);
+                                println!("[Graph] Rate limit result: blocked={}, count: {} -> {}",
+                                    is_blocked, count_before, count_after);
                                 is_blocked
                             }
                             Err(e) => {
