@@ -2,12 +2,25 @@ import { Handle, Position, type NodeProps, useReactFlow } from '@xyflow/react'
 import { useCallback, useState } from 'react'
 import { useTheme, fonts } from '../../styles/theme'
 
+// Fields that return boolean values - show checkbox instead of text input
+const booleanFields = new Set([
+  'ddosDetected',
+  'isBot',
+  'isMobile',
+  'isTablet',
+  'isDesktop',
+  'isSmartTV',
+  'isGameConsole',
+  'isHostingProvider',
+])
+
 // Condition definition (embedded in the group)
 type ConditionDef = {
   id: string
   field: string
   operator: string
   value: string
+  headerName?: string  // For custom header field
 }
 
 export type RuleGroupNodeData = {
@@ -35,6 +48,14 @@ const fieldOptions = [
   { value: 'city', label: 'City' },
   { value: 'continent', label: 'Continent' },
 
+  // Detection (Boolean)
+  { value: 'ddosDetected', label: 'DDoS Detected' },
+  { value: 'isBot', label: 'Is Bot' },
+  { value: 'isMobile', label: 'Is Mobile' },
+  { value: 'isTablet', label: 'Is Tablet' },
+  { value: 'isDesktop', label: 'Is Desktop' },
+  { value: 'isHostingProvider', label: 'Is Hosting Provider' },
+
   // Request Headers
   { value: 'userAgent', label: 'User-Agent' },
   { value: 'referer', label: 'Referer' },
@@ -49,8 +70,8 @@ const fieldOptions = [
   { value: 'ja3', label: 'JA3' },
   { value: 'ja4', label: 'JA4' },
 
-  // Custom
-  { value: 'header', label: 'Header...' },
+  // Custom Header
+  { value: 'header', label: 'Custom Header' },
 ]
 
 const operatorOptions = [
@@ -314,7 +335,21 @@ export function RuleGroupNode({ id, data, selected }: NodeProps) {
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
                   <select
                     value={condition.field}
-                    onChange={(e) => updateCondition(condition.id, 'field', e.target.value)}
+                    onChange={(e) => {
+                      const newField = e.target.value
+                      // When switching to boolean field, set default values
+                      if (booleanFields.has(newField)) {
+                        updateData({
+                          conditions: conditions.map((c) =>
+                            c.id === condition.id
+                              ? { ...c, field: newField, operator: 'equals', value: 'true' }
+                              : c
+                          ),
+                        })
+                      } else {
+                        updateCondition(condition.id, 'field', newField)
+                      }
+                    }}
                     style={{
                       padding: '4px 6px',
                       background: theme.bg,
@@ -330,40 +365,97 @@ export function RuleGroupNode({ id, data, selected }: NodeProps) {
                     ))}
                   </select>
 
-                  <select
-                    value={condition.operator}
-                    onChange={(e) => updateCondition(condition.id, 'operator', e.target.value)}
-                    style={{
-                      padding: '4px 6px',
-                      background: theme.bg,
-                      border: `1px solid ${theme.border}`,
-                      borderRadius: 4,
-                      color: theme.text,
-                      fontSize: 11,
-                      flex: '0 0 auto',
-                    }}
-                  >
-                    {operatorOptions.map((opt) => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
+                  {condition.field === 'header' && (
+                    <input
+                      type="text"
+                      value={condition.headerName || ''}
+                      onChange={(e) => {
+                        updateData({
+                          conditions: conditions.map((c) =>
+                            c.id === condition.id
+                              ? { ...c, headerName: e.target.value }
+                              : c
+                          ),
+                        })
+                      }}
+                      placeholder="Header name"
+                      style={{
+                        padding: '4px 6px',
+                        background: theme.bg,
+                        border: `1px solid ${theme.border}`,
+                        borderRadius: 4,
+                        color: theme.text,
+                        fontSize: 11,
+                        flex: '0 0 auto',
+                        width: 80,
+                      }}
+                    />
+                  )}
 
-                  <input
-                    type="text"
-                    value={condition.value}
-                    onChange={(e) => updateCondition(condition.id, 'value', e.target.value)}
-                    placeholder="value"
-                    style={{
-                      padding: '4px 6px',
-                      background: theme.bg,
-                      border: `1px solid ${theme.border}`,
-                      borderRadius: 4,
-                      color: theme.text,
+                  {booleanFields.has(condition.field) ? (
+                    <label style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
                       fontSize: 11,
+                      color: theme.textMuted,
+                      cursor: 'pointer',
                       flex: 1,
-                      minWidth: 80,
-                    }}
-                  />
+                    }}>
+                      <input
+                        type="checkbox"
+                        checked={condition.value === 'true'}
+                        onChange={(e) => {
+                          updateData({
+                            conditions: conditions.map((c) =>
+                              c.id === condition.id
+                                ? { ...c, operator: 'equals', value: e.target.checked ? 'true' : 'false' }
+                                : c
+                            ),
+                          })
+                        }}
+                        style={{ accentColor: '#FF282D' }}
+                      />
+                      {condition.value === 'true' ? 'Yes' : 'No'}
+                    </label>
+                  ) : (
+                    <>
+                      <select
+                        value={condition.operator}
+                        onChange={(e) => updateCondition(condition.id, 'operator', e.target.value)}
+                        style={{
+                          padding: '4px 6px',
+                          background: theme.bg,
+                          border: `1px solid ${theme.border}`,
+                          borderRadius: 4,
+                          color: theme.text,
+                          fontSize: 11,
+                          flex: '0 0 auto',
+                        }}
+                      >
+                        {operatorOptions.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+
+                      <input
+                        type="text"
+                        value={condition.value}
+                        onChange={(e) => updateCondition(condition.id, 'value', e.target.value)}
+                        placeholder="value"
+                        style={{
+                          padding: '4px 6px',
+                          background: theme.bg,
+                          border: `1px solid ${theme.border}`,
+                          borderRadius: 4,
+                          color: theme.text,
+                          fontSize: 11,
+                          flex: 1,
+                          minWidth: 80,
+                        }}
+                      />
+                    </>
+                  )}
                 </div>
               </div>
             ))}

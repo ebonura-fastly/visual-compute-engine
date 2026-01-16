@@ -58,6 +58,9 @@ pub struct ConditionNodeData {
     pub field: String,
     pub operator: String,
     pub value: String,
+    /// Custom header name (when field is "header")
+    #[serde(rename = "headerName")]
+    pub header_name: Option<String>,
 }
 
 /// Node data for ruleGroup nodes (inline conditions with match/noMatch outputs).
@@ -74,6 +77,9 @@ pub struct RuleGroupCondition {
     pub field: String,
     pub operator: String,
     pub value: String,
+    /// Custom header name (when field is "header")
+    #[serde(rename = "headerName")]
+    pub header_name: Option<String>,
 }
 
 /// Node data for action nodes.
@@ -189,11 +195,11 @@ pub struct LogicNodeData {
 /// Node data for header nodes.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct HeaderNodeData {
-    /// Operation: "set" or "remove"
+    /// Operation: "set", "append", or "remove"
     pub operation: String,
     /// Header name
     pub name: String,
-    /// Header value (for set operation)
+    /// Header value (for set/append operations)
     pub value: Option<String>,
 }
 
@@ -515,5 +521,375 @@ mod tests {
         assert_eq!(backend_data.port, Some(443));
         assert_eq!(backend_data.connect_timeout, Some(2000));
         assert_eq!(backend_data.max_connections, Some(0)); // 0 = unlimited
+    }
+
+    // ========================================================================
+    // Header Node Tests
+    // ========================================================================
+
+    #[test]
+    fn test_header_node_set_operation() {
+        let json = r#"{
+            "operation": "set",
+            "name": "X-Custom-Header",
+            "value": "custom-value"
+        }"#;
+
+        let data: HeaderNodeData = serde_json::from_str(json).unwrap();
+        assert_eq!(data.operation, "set");
+        assert_eq!(data.name, "X-Custom-Header");
+        assert_eq!(data.value, Some("custom-value".to_string()));
+    }
+
+    #[test]
+    fn test_header_node_append_operation() {
+        let json = r#"{
+            "operation": "append",
+            "name": "X-Forwarded-For",
+            "value": "10.0.0.1"
+        }"#;
+
+        let data: HeaderNodeData = serde_json::from_str(json).unwrap();
+        assert_eq!(data.operation, "append");
+        assert_eq!(data.name, "X-Forwarded-For");
+        assert_eq!(data.value, Some("10.0.0.1".to_string()));
+    }
+
+    #[test]
+    fn test_header_node_remove_operation() {
+        let json = r#"{
+            "operation": "remove",
+            "name": "X-Debug-Header"
+        }"#;
+
+        let data: HeaderNodeData = serde_json::from_str(json).unwrap();
+        assert_eq!(data.operation, "remove");
+        assert_eq!(data.name, "X-Debug-Header");
+        assert_eq!(data.value, None);
+    }
+
+    #[test]
+    fn test_header_node_serialization_roundtrip() {
+        let original = HeaderNodeData {
+            operation: "set".to_string(),
+            name: "Cache-Control".to_string(),
+            value: Some("no-cache, no-store".to_string()),
+        };
+
+        let json = serde_json::to_string(&original).unwrap();
+        let deserialized: HeaderNodeData = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(original.operation, deserialized.operation);
+        assert_eq!(original.name, deserialized.name);
+        assert_eq!(original.value, deserialized.value);
+    }
+
+    #[test]
+    fn test_graph_payload_with_header_node() {
+        let json = r#"{
+            "nodes": [
+                {
+                    "id": "req-1",
+                    "type": "request",
+                    "position": { "x": 100, "y": 100 },
+                    "data": {}
+                },
+                {
+                    "id": "header-1",
+                    "type": "header",
+                    "position": { "x": 200, "y": 100 },
+                    "data": {
+                        "operation": "set",
+                        "name": "X-Request-ID",
+                        "value": "abc123"
+                    }
+                },
+                {
+                    "id": "header-2",
+                    "type": "header",
+                    "position": { "x": 300, "y": 100 },
+                    "data": {
+                        "operation": "append",
+                        "name": "X-Forwarded-For",
+                        "value": "192.168.1.1"
+                    }
+                },
+                {
+                    "id": "header-3",
+                    "type": "header",
+                    "position": { "x": 400, "y": 100 },
+                    "data": {
+                        "operation": "remove",
+                        "name": "X-Debug"
+                    }
+                },
+                {
+                    "id": "backend-1",
+                    "type": "backend",
+                    "position": { "x": 500, "y": 100 },
+                    "data": {
+                        "name": "origin",
+                        "host": "example.com"
+                    }
+                }
+            ],
+            "edges": [
+                { "id": "e1", "source": "req-1", "sourceHandle": "request", "target": "header-1", "targetHandle": "trigger" },
+                { "id": "e2", "source": "header-1", "sourceHandle": "next", "target": "header-2", "targetHandle": "trigger" },
+                { "id": "e3", "source": "header-2", "sourceHandle": "next", "target": "header-3", "targetHandle": "trigger" },
+                { "id": "e4", "source": "header-3", "sourceHandle": "next", "target": "backend-1", "targetHandle": "route" }
+            ]
+        }"#;
+
+        let graph: GraphPayload = serde_json::from_str(json).unwrap();
+        assert_eq!(graph.nodes.len(), 5);
+        assert_eq!(graph.edges.len(), 4);
+
+        // Find and verify header nodes
+        let header_nodes: Vec<_> = graph.nodes.iter().filter(|n| n.node_type == "header").collect();
+        assert_eq!(header_nodes.len(), 3);
+
+        // Parse each header node's data
+        let header1: HeaderNodeData = serde_json::from_value(header_nodes[0].data.clone()).unwrap();
+        assert_eq!(header1.operation, "set");
+        assert_eq!(header1.name, "X-Request-ID");
+
+        let header2: HeaderNodeData = serde_json::from_value(header_nodes[1].data.clone()).unwrap();
+        assert_eq!(header2.operation, "append");
+        assert_eq!(header2.name, "X-Forwarded-For");
+
+        let header3: HeaderNodeData = serde_json::from_value(header_nodes[2].data.clone()).unwrap();
+        assert_eq!(header3.operation, "remove");
+        assert_eq!(header3.name, "X-Debug");
+    }
+
+    // ========================================================================
+    // Condition Node Tests (DDoS Detection)
+    // ========================================================================
+
+    #[test]
+    fn test_condition_node_ddos_detected() {
+        let json = r#"{
+            "field": "ddosDetected",
+            "operator": "equals",
+            "value": "true"
+        }"#;
+
+        let data: ConditionNodeData = serde_json::from_str(json).unwrap();
+        assert_eq!(data.field, "ddosDetected");
+        assert_eq!(data.operator, "equals");
+        assert_eq!(data.value, "true");
+    }
+
+    #[test]
+    fn test_rule_group_with_ddos_condition() {
+        let json = r#"{
+            "name": "DDoS Protection",
+            "logic": "AND",
+            "conditions": [
+                {
+                    "id": "cond-1",
+                    "field": "ddosDetected",
+                    "operator": "equals",
+                    "value": "true"
+                },
+                {
+                    "id": "cond-2",
+                    "field": "country",
+                    "operator": "notIn",
+                    "value": "US,CA,GB"
+                }
+            ]
+        }"#;
+
+        let data: RuleGroupNodeData = serde_json::from_str(json).unwrap();
+        assert_eq!(data.name, Some("DDoS Protection".to_string()));
+        assert_eq!(data.logic, "AND");
+        assert_eq!(data.conditions.len(), 2);
+
+        // Verify DDoS condition
+        let ddos_cond = &data.conditions[0];
+        assert_eq!(ddos_cond.field, "ddosDetected");
+        assert_eq!(ddos_cond.operator, "equals");
+        assert_eq!(ddos_cond.value, "true");
+    }
+
+    #[test]
+    fn test_graph_with_ddos_condition() {
+        let json = r#"{
+            "nodes": [
+                {
+                    "id": "req-1",
+                    "type": "request",
+                    "position": { "x": 100, "y": 100 },
+                    "data": {}
+                },
+                {
+                    "id": "cond-1",
+                    "type": "condition",
+                    "position": { "x": 200, "y": 100 },
+                    "data": {
+                        "field": "ddosDetected",
+                        "operator": "equals",
+                        "value": "true"
+                    }
+                },
+                {
+                    "id": "action-1",
+                    "type": "action",
+                    "position": { "x": 300, "y": 50 },
+                    "data": {
+                        "action": "block",
+                        "statusCode": 429,
+                        "message": "Too many requests - DDoS detected"
+                    }
+                }
+            ],
+            "edges": [
+                { "id": "e1", "source": "req-1", "sourceHandle": "request", "target": "cond-1", "targetHandle": "trigger" },
+                { "id": "e2", "source": "cond-1", "sourceHandle": "true", "target": "action-1", "targetHandle": "trigger" }
+            ]
+        }"#;
+
+        let graph: GraphPayload = serde_json::from_str(json).unwrap();
+        assert_eq!(graph.nodes.len(), 3);
+        assert_eq!(graph.edges.len(), 2);
+
+        // Find and verify the condition node
+        let cond_node = graph.nodes.iter().find(|n| n.node_type == "condition").unwrap();
+        let cond_data: ConditionNodeData = serde_json::from_value(cond_node.data.clone()).unwrap();
+
+        assert_eq!(cond_data.field, "ddosDetected");
+        assert_eq!(cond_data.operator, "equals");
+        assert_eq!(cond_data.value, "true");
+    }
+
+    // ========================================================================
+    // Custom Header Tests
+    // ========================================================================
+
+    #[test]
+    fn test_condition_node_custom_header() {
+        let json = r#"{
+            "field": "header",
+            "operator": "equals",
+            "value": "application/json",
+            "headerName": "X-Content-Type"
+        }"#;
+
+        let data: ConditionNodeData = serde_json::from_str(json).unwrap();
+        assert_eq!(data.field, "header");
+        assert_eq!(data.operator, "equals");
+        assert_eq!(data.value, "application/json");
+        assert_eq!(data.header_name, Some("X-Content-Type".to_string()));
+    }
+
+    #[test]
+    fn test_condition_node_without_custom_header() {
+        // Test that headerName is optional for non-header fields
+        let json = r#"{
+            "field": "path",
+            "operator": "contains",
+            "value": "/api/"
+        }"#;
+
+        let data: ConditionNodeData = serde_json::from_str(json).unwrap();
+        assert_eq!(data.field, "path");
+        assert_eq!(data.operator, "contains");
+        assert_eq!(data.value, "/api/");
+        assert_eq!(data.header_name, None);
+    }
+
+    #[test]
+    fn test_rule_group_with_custom_header() {
+        let json = r#"{
+            "name": "API Auth Check",
+            "logic": "AND",
+            "conditions": [
+                {
+                    "id": "cond-1",
+                    "field": "header",
+                    "operator": "exists",
+                    "value": "",
+                    "headerName": "Authorization"
+                },
+                {
+                    "id": "cond-2",
+                    "field": "header",
+                    "operator": "startsWith",
+                    "value": "Bearer ",
+                    "headerName": "Authorization"
+                }
+            ]
+        }"#;
+
+        let data: RuleGroupNodeData = serde_json::from_str(json).unwrap();
+        assert_eq!(data.name, Some("API Auth Check".to_string()));
+        assert_eq!(data.logic, "AND");
+        assert_eq!(data.conditions.len(), 2);
+
+        // Verify first condition - check Authorization header exists
+        let cond1 = &data.conditions[0];
+        assert_eq!(cond1.field, "header");
+        assert_eq!(cond1.operator, "exists");
+        assert_eq!(cond1.header_name, Some("Authorization".to_string()));
+
+        // Verify second condition - check Authorization starts with "Bearer "
+        let cond2 = &data.conditions[1];
+        assert_eq!(cond2.field, "header");
+        assert_eq!(cond2.operator, "startsWith");
+        assert_eq!(cond2.value, "Bearer ");
+        assert_eq!(cond2.header_name, Some("Authorization".to_string()));
+    }
+
+    #[test]
+    fn test_graph_with_custom_header_condition() {
+        let json = r#"{
+            "nodes": [
+                {
+                    "id": "req-1",
+                    "type": "request",
+                    "position": { "x": 100, "y": 100 },
+                    "data": {}
+                },
+                {
+                    "id": "cond-1",
+                    "type": "condition",
+                    "position": { "x": 200, "y": 100 },
+                    "data": {
+                        "field": "header",
+                        "operator": "equals",
+                        "value": "secret-token",
+                        "headerName": "X-API-Key"
+                    }
+                },
+                {
+                    "id": "backend-1",
+                    "type": "backend",
+                    "position": { "x": 300, "y": 50 },
+                    "data": {
+                        "name": "api-origin",
+                        "host": "api.example.com"
+                    }
+                }
+            ],
+            "edges": [
+                { "id": "e1", "source": "req-1", "sourceHandle": "request", "target": "cond-1", "targetHandle": "trigger" },
+                { "id": "e2", "source": "cond-1", "sourceHandle": "true", "target": "backend-1", "targetHandle": "route" }
+            ]
+        }"#;
+
+        let graph: GraphPayload = serde_json::from_str(json).unwrap();
+        assert_eq!(graph.nodes.len(), 3);
+        assert_eq!(graph.edges.len(), 2);
+
+        // Find and verify the condition node
+        let cond_node = graph.nodes.iter().find(|n| n.node_type == "condition").unwrap();
+        let cond_data: ConditionNodeData = serde_json::from_value(cond_node.data.clone()).unwrap();
+
+        assert_eq!(cond_data.field, "header");
+        assert_eq!(cond_data.operator, "equals");
+        assert_eq!(cond_data.value, "secret-token");
+        assert_eq!(cond_data.header_name, Some("X-API-Key".to_string()));
     }
 }

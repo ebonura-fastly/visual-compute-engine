@@ -1,11 +1,24 @@
 import { type NodeProps, useReactFlow } from '@xyflow/react'
 import { useCallback } from 'react'
-import { NodeBase, NodeField, NodeSelect, NodeTextarea } from './NodeBase'
+import { NodeBase, NodeField, NodeSelect, NodeTextarea, NodeCheckbox, NodeInput } from './NodeBase'
+
+// Fields that return boolean values - show checkbox instead of text input
+const booleanFields = new Set([
+  'ddosDetected',
+  'isBot',
+  'isMobile',
+  'isTablet',
+  'isDesktop',
+  'isSmartTV',
+  'isGameConsole',
+  'isHostingProvider',
+])
 
 export type ConditionNodeData = {
   field: string
   operator: string
   value: string
+  headerName?: string  // For custom header field
 }
 
 const fieldOptions = [
@@ -79,9 +92,10 @@ const fieldOptions = [
   { value: 'ja4', label: 'JA4 Fingerprint' },
   { value: 'h2Fingerprint', label: 'HTTP/2 Fingerprint' },
   { value: 'ohFingerprint', label: 'OH Fingerprint' },
+  { value: 'ddosDetected', label: 'DDoS Detected' },
 
-  // Custom header (fallback)
-  { value: 'header', label: 'Custom Header...' },
+  // Custom header
+  { value: 'header', label: 'Custom Header' },
 ]
 
 const operatorOptions = [
@@ -126,6 +140,21 @@ export function ConditionNode({ id, data, selected }: NodeProps) {
     )
   }, [id, setNodes])
 
+  const currentField = nodeData.field || 'path'
+  const isBooleanField = booleanFields.has(currentField)
+  const isCustomHeader = currentField === 'header'
+
+  // For boolean fields, handle the checkbox toggle
+  const handleBooleanToggle = useCallback((checked: boolean) => {
+    setNodes((nodes) =>
+      nodes.map((node) =>
+        node.id === id
+          ? { ...node, data: { ...node.data, operator: 'equals', value: checked ? 'true' : 'false' } }
+          : node
+      )
+    )
+  }, [id, setNodes])
+
   return (
     <NodeBase
       title="Condition"
@@ -140,29 +169,64 @@ export function ConditionNode({ id, data, selected }: NodeProps) {
     >
       <NodeField label="Field">
         <NodeSelect
-          value={nodeData.field || 'path'}
-          onChange={(v) => updateData('field', v)}
+          value={currentField}
+          onChange={(v) => {
+            // When switching to/from boolean field, reset operator and value
+            if (booleanFields.has(v)) {
+              setNodes((nodes) =>
+                nodes.map((node) =>
+                  node.id === id
+                    ? { ...node, data: { ...node.data, field: v, operator: 'equals', value: 'true' } }
+                    : node
+                )
+              )
+            } else {
+              updateData('field', v)
+            }
+          }}
           options={fieldOptions}
         />
       </NodeField>
 
-      <NodeField label="Operator">
-        <NodeSelect
-          value={nodeData.operator || 'equals'}
-          onChange={(v) => updateData('operator', v)}
-          options={operatorOptions}
-        />
-      </NodeField>
+      {isCustomHeader && (
+        <NodeField label="Header Name">
+          <NodeInput
+            value={nodeData.headerName || ''}
+            onChange={(v) => updateData('headerName', v)}
+            placeholder="X-Custom-Header"
+          />
+        </NodeField>
+      )}
 
-      <NodeField label="Value">
-        <NodeTextarea
-          value={nodeData.value || ''}
-          onChange={(v) => updateData('value', v)}
-          placeholder="Enter value..."
-          minRows={1}
-          maxRows={4}
-        />
-      </NodeField>
+      {isBooleanField ? (
+        <NodeField label="Match when">
+          <NodeCheckbox
+            checked={nodeData.value === 'true'}
+            onChange={handleBooleanToggle}
+            label={nodeData.value === 'true' ? 'Yes (true)' : 'No (false)'}
+          />
+        </NodeField>
+      ) : (
+        <>
+          <NodeField label="Operator">
+            <NodeSelect
+              value={nodeData.operator || 'equals'}
+              onChange={(v) => updateData('operator', v)}
+              options={operatorOptions}
+            />
+          </NodeField>
+
+          <NodeField label="Value">
+            <NodeTextarea
+              value={nodeData.value || ''}
+              onChange={(v) => updateData('value', v)}
+              placeholder="Enter value..."
+              minRows={1}
+              maxRows={4}
+            />
+          </NodeField>
+        </>
+      )}
     </NodeBase>
   )
 }

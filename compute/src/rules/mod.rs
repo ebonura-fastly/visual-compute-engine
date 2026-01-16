@@ -8,6 +8,6 @@ mod loader;
 mod logging;
 mod types;
 
-pub use graph::{GraphInterpreter, GraphResult, send_to_backend};
+pub use graph::{GraphInterpreter, GraphResult, HeaderMod, send_to_backend};
 pub use loader::load_graph_from_store;
 pub use logging::WafLog;

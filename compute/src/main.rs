@@ -18,7 +18,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use hmac_sha256::HMAC;
 
 mod rules;
-use rules::{GraphInterpreter, GraphResult, WafLog, load_graph_from_store, send_to_backend};
+use rules::{GraphInterpreter, GraphResult, HeaderMod, WafLog, load_graph_from_store, send_to_backend};
 
 /// Engine version - update this on each release
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -138,6 +138,28 @@ fn main(req: Request) -> Result<Response, Error> {
             let mut backend_req = req.clone_without_body();
             if let Err(e) = add_edge_auth(&mut backend_req) {
                 println!("Auth header error: {}", e);
+            }
+
+            // Apply header modifications from graph traversal
+            let header_mods = interpreter.get_header_mods();
+            for header_mod in &header_mods {
+                match header_mod {
+                    HeaderMod::Set { name, value } => {
+                        println!("Header mod: set {}={}", name, value);
+                        backend_req.set_header(name, value);
+                    }
+                    HeaderMod::Append { name, value } => {
+                        println!("Header mod: append {}={}", name, value);
+                        backend_req.append_header(name, value);
+                    }
+                    HeaderMod::Remove { name } => {
+                        println!("Header mod: remove {}", name);
+                        backend_req.remove_header(name);
+                    }
+                }
+            }
+            if !header_mods.is_empty() {
+                println!("Applied {} header modification(s)", header_mods.len());
             }
 
             match send_to_backend(backend_req, &backend_data) {
