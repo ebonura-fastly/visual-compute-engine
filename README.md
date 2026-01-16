@@ -174,6 +174,54 @@ When forwarding to backends, the compute service adds an `Edge-Auth` header:
 - Signature: HMAC-SHA256 of timestamp + POP using shared secret
 - Validates requests came through the edge
 
+This prevents attackers from bypassing security rules by hitting backends directly.
+
+#### VCL Validation Snippets (`/compute/VCL`)
+
+If your backend is a Fastly VCL service, add these snippets to validate Edge-Auth:
+
+**edge-auth-recv.vcl** (add to `vcl_recv`):
+```vcl
+# Validate Edge-Auth header format: timestamp,pop,signature
+if (!req.http.Edge-Auth || !req.http.Edge-Auth ~ "^([0-9]+),([^,]+),(0x[0-9a-f]{64})$") {
+    error 403 "VCE Invalid header format";
+}
+
+declare local var.timestamp STRING;
+declare local var.data STRING;
+declare local var.secret STRING;
+
+set var.timestamp = re.group.1;
+set var.data = var.timestamp + "," + re.group.2;
+set var.secret = table.lookup(vce_shared_secret, "compute_auth_key");
+
+# Verify HMAC signature
+if (!digest.secure_is_equal(digest.hmac_sha256(var.secret, var.data), re.group.3)) {
+    error 403 "VCE Invalid signature";
+}
+
+# Reject requests older than 2 seconds (replay protection)
+declare local var.request_time TIME;
+set var.request_time = std.time(var.timestamp, std.integer2time(-1));
+if (!time.is_after(var.request_time, time.sub(now, 2s))) {
+    error 403 "VCE Request expired";
+}
+```
+
+**edge-auth-error.vcl** (add to `vcl_error`):
+```vcl
+if (obj.status == 403 && obj.response ~ "^VCE ") {
+    set obj.http.Content-Type = "text/plain";
+    synthetic {"Edge Authentication Guard: "} obj.response;
+    return(deliver);
+}
+```
+
+**Setup required:**
+1. Create an Edge Dictionary named `vce_shared_secret`
+2. Add key `compute_auth_key` with your shared secret
+3. Use the same secret in the Compute service's `vce_shared_secret` Config Store
+
 ## POC Services
 
 - Compute service: `MPo2eiCmac5m4YUkBJoky4`
