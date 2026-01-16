@@ -91,6 +91,15 @@ export function Sidebar({ nodes, edges, onAddTemplate, onLoadRules }: SidebarPro
     selectedConfigStore: stored.selectedConfigStore,
   })
 
+  // Local development mode state - lifted up to persist across tab switches
+  const [localModeState, setLocalModeState] = useState({
+    localMode: false,
+    localServerAvailable: false,
+    localComputeRunning: false,
+    localEngineVersion: null as { engine: string; version: string; format: string } | null,
+    hasLoadedRules: false, // Track if we've already loaded rules to avoid reloading on tab switch
+  })
+
   // Get colors for each category from theme
   const getCategoryColors = (category: string) => {
     switch (category) {
@@ -194,6 +203,8 @@ export function Sidebar({ nodes, edges, onAddTemplate, onLoadRules }: SidebarPro
             onLoadRules={onLoadRules}
             fastlyState={fastlyState}
             setFastlyState={setFastlyState}
+            localModeState={localModeState}
+            setLocalModeState={setLocalModeState}
           />
         )}
       </div>
@@ -498,6 +509,14 @@ type FastlyState = {
   selectedConfigStore: string
 }
 
+type LocalModeState = {
+  localMode: boolean
+  localServerAvailable: boolean
+  localComputeRunning: boolean
+  localEngineVersion: { engine: string; version: string; format: string } | null
+  hasLoadedRules: boolean
+}
+
 function FastlyTab({
   theme,
   nodes,
@@ -505,6 +524,8 @@ function FastlyTab({
   onLoadRules,
   fastlyState,
   setFastlyState,
+  localModeState,
+  setLocalModeState,
 }: {
   theme: any
   nodes: Node[]
@@ -512,8 +533,16 @@ function FastlyTab({
   onLoadRules?: (nodes: Node[], edges: Edge[]) => void
   fastlyState: FastlyState
   setFastlyState: React.Dispatch<React.SetStateAction<FastlyState>>
+  localModeState: LocalModeState
+  setLocalModeState: React.Dispatch<React.SetStateAction<LocalModeState>>
 }) {
   const { apiToken, isConnected, services, configStores, selectedService, selectedConfigStore } = fastlyState
+  const { localMode, localServerAvailable, localComputeRunning, localEngineVersion, hasLoadedRules } = localModeState
+
+  // Helper to update local mode state
+  const updateLocalModeState = (updates: Partial<LocalModeState>) => {
+    setLocalModeState(prev => ({ ...prev, ...updates }))
+  }
 
   // Local UI state (doesn't need to persist)
   const [loading, setLoading] = useState(false)
@@ -525,6 +554,151 @@ function FastlyTab({
   const [engineVersion, setEngineVersion] = useState<EngineVersion>(null)
   const [engineVersionLoading, setEngineVersionLoading] = useState(false)
   const [engineUpdateProgress, setEngineUpdateProgress] = useState<string | null>(null)
+
+  const LOCAL_API_URL = 'http://localhost:3001/local-api'
+
+  // Check for local development environment on mount
+  const checkLocalEnvironment = useCallback(async () => {
+    // If already in local mode and rules loaded, just refresh status without reloading rules
+    const shouldLoadRules = !hasLoadedRules
+
+    // Check if local API server is running
+    try {
+      const healthResponse = await fetch(`${LOCAL_API_URL}/health`, { method: 'GET' })
+      if (healthResponse.ok) {
+        updateLocalModeState({ localServerAvailable: true })
+
+        // Check if local Compute server is running (via proxy to avoid CORS)
+        try {
+          const computeResponse = await fetch(`${LOCAL_API_URL}/compute-status`, { method: 'GET' })
+          if (computeResponse.ok) {
+            const data = await computeResponse.json()
+            if (data.running) {
+              updateLocalModeState({
+                localComputeRunning: true,
+                localEngineVersion: { engine: data.engine, version: data.version, format: data.format },
+              })
+            } else {
+              updateLocalModeState({ localComputeRunning: false, localEngineVersion: null })
+            }
+          }
+        } catch {
+          updateLocalModeState({ localComputeRunning: false, localEngineVersion: null })
+        }
+
+        // Load rules from local file - only on first check, not when switching tabs back
+        if (shouldLoadRules && onLoadRules) {
+          try {
+            const rulesResponse = await fetch(`${LOCAL_API_URL}/rules`)
+            if (rulesResponse.ok) {
+              const rulesData = await rulesResponse.json()
+              if (rulesData.rules_packed) {
+                const decompressed = await decompressRules(rulesData.rules_packed)
+                const graphData = JSON.parse(decompressed)
+                if (graphData.nodes && graphData.edges) {
+                  onLoadRules(graphData.nodes, graphData.edges)
+                  setStatus(`Local mode: Loaded ${graphData.nodes.length} nodes`)
+                  updateLocalModeState({ hasLoadedRules: true })
+                }
+              }
+            }
+          } catch (err) {
+            console.log('[Local] Failed to load local rules:', err)
+          }
+        }
+
+        // Auto-enable local mode if local server is available
+        updateLocalModeState({ localMode: true })
+        setStatus('Local development mode active')
+        return true
+      }
+    } catch {
+      // Local server not running - that's fine
+    }
+    return false
+  }, [onLoadRules, hasLoadedRules, updateLocalModeState])
+
+  // Deploy rules to local file system
+  const handleDeployLocal = async () => {
+    const validation = validateGraph(nodes, edges)
+    if (!validation.valid) {
+      setError(`Validation failed:\n• ${validation.errors.join('\n• ')}`)
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const graphPayload = { nodes, edges }
+      const compressed = await compressRules(JSON.stringify(graphPayload))
+      const fileContent = { rules_packed: compressed }
+
+      const response = await fetch(`${LOCAL_API_URL}/rules`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fileContent),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to save rules')
+      }
+
+      const result = await response.json()
+      setStatus(result.message || 'Rules saved locally')
+
+      // Re-check compute status via proxy
+      try {
+        const computeResponse = await fetch(`${LOCAL_API_URL}/compute-status`)
+        if (computeResponse.ok) {
+          const data = await computeResponse.json()
+          if (data.running) {
+            updateLocalModeState({
+              localComputeRunning: true,
+              localEngineVersion: { engine: data.engine, version: data.version, format: data.format },
+            })
+          }
+        }
+      } catch {
+        // Compute server not running
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to deploy locally')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Refresh local environment status (uses local API proxy to avoid CORS)
+  const handleRefreshLocal = async () => {
+    setLoading(true)
+    try {
+      // Use the local API proxy to check Compute server (avoids CORS issues)
+      const response = await fetch(`${LOCAL_API_URL}/compute-status`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.running) {
+          updateLocalModeState({
+            localComputeRunning: true,
+            localEngineVersion: { engine: data.engine, version: data.version, format: data.format },
+          })
+          setStatus('Local Compute server running')
+        } else {
+          updateLocalModeState({ localComputeRunning: false, localEngineVersion: null })
+          setStatus('Local Compute server not running')
+        }
+      } else {
+        updateLocalModeState({ localComputeRunning: false, localEngineVersion: null })
+        setStatus('Local API server error')
+      }
+    } catch {
+      updateLocalModeState({ localComputeRunning: false, localEngineVersion: null })
+      setStatus('Local API server not available')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // Helper to update fastly state
   const updateFastlyState = (updates: Partial<FastlyState>) => {
@@ -734,11 +908,20 @@ function FastlyTab({
         }
       }
 
+      // Sort: MSS-enabled first, then by name
       computeServices.sort((a, b) => {
         if (a.isMssEnabled && !b.isMssEnabled) return -1
         if (!a.isMssEnabled && b.isMssEnabled) return 1
         return a.name.localeCompare(b.name)
       })
+
+      // Also detect services by name pattern (mss-*) even without manifest
+      // This helps show newly created services before they're fully configured
+      for (const service of computeServices) {
+        if (!service.isMssEnabled && service.name.toLowerCase().startsWith('mss-')) {
+          service.isMssEnabled = true // Mark as MSS service by naming convention
+        }
+      }
 
       // Check if we have a previously selected service or auto-select the first MSS service
       const mssServices = computeServices.filter(s => s.isMssEnabled)
@@ -867,6 +1050,147 @@ function FastlyTab({
       setStatus('Loading rules from Config Store...')
       await loadRulesFromStore(linkedStore, service?.name || '')
       setLoading(false)
+    } else if (service && !service.isMssEnabled) {
+      // Non-MSS service selected - clear canvas and show setup prompt
+      if (onLoadRules) {
+        onLoadRules([], [])
+      }
+      setStatus(`Selected ${service.name} - Click "Enable MSS" to configure`)
+    } else if (service) {
+      // MSS service without linked store (detected by name pattern)
+      if (onLoadRules) {
+        onLoadRules([], [])
+      }
+      setStatus(`Selected ${service.name} - Deploy rules to configure`)
+    }
+  }
+
+  // Refresh the selected service (re-check engine version)
+  const handleRefreshService = async () => {
+    const service = services.find(s => s.id === selectedService)
+    if (!service) return
+
+    setEngineVersionLoading(true)
+    setStatus('Checking service status...')
+
+    // Re-fetch engine version
+    await fetchEngineVersion(service.name)
+
+    // Also reload rules if there's a linked config store
+    if (service.linkedConfigStore) {
+      await loadRulesFromStore(service.linkedConfigStore, service.name)
+    }
+
+    setStatus(`Refreshed ${service.name}`)
+  }
+
+  // Enable MSS on an existing Compute service
+  const handleEnableMss = async () => {
+    const service = services.find(s => s.id === selectedService)
+    if (!service) {
+      setError('No service selected')
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    setCreateProgress('Creating Config Store...')
+
+    try {
+      // Get the latest version number
+      const serviceData = await fastlyFetch(`/service/${service.id}/details`)
+      const latestVersion = serviceData.versions?.[serviceData.versions.length - 1]?.number || 1
+
+      // Check if we need to clone (if version is active/locked)
+      let versionToUse = latestVersion
+      const versionData = await fastlyFetch(`/service/${service.id}/version/${latestVersion}`)
+      if (versionData.active || versionData.locked) {
+        setCreateProgress('Cloning service version...')
+        const clonedVersion = await fastlyFetch(`/service/${service.id}/version/${latestVersion}/clone`, {
+          method: 'PUT',
+        })
+        versionToUse = clonedVersion.number
+      }
+
+      // Create Config Store
+      const configStoreName = `${service.name}-rules`
+      const configStoreData = await fastlyFetch('/resources/stores/config', {
+        method: 'POST',
+        body: JSON.stringify({ name: configStoreName }),
+      })
+      const configStoreId = configStoreData.id
+      setCreateProgress('Linking Config Store to service...')
+
+      // Link Config Store to service
+      await fastlyFetch(`/service/${service.id}/version/${versionToUse}/resource`, {
+        method: 'POST',
+        body: JSON.stringify({ resource_id: configStoreId, name: 'security_rules' }),
+      })
+      setCreateProgress('Building and uploading MSS Engine...')
+
+      // Build and upload the WASM package
+      const packageB64 = await buildMssPackage(service.name)
+      const packageBlob = await fetch(`data:application/gzip;base64,${packageB64}`).then(r => r.blob())
+      const formData = new FormData()
+      formData.append('package', packageBlob, 'package.tar.gz')
+
+      const uploadResponse = await fetch(`${FASTLY_API_BASE}/service/${service.id}/version/${versionToUse}/package`, {
+        method: 'PUT',
+        headers: { 'Fastly-Key': apiToken },
+        body: formData,
+      })
+
+      if (!uploadResponse.ok) {
+        const text = await uploadResponse.text()
+        throw new Error(`Package upload failed: ${uploadResponse.status} - ${text}`)
+      }
+      setCreateProgress('Activating service version...')
+
+      // Activate the new version
+      await fastlyFetch(`/service/${service.id}/version/${versionToUse}/activate`, { method: 'PUT' })
+      setCreateProgress('Deploying MSS manifest...')
+
+      // Create manifest in Config Store
+      const manifest: MssManifest = {
+        version: MSS_ENGINE_VERSION,
+        engine: 'mss-compute',
+        deployedAt: new Date().toISOString(),
+        serviceId: service.id,
+      }
+      const manifestFormData = new URLSearchParams()
+      manifestFormData.append('item_value', JSON.stringify(manifest))
+
+      await fetch(`${FASTLY_API_BASE}/resources/stores/config/${configStoreId}/item/${MSS_MANIFEST_KEY}`, {
+        method: 'PUT',
+        headers: { 'Fastly-Key': apiToken, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: manifestFormData.toString(),
+      })
+
+      // Update local state
+      const newConfigStore: ConfigStore = {
+        id: configStoreId,
+        name: configStoreName,
+        hasMssManifest: true,
+      }
+
+      updateFastlyState({
+        services: services.map(s =>
+          s.id === service.id ? { ...s, isMssEnabled: true, linkedConfigStore: configStoreId } : s
+        ),
+        configStores: [newConfigStore, ...configStores],
+        selectedConfigStore: configStoreId,
+      })
+      saveSettings({ apiToken, selectedService: service.id, selectedConfigStore: configStoreId })
+      setStatus(`MSS enabled on "${service.name}"!`)
+
+      // Fetch engine version after a delay
+      setTimeout(() => fetchEngineVersion(service.name), 3000)
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to enable MSS')
+    } finally {
+      setLoading(false)
+      setCreateProgress(null)
     }
   }
 
@@ -1068,16 +1392,325 @@ function FastlyTab({
     }
   }
 
+  // If local mode is active, show local mode UI (no API token needed)
+  if (localMode && localServerAvailable) {
+    return (
+      <div style={{ padding: 12, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto' }}>
+        {/* Local Mode Banner */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '8px 10px',
+          background: '#2d1b4e',
+          border: '1px solid #7c3aed',
+          borderRadius: 6,
+          color: '#a78bfa',
+          fontSize: 11,
+          fontWeight: 500,
+          marginBottom: 12,
+        }}>
+          <span>Local Dev Mode</span>
+          <button
+            onClick={() => {
+              setLocalMode(false)
+              setLocalServerAvailable(false)
+            }}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: theme.textMuted,
+              fontSize: 10,
+              cursor: 'pointer',
+              textDecoration: 'underline',
+            }}
+          >
+            Switch to Fastly
+          </button>
+        </div>
+
+        {/* Local Compute Status */}
+        <label style={{
+          display: 'block',
+          color: theme.textSecondary,
+          fontSize: 10,
+          fontWeight: 500,
+          marginBottom: 4,
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px',
+        }}>Local Compute Server</label>
+        <div style={{
+          padding: '10px',
+          background: theme.bgTertiary,
+          border: `1px solid ${theme.border}`,
+          borderRadius: 6,
+          marginBottom: 12,
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 8,
+          }}>
+            <a
+              href="http://127.0.0.1:7676/"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                padding: '4px 6px',
+                background: theme.bg,
+                borderRadius: 4,
+                color: theme.primary,
+                fontSize: 10,
+                fontFamily: 'monospace',
+                textDecoration: 'none',
+                cursor: 'pointer',
+              }}
+              title="Open in browser"
+            >
+              127.0.0.1:7676 ↗
+            </a>
+            <button
+              onClick={handleRefreshLocal}
+              disabled={loading}
+              title="Refresh local status"
+              style={{
+                padding: '2px 6px',
+                background: 'transparent',
+                border: `1px solid ${theme.border}`,
+                borderRadius: 4,
+                color: theme.textMuted,
+                fontSize: 9,
+                cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? 0.5 : 1,
+              }}
+            >
+              {loading ? '...' : '↻ Refresh'}
+            </button>
+          </div>
+
+          {/* Status */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            marginBottom: localComputeRunning ? 8 : 0,
+          }}>
+            <span style={{
+              display: 'inline-block',
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: localComputeRunning ? theme.success : theme.error,
+            }} />
+            <span style={{ color: theme.text, fontSize: 11 }}>
+              {localComputeRunning ? 'Running' : 'Not Running'}
+            </span>
+          </div>
+
+          {/* Engine Version */}
+          {localComputeRunning && localEngineVersion && (
+            <div style={{
+              padding: '4px 6px',
+              background: theme.bg,
+              borderRadius: 4,
+              fontSize: 10,
+              marginBottom: 8,
+            }}>
+              <span style={{ color: theme.textMuted }}>Engine: </span>
+              <span style={{ color: theme.text }}>{localEngineVersion.engine} v{localEngineVersion.version}</span>
+            </div>
+          )}
+
+          {/* Open in Browser button when running */}
+          {localComputeRunning && (
+            <a
+              href="http://127.0.0.1:7676/"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '6px 10px',
+                background: theme.bg,
+                color: theme.primary,
+                border: `1px solid ${theme.border}`,
+                borderRadius: 4,
+                cursor: 'pointer',
+                fontSize: 10,
+                fontWeight: 500,
+                textAlign: 'center',
+                textDecoration: 'none',
+                boxSizing: 'border-box',
+              }}
+            >
+              Open in Browser ↗
+            </a>
+          )}
+
+          {!localComputeRunning && (
+            <p style={{
+              color: theme.textMuted,
+              fontSize: 9,
+              margin: '8px 0 0 0',
+              lineHeight: 1.4,
+            }}>
+              Run <code style={{ background: theme.bg, padding: '1px 4px', borderRadius: 2 }}>make serve</code> to start the local Compute server
+            </p>
+          )}
+        </div>
+
+        {/* Deploy to Local Button */}
+        <button
+          onClick={handleDeployLocal}
+          disabled={loading}
+          style={{
+            width: '100%',
+            padding: '10px 14px',
+            background: loading ? theme.bgTertiary : '#7c3aed',
+            color: loading ? theme.textMuted : '#FFFFFF',
+            border: `1px solid ${loading ? theme.border : '#7c3aed'}`,
+            borderRadius: 6,
+            cursor: loading ? 'not-allowed' : 'pointer',
+            fontSize: 12,
+            fontWeight: 500,
+            opacity: loading ? 0.5 : 1,
+          }}
+        >
+          {loading ? 'Saving...' : 'Save Rules Locally'}
+        </button>
+
+        <p style={{
+          color: theme.textMuted,
+          fontSize: 10,
+          margin: '6px 0 0 0',
+          lineHeight: 1.4,
+        }}>
+          {nodes.length} nodes, {edges.length} edges
+        </p>
+
+        {localComputeRunning && (
+          <p style={{
+            color: theme.textMuted,
+            fontSize: 9,
+            margin: '4px 0 0 0',
+            lineHeight: 1.4,
+            fontStyle: 'italic',
+          }}>
+            Restart the Compute server to reload rules
+          </p>
+        )}
+
+        {/* Status/Error Messages */}
+        {error && (
+          <div style={{
+            marginTop: 10,
+            padding: '8px 10px',
+            background: theme.errorBg,
+            border: `1px solid ${theme.errorBorder}`,
+            borderRadius: 6,
+            color: theme.error,
+            fontSize: 10,
+            whiteSpace: 'pre-wrap',
+          }}>
+            {error}
+          </div>
+        )}
+        {status && !error && (
+          <div style={{
+            marginTop: 10,
+            padding: '8px 10px',
+            background: theme.successBg,
+            border: `1px solid ${theme.successBorder}`,
+            borderRadius: 6,
+            color: theme.success,
+            fontSize: 10,
+          }}>
+            ✓ {status}
+          </div>
+        )}
+
+        {/* Test URLs */}
+        {localComputeRunning && (
+          <div style={{ marginTop: 12 }}>
+            <label style={{
+              display: 'block',
+              color: theme.textSecondary,
+              fontSize: 10,
+              fontWeight: 500,
+              marginBottom: 4,
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+            }}>Test URLs</label>
+            <div style={{
+              padding: '8px',
+              background: theme.bgTertiary,
+              border: `1px solid ${theme.border}`,
+              borderRadius: 6,
+              fontSize: 9,
+              color: theme.textMuted,
+              fontFamily: 'monospace',
+            }}>
+              <div style={{ marginBottom: 4 }}>
+                <a href="http://127.0.0.1:7676/_version" target="_blank" rel="noopener noreferrer" style={{ color: theme.primary }}>
+                  /_version
+                </a>
+                <span> - Engine info</span>
+              </div>
+              <div style={{ marginBottom: 4 }}>
+                <a href="http://127.0.0.1:7676/" target="_blank" rel="noopener noreferrer" style={{ color: theme.primary }}>
+                  /
+                </a>
+                <span> - Test request</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Show connection UI if not connected to Fastly
   if (!isConnected) {
     return (
       <div style={{ padding: 12 }}>
+        {/* Local Dev Mode button - prominent at top */}
+        <button
+          onClick={checkLocalEnvironment}
+          style={{
+            width: '100%',
+            padding: '10px 14px',
+            background: '#7c3aed',
+            color: '#FFFFFF',
+            border: '1px solid #7c3aed',
+            borderRadius: 6,
+            cursor: 'pointer',
+            fontSize: 12,
+            fontWeight: 500,
+            marginBottom: 16,
+          }}
+        >
+          Use Local Dev Mode
+        </button>
+
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginBottom: 16,
+        }}>
+          <div style={{ flex: 1, height: 1, background: theme.border }} />
+          <span style={{ color: theme.textMuted, fontSize: 10 }}>OR</span>
+          <div style={{ flex: 1, height: 1, background: theme.border }} />
+        </div>
+
         <p style={{
           color: theme.textMuted,
           fontSize: 11,
           margin: '0 0 12px 0',
           lineHeight: 1.5,
         }}>
-          Connect to Fastly to deploy rules directly to your Config Store.
+          Connect to Fastly to deploy rules to the edge.
         </p>
 
         <label style={{
@@ -1135,7 +1768,7 @@ function FastlyTab({
             opacity: loading || !apiToken ? 0.5 : 1,
           }}
         >
-          {loading ? 'Connecting...' : 'Connect'}
+          {loading ? 'Connecting...' : 'Connect to Fastly'}
         </button>
 
         {error && (
@@ -1155,8 +1788,30 @@ function FastlyTab({
     )
   }
 
+  // Connected to Fastly - show full UI
   return (
     <div style={{ padding: 12, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto' }}>
+      {/* Check for local mode button */}
+      {!localMode && (
+        <button
+          onClick={checkLocalEnvironment}
+          style={{
+            width: '100%',
+            padding: '8px 10px',
+            background: '#2d1b4e',
+            color: '#a78bfa',
+            border: '1px solid #7c3aed',
+            borderRadius: 6,
+            cursor: 'pointer',
+            fontSize: 11,
+            fontWeight: 500,
+            marginBottom: 12,
+          }}
+        >
+          Switch to Local Dev Mode
+        </button>
+      )}
+
       <div style={{
         display: 'flex',
         alignItems: 'center',
@@ -1255,6 +1910,16 @@ function FastlyTab({
             </div>
           )}
 
+          <p style={{
+            color: theme.textMuted,
+            fontSize: 9,
+            margin: '0 0 8px 0',
+            lineHeight: 1.4,
+            fontStyle: 'italic',
+          }}>
+            Service creation takes 1-2 minutes. Use the refresh button to check status.
+          </p>
+
           <button
             onClick={handleCreateService}
             disabled={loading || !createForm.serviceName}
@@ -1305,7 +1970,7 @@ function FastlyTab({
         letterSpacing: '0.5px',
       }}>MSS Service</label>
 
-      {services.filter(s => s.isMssEnabled).length === 0 ? (
+      {services.length === 0 ? (
         <div style={{
           padding: '10px',
           background: theme.bgTertiary,
@@ -1315,7 +1980,7 @@ function FastlyTab({
           fontSize: 11,
           lineHeight: 1.5,
         }}>
-          No MSS services found. Create one above.
+          No Compute services found. Create one above.
         </div>
       ) : (
         <select
@@ -1334,10 +1999,21 @@ function FastlyTab({
             outline: 'none',
           }}
         >
-          <option value="">Select an MSS service...</option>
-          {services.filter(s => s.isMssEnabled).map((s) => (
-            <option key={s.id} value={s.id}>{s.name}</option>
-          ))}
+          <option value="">Select a Compute service...</option>
+          {services.filter(s => s.isMssEnabled).length > 0 && (
+            <optgroup label="MSS Services">
+              {services.filter(s => s.isMssEnabled).map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </optgroup>
+          )}
+          {services.filter(s => !s.isMssEnabled).length > 0 && (
+            <optgroup label="Other Compute Services">
+              {services.filter(s => !s.isMssEnabled).map((s) => (
+                <option key={s.id} value={s.id}>{s.name} (not configured)</option>
+              ))}
+            </optgroup>
+          )}
         </select>
       )}
 
@@ -1354,15 +2030,38 @@ function FastlyTab({
             border: `1px solid ${theme.border}`,
             borderRadius: 6,
           }}>
-            <div style={{ marginBottom: 8 }}>
+            {/* Service header with refresh button */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 8,
+            }}>
               <label style={{
-                display: 'block',
                 color: theme.textMuted,
                 fontSize: 9,
                 fontWeight: 500,
-                marginBottom: 2,
                 textTransform: 'uppercase',
               }}>Service ID</label>
+              <button
+                onClick={handleRefreshService}
+                disabled={engineVersionLoading}
+                title="Refresh service status"
+                style={{
+                  padding: '2px 6px',
+                  background: 'transparent',
+                  border: `1px solid ${theme.border}`,
+                  borderRadius: 4,
+                  color: theme.textMuted,
+                  fontSize: 9,
+                  cursor: engineVersionLoading ? 'not-allowed' : 'pointer',
+                  opacity: engineVersionLoading ? 0.5 : 1,
+                }}
+              >
+                {engineVersionLoading ? '...' : '↻ Refresh'}
+              </button>
+            </div>
+            <div style={{ marginBottom: 8 }}>
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -1530,25 +2229,34 @@ function FastlyTab({
                   </div>
                   {/* Update button - show if version mismatch or unknown engine */}
                   {(engineVersion.engine !== 'MSS Engine' || engineVersion.version !== MSS_ENGINE_VERSION) && (
-                    <button
-                      onClick={handleUpdateEngine}
-                      disabled={loading}
-                      style={{
-                        width: '100%',
-                        marginTop: 6,
-                        padding: '6px 8px',
-                        background: loading ? theme.bgTertiary : theme.primary,
-                        color: loading ? theme.textMuted : '#FFFFFF',
-                        border: `1px solid ${loading ? theme.border : theme.primary}`,
-                        borderRadius: 4,
-                        cursor: loading ? 'not-allowed' : 'pointer',
-                        fontSize: 10,
-                        fontWeight: 500,
-                        opacity: loading ? 0.6 : 1,
-                      }}
-                    >
-                      Update to MSS Engine v{MSS_ENGINE_VERSION}
-                    </button>
+                    <>
+                      <p style={{
+                        color: theme.textMuted,
+                        fontSize: 9,
+                        margin: '6px 0 4px 0',
+                        fontStyle: 'italic',
+                      }}>
+                        Updates take ~1 minute to propagate.
+                      </p>
+                      <button
+                        onClick={handleUpdateEngine}
+                        disabled={loading}
+                        style={{
+                          width: '100%',
+                          padding: '6px 8px',
+                          background: loading ? theme.bgTertiary : theme.primary,
+                          color: loading ? theme.textMuted : '#FFFFFF',
+                          border: `1px solid ${loading ? theme.border : theme.primary}`,
+                          borderRadius: 4,
+                          cursor: loading ? 'not-allowed' : 'pointer',
+                          fontSize: 10,
+                          fontWeight: 500,
+                          opacity: loading ? 0.6 : 1,
+                        }}
+                      >
+                        Update to MSS Engine v{MSS_ENGINE_VERSION}
+                      </button>
+                    </>
                   )}
                 </>
               ) : (
@@ -1564,12 +2272,19 @@ function FastlyTab({
                     <span style={{ marginLeft: 4, fontSize: 9 }}>- service may not be deployed</span>
                   </div>
                   {/* Deploy button - show if no engine detected */}
+                  <p style={{
+                    color: theme.textMuted,
+                    fontSize: 9,
+                    margin: '6px 0 4px 0',
+                    fontStyle: 'italic',
+                  }}>
+                    Deployment takes ~1 minute to propagate.
+                  </p>
                   <button
                     onClick={handleUpdateEngine}
                     disabled={loading}
                     style={{
                       width: '100%',
-                      marginTop: 6,
                       padding: '6px 8px',
                       background: loading ? theme.bgTertiary : theme.primary,
                       color: loading ? theme.textMuted : '#FFFFFF',
@@ -1616,6 +2331,70 @@ function FastlyTab({
         </>
       )}
 
+      {/* Enable MSS button for non-configured services */}
+      {selectedService && !selectedConfigStore && (() => {
+        const service = services.find(s => s.id === selectedService)
+        if (!service || service.linkedConfigStore) return null
+        return (
+          <div style={{
+            marginTop: 10,
+            padding: '10px',
+            background: theme.bgTertiary,
+            border: `1px solid ${theme.border}`,
+            borderRadius: 6,
+          }}>
+            <p style={{
+              color: theme.textMuted,
+              fontSize: 10,
+              margin: '0 0 8px 0',
+              lineHeight: 1.4,
+            }}>
+              This Compute service is not configured for MSS. Enable MSS to deploy security rules.
+            </p>
+            <p style={{
+              color: theme.textMuted,
+              fontSize: 9,
+              margin: '0 0 8px 0',
+              lineHeight: 1.4,
+              fontStyle: 'italic',
+            }}>
+              This takes 1-2 minutes. Use the refresh button to check status.
+            </p>
+            {createProgress && (
+              <div style={{
+                padding: '6px 8px',
+                background: theme.bg,
+                border: `1px solid ${theme.border}`,
+                borderRadius: 4,
+                color: theme.textSecondary,
+                fontSize: 10,
+                marginBottom: 8,
+              }}>
+                ⏳ {createProgress}
+              </div>
+            )}
+            <button
+              onClick={handleEnableMss}
+              disabled={loading}
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                background: loading ? theme.bgTertiary : theme.primary,
+                color: loading ? theme.textMuted : '#FFFFFF',
+                border: `1px solid ${loading ? theme.border : theme.primary}`,
+                borderRadius: 4,
+                cursor: loading ? 'not-allowed' : 'pointer',
+                fontSize: 11,
+                fontWeight: 500,
+                opacity: loading ? 0.6 : 1,
+              }}
+            >
+              {loading ? 'Enabling...' : 'Enable MSS on this service'}
+            </button>
+          </div>
+        )
+      })()}
+
       {/* Deploy Button */}
       <button
         onClick={handleDeployRules}
@@ -1645,6 +2424,49 @@ function FastlyTab({
       }}>
         {nodes.length} nodes, {edges.length} edges
       </p>
+
+      {/* Export JSON Button for local development */}
+      <button
+        onClick={async () => {
+          const validation = validateGraph(nodes, edges)
+          if (!validation.valid) {
+            setError(`Validation failed:\n• ${validation.errors.join('\n• ')}`)
+            return
+          }
+
+          const graphPayload = { nodes, edges }
+          const compressed = await compressRules(JSON.stringify(graphPayload))
+          const fileContent = JSON.stringify({ rules_packed: compressed }, null, 2)
+
+          const blob = new Blob([fileContent], { type: 'application/json' })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = 'security-rules.json'
+          document.body.appendChild(a)
+          a.click()
+          document.body.removeChild(a)
+          URL.revokeObjectURL(url)
+
+          setStatus('Exported security-rules.json - copy to compute/ folder for local testing')
+        }}
+        disabled={loading}
+        style={{
+          width: '100%',
+          padding: '8px 12px',
+          background: theme.bgTertiary,
+          color: theme.textSecondary,
+          border: `1px solid ${theme.border}`,
+          borderRadius: 6,
+          cursor: loading ? 'not-allowed' : 'pointer',
+          fontSize: 11,
+          fontWeight: 500,
+          marginTop: 8,
+          opacity: loading ? 0.5 : 1,
+        }}
+      >
+        ↓ Export JSON (for local dev)
+      </button>
 
       {/* Status/Error Messages */}
       {error && (
