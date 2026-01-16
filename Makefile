@@ -1,7 +1,7 @@
 # Visual Compute Engine - Development Makefile
 # Run 'make' or 'make help' for available commands
 
-.PHONY: help dev build serve ui clean install all local local-api
+.PHONY: help dev build rebuild serve ui clean install all local local-api embed-wasm
 
 # Default target
 help:
@@ -12,7 +12,9 @@ help:
 	@echo "  make dev        - Run UI and Compute (without local API server)"
 	@echo "  make ui         - Run only the Editor UI (port 5173)"
 	@echo "  make serve      - Run only the Compute engine (port 7676)"
-	@echo "  make build      - Build the Compute WASM binary"
+	@echo "  make build      - Build the Compute WASM binary (incremental)"
+	@echo "  make rebuild    - Clean and rebuild WASM (use if deployment shows wrong version)"
+	@echo "  make embed-wasm - Build WASM and embed in UI (for Fastly deployment)"
 	@echo "  make install    - Install all dependencies"
 	@echo "  make clean      - Clean build artifacts"
 	@echo ""
@@ -48,6 +50,15 @@ build:
 	@echo "Binary location: compute/target/wasm32-wasip1/release/vce-engine.wasm"
 	@ls -lh compute/target/wasm32-wasip1/release/vce-engine.wasm
 
+# Clean rebuild (guaranteed fresh WASM)
+rebuild:
+	@echo "Clean rebuild of Visual Compute Engine..."
+	cd compute && cargo clean
+	cd compute && cargo build --bin vce-engine --release --target wasm32-wasip1
+	@echo ""
+	@echo "Binary location: compute/target/wasm32-wasip1/release/vce-engine.wasm"
+	@ls -lh compute/target/wasm32-wasip1/release/vce-engine.wasm
+
 # Run Compute engine locally (requires build first)
 serve: build
 	@echo "Starting Visual Compute Engine on http://127.0.0.1:7676"
@@ -61,7 +72,8 @@ ui:
 	cd editor-ui && npm run dev
 
 # Run both UI and Compute (in foreground - use two terminals or Ctrl+C to stop)
-dev:
+# First builds and embeds the latest WASM into the UI
+dev: embed-wasm
 	@echo "==================================================="
 	@echo "  Visual Compute Engine Development Mode"
 	@echo "==================================================="
@@ -91,7 +103,8 @@ local-api:
 	cd editor-ui && node local-server.js
 
 # Run full local development environment (UI + Local API + Compute)
-local: build
+# First builds and embeds the latest WASM into the UI
+local: embed-wasm
 	@echo "╔═══════════════════════════════════════════════════════════════╗"
 	@echo "║           Visual Compute Engine - Local Development Mode                 ║"
 	@echo "╠═══════════════════════════════════════════════════════════════╣"
@@ -112,7 +125,8 @@ local: build
 		wait
 
 # Build and update the embedded WASM in editor-ui
-embed-wasm: build
+# Uses clean rebuild to ensure deployed WASM always matches source code
+embed-wasm: rebuild
 	@echo "Embedding WASM in Editor UI..."
 	base64 -i compute/target/wasm32-wasip1/release/vce-engine.wasm -o editor-ui/src/assets/vce-engine.wasm.b64
 	@echo "Updated editor-ui/src/assets/vce-engine.wasm.b64"
