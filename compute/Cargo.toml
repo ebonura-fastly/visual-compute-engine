@@ -6,6 +6,14 @@ edition = "2021"
 description = "Visual Compute Engine - Edge rules processing for Fastly Compute"
 publish = false
 
+[[bin]]
+name = "vce-engine"
+path = "src/main.rs"
+
+[lib]
+name = "vce_engine"
+path = "src/lib.rs"
+
 [profile.release]
 debug = false
 strip = true

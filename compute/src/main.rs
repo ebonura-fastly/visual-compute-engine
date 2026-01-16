@@ -128,9 +128,10 @@ fn main(req: Request) -> Result<Response, Error> {
             Ok(response)
         }
 
-        GraphResult::Route { backend_name, backend_host, backend_port, use_tls } => {
-            println!("Routing to backend: {} ({}:{})", backend_name, backend_host, backend_port);
-            let action = format!("routed:{}", backend_name);
+        GraphResult::Route(backend_data) => {
+            println!("Routing to backend: {} ({}:{})",
+                backend_data.name, backend_data.host, backend_data.port.unwrap_or(443));
+            let action = format!("routed:{}", backend_data.name);
             log_entry.set_final_action(&action);
 
             // Add edge auth and send to backend
@@ -139,7 +140,7 @@ fn main(req: Request) -> Result<Response, Error> {
                 println!("Auth header error: {}", e);
             }
 
-            match send_to_backend(backend_req, &backend_name, &backend_host, backend_port, use_tls) {
+            match send_to_backend(backend_req, &backend_data) {
                 Ok(mut response) => {
                     response.set_header("X-VCE-Action", &action);
                     log_entry.add_response(&response);
@@ -150,7 +151,7 @@ fn main(req: Request) -> Result<Response, Error> {
                 Err(e) => {
                     // Fail open on backend errors
                     println!("Backend error (fail-open): {}", e);
-                    forward_to_default_backend_with_reason(req, &mut logger, log_entry, &format!("failopen:backend_error:{}", backend_name))
+                    forward_to_default_backend_with_reason(req, &mut logger, log_entry, &format!("failopen:backend_error:{}", backend_data.name))
                 }
             }
         }

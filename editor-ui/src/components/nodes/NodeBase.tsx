@@ -77,12 +77,12 @@ export function NodeBase({
   return (
     <div style={{
       borderRadius: 8,
-      border: `2px solid ${selected ? theme.primary : colors.border}`,
+      border: `1px solid ${selected ? theme.primary : colors.border}`,
       fontFamily: fonts.sans,
       fontSize: 12,
       color: theme.textSecondary,
       boxShadow: selected
-        ? `0 0 0 2px ${theme.primary}40, 0 4px 6px -1px rgba(0, 0, 0, 0.1)`
+        ? `0 0 0 1px ${theme.primary}60, 0 4px 6px -1px rgba(0, 0, 0, 0.1)`
         : '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
       width: resizable ? '100%' : width,
       minWidth: resizable ? minWidth : undefined,
@@ -333,6 +333,48 @@ export function NodeCheckbox({
       />
       {label}
     </label>
+  )
+}
+
+export function NodeSection({
+  title,
+  defaultOpen = false,
+  children,
+}: {
+  title: string
+  defaultOpen?: boolean
+  children: ReactNode
+}) {
+  const [isOpen, setIsOpen] = useState(defaultOpen)
+  const { theme } = useTheme()
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          cursor: 'pointer',
+          padding: '4px 0',
+          userSelect: 'none',
+        }}
+      >
+        <span style={{ fontSize: 9, color: theme.textMuted }}>{isOpen ? '▾' : '▸'}</span>
+        <span style={{ fontSize: 11, fontWeight: 500, color: theme.textMuted }}>{title}</span>
+      </div>
+      {isOpen && (
+        <div style={{
+          paddingLeft: 4,
+          paddingTop: 4,
+          borderLeft: `2px solid ${theme.border}`,
+          marginLeft: 4,
+        }}>
+          {children}
+        </div>
+      )}
+    </div>
   )
 }
 

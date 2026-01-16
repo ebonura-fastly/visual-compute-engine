@@ -874,6 +874,97 @@ const inListGraph = {
   ],
 }
 
+/**
+ * Test: Backend node with full configuration options.
+ * Request -> Backend (with timeouts, TLS, pooling settings)
+ */
+const backendConfigGraph = {
+  nodes: [
+    {
+      id: 'req-1',
+      type: 'request',
+      position: { x: 100, y: 100 },
+      data: {},
+    },
+    {
+      id: 'backend-1',
+      type: 'backend',
+      position: { x: 300, y: 100 },
+      data: {
+        name: 'configured-backend',
+        host: 'httpbin.org',
+        port: 443,
+        useTLS: true,
+        // Timeouts
+        connectTimeout: 2000,
+        firstByteTimeout: 30000,
+        betweenBytesTimeout: 15000,
+        // TLS settings
+        verifyCertificate: false,  // Don't verify for testing
+        minTLSVersion: '1.2',
+        maxTLSVersion: '1.3',
+        // Connection pooling
+        enablePooling: true,
+        keepaliveTime: 60000,
+        maxConnections: 0,  // 0 = unlimited
+        maxConnectionUses: 0,  // 0 = unlimited
+        maxConnectionLifetime: 0,  // 0 = unlimited
+        // Host override
+        overrideHost: 'httpbin.org',
+        preferIPv6: false,
+      },
+    },
+  ],
+  edges: [
+    {
+      id: 'e1',
+      source: 'req-1',
+      sourceHandle: 'request',
+      target: 'backend-1',
+      targetHandle: 'route',
+    },
+  ],
+}
+
+/**
+ * Test: Backend node with TCP keepalive settings.
+ */
+const backendTcpKeepaliveGraph = {
+  nodes: [
+    {
+      id: 'req-1',
+      type: 'request',
+      position: { x: 100, y: 100 },
+      data: {},
+    },
+    {
+      id: 'backend-1',
+      type: 'backend',
+      position: { x: 300, y: 100 },
+      data: {
+        name: 'tcp-keepalive-backend',
+        host: 'httpbin.org',
+        port: 443,
+        useTLS: true,
+        // TCP Keepalive settings
+        tcpKeepalive: true,
+        tcpKeepaliveTime: 7200,
+        tcpKeepaliveInterval: 75,
+        tcpKeepaliveProbes: 9,
+      },
+    },
+  ],
+  edges: [
+    {
+      id: 'e1',
+      source: 'req-1',
+      sourceHandle: 'request',
+      target: 'backend-1',
+      targetHandle: 'route',
+    },
+  ],
+}
+
 // ============================================================================
 // RUN TESTS
 // ============================================================================
@@ -1088,6 +1179,27 @@ async function main() {
       path: '/resource',
       options: { method: 'POST' },
       expectHeader: ['x-vce-action', 'routed:httpbin'],
+    },
+  ])
+
+  // ============================================================================
+  // BACKEND CONFIGURATION TESTS
+  // ============================================================================
+
+  // Test 11: Backend node with full configuration
+  // Note: Viceroy returns 503 for dynamic backends, but x-vce-action confirms routing
+  await runTest('Backend with full config (timeouts, TLS, pooling)', backendConfigGraph, [
+    {
+      path: '/get',
+      expectHeader: ['x-vce-action', 'routed:configured-backend'],
+    },
+  ])
+
+  // Test 12: Backend node with TCP keepalive
+  await runTest('Backend with TCP keepalive settings', backendTcpKeepaliveGraph, [
+    {
+      path: '/get',
+      expectHeader: ['x-vce-action', 'routed:tcp-keepalive-backend'],
     },
   ])
 

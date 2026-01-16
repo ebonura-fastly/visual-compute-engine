@@ -22,8 +22,8 @@ use super::types::{
 
 /// Result of evaluating the graph for a request.
 pub enum GraphResult {
-    /// Route the request to a backend
-    Route { backend_name: String, backend_host: String, backend_port: u16, use_tls: bool },
+    /// Route the request to a backend with full configuration
+    Route(BackendNodeData),
     /// Block the request with a response
     Block { status_code: u16, message: String },
     /// Redirect the request
@@ -231,14 +231,10 @@ impl<'a> GraphInterpreter<'a> {
                     }
                 };
 
-                println!("[Graph] Routing to backend: {} ({})", data.name, data.host);
+                println!("[Graph] Routing to backend: {} ({}:{})",
+                    data.name, data.host, data.port.unwrap_or(443));
 
-                GraphResult::Route {
-                    backend_name: data.name,
-                    backend_host: data.host,
-                    backend_port: data.port.unwrap_or(443),
-                    use_tls: data.use_tls.unwrap_or(true),
-                }
+                GraphResult::Route(data)
             }
 
             "rateLimit" => {
@@ -782,27 +778,28 @@ impl<'a> GraphInterpreter<'a> {
     }
 }
 
-/// Send a request to a dynamic backend.
+/// Send a request to a dynamic backend with full configuration.
 pub fn send_to_backend(
     mut req: Request,
-    backend_name: &str,
-    backend_host: &str,
-    backend_port: u16,
-    use_tls: bool,
+    data: &BackendNodeData,
 ) -> Result<Response, String> {
+    let backend_port = data.port.unwrap_or(443);
+    let use_tls = data.use_tls.unwrap_or(true);
+
     // Clean the host - strip protocol prefix and trailing slashes
-    let clean_host = backend_host
+    let clean_host = data.host
         .trim_start_matches("https://")
         .trim_start_matches("http://")
         .trim_end_matches('/');
 
-    println!("[Backend] Clean host: {} (from: {})", clean_host, backend_host);
+    println!("[Backend] Clean host: {} (from: {})", clean_host, data.host);
 
-    // Set the host header to the backend host
-    req.set_header("host", clean_host);
+    // Set the host header to the backend host (or override if specified)
+    let host_header = data.override_host.as_deref().unwrap_or(clean_host);
+    req.set_header("host", host_header);
 
     // Create a unique backend name per request to avoid conflicts
-    let unique_name = format!("dyn_{}_{}", backend_name, std::time::SystemTime::now()
+    let unique_name = format!("dyn_{}_{}", data.name, std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0));
@@ -812,10 +809,90 @@ pub fn send_to_backend(
     println!("[Backend] Creating backend '{}' targeting: {}", unique_name, target);
 
     let mut builder = BackendBuilder::new(&unique_name, &target)
-        .override_host(clean_host);
+        .override_host(host_header);
 
+    // Timeouts
+    if let Some(timeout) = data.connect_timeout {
+        builder = builder.connect_timeout(Duration::from_millis(timeout));
+    }
+    if let Some(timeout) = data.first_byte_timeout {
+        builder = builder.first_byte_timeout(Duration::from_millis(timeout));
+    }
+    if let Some(timeout) = data.between_bytes_timeout {
+        builder = builder.between_bytes_timeout(Duration::from_millis(timeout));
+    }
+
+    // TLS/SSL
     if use_tls {
         builder = builder.enable_ssl();
+
+        if data.verify_certificate.unwrap_or(false) {
+            builder = builder.check_certificate(clean_host);
+        }
+
+        if let Some(ref sni) = data.sni_hostname {
+            if !sni.is_empty() {
+                builder = builder.sni_hostname(sni);
+            }
+        }
+
+        if let Some(ref ca_cert) = data.ca_certificate {
+            if !ca_cert.is_empty() {
+                builder = builder.ca_certificate(ca_cert);
+            }
+        }
+
+        if let (Some(ref cert), Some(ref key)) = (&data.client_certificate, &data.client_key) {
+            if !cert.is_empty() && !key.is_empty() {
+                // Note: In production, the key should come from Secret Store
+                // This is a plaintext fallback for development
+                let secret_key = fastly::secret_store::Secret::from_bytes(key.as_bytes().into())
+                    .map_err(|e| format!("Failed to create secret from key: {:?}", e))?;
+                builder = builder.provide_client_certificate(cert, secret_key);
+            }
+        }
+    }
+
+    // IPv6 preference
+    if data.prefer_ipv6.unwrap_or(false) {
+        builder = builder.prefer_ipv6(true);
+    }
+
+    // Connection pooling
+    if let Some(enable) = data.enable_pooling {
+        builder = builder.enable_pooling(enable);
+    }
+    if let Some(time) = data.keepalive_time {
+        builder = builder.http_keepalive_time(Duration::from_millis(time));
+    }
+    if let Some(max) = data.max_connections {
+        builder = builder.max_connections(max);
+    }
+    if let Some(max) = data.max_connection_uses {
+        builder = builder.max_use(max);
+    }
+    if let Some(lifetime) = data.max_connection_lifetime {
+        builder = builder.max_lifetime(Duration::from_millis(lifetime));
+    }
+
+    // TCP Keepalive
+    if data.tcp_keepalive.unwrap_or(false) {
+        builder = builder.tcp_keepalive_enable(true);
+        if let Some(time) = data.tcp_keepalive_time {
+            if let Some(nz) = std::num::NonZeroU32::new(time as u32) {
+                builder = builder.tcp_keepalive_time_secs(nz);
+            }
+        }
+        if let Some(interval) = data.tcp_keepalive_interval {
+            if let Some(nz) = std::num::NonZeroU32::new(interval as u32) {
+                builder = builder.tcp_keepalive_interval_secs(nz);
+            }
+        }
+        if let Some(probes) = data.tcp_keepalive_probes {
+            if let Some(nz) = std::num::NonZeroU32::new(probes) {
+                builder = builder.tcp_keepalive_probes(nz);
+            }
+        }
     }
 
     let backend = builder
