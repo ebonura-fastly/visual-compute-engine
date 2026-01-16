@@ -77,12 +77,18 @@ pub struct RuleGroupCondition {
 }
 
 /// Node data for action nodes.
+/// Supports: block, allow, challenge, log, redirect
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ActionNodeData {
     pub action: String,
     #[serde(rename = "statusCode")]
     pub status_code: Option<u16>,
     pub message: Option<String>,
+    /// Redirect URL (when action is "redirect")
+    pub url: Option<String>,
+    /// Preserve query string on redirect (when action is "redirect")
+    #[serde(rename = "preserveQuery")]
+    pub preserve_query: Option<bool>,
 }
 
 /// Node data for backend nodes.
@@ -125,4 +131,28 @@ pub struct ListLookupNodeData {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct LogicNodeData {
     pub operation: String,
+}
+
+/// Node data for header nodes.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct HeaderNodeData {
+    /// Operation: "set" or "remove"
+    pub operation: String,
+    /// Header name
+    pub name: String,
+    /// Header value (for set operation)
+    pub value: Option<String>,
+}
+
+/// Node data for redirect nodes.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct RedirectNodeData {
+    /// Target URL
+    pub url: String,
+    /// HTTP status code (301, 302, 307, 308)
+    #[serde(rename = "statusCode")]
+    pub status_code: Option<u16>,
+    /// Whether to preserve the query string
+    #[serde(rename = "preserveQuery")]
+    pub preserve_query: Option<bool>,
 }

@@ -4,36 +4,26 @@
  * These tests verify that graphs created in the UI are correctly
  * interpreted by the Rust engine.
  *
- * Run with: node test-graphs.mjs [--deployed] [--single <test-name>]
+ * Run with: node test-graphs.mjs [--deployed]
  *   --deployed: Test against deployed service instead of local viceroy
- *   --single: Run a single named test (useful with local viceroy)
+ *
+ * Local mode spawns and kills Viceroy between each test for full isolation.
+ * This ensures each test runs with its own graph configuration.
  *
  * Requires:
- *   - Local: fastly compute serve running (viceroy on localhost:7676)
+ *   - Local: WASM binary built (cargo build --release --target wasm32-wasip1)
+ *   - Local: fastly CLI installed
  *   - Deployed: VCE_TEST_DOMAIN env var set
- *
- * Note: When running locally with Viceroy, the Config Store is loaded once
- * at startup and not reloaded between tests. To run all tests locally:
- *   1. Use --single to run one test at a time
- *   2. Restart viceroy between tests
- *   3. Or use --deployed mode which updates rules via API
  */
 
 import { createGzip } from 'zlib'
-import { promisify } from 'util'
+import { spawn } from 'child_process'
+import { fileURLToPath } from 'url'
+import { dirname, join } from 'path'
 
-const gzip = promisify(createGzip().constructor.prototype.flush ?
-  (data, cb) => {
-    const gz = createGzip()
-    const chunks = []
-    gz.on('data', chunk => chunks.push(chunk))
-    gz.on('end', () => cb(null, Buffer.concat(chunks)))
-    gz.on('error', cb)
-    gz.write(data)
-    gz.end()
-  } :
-  require('zlib').gzip
-)
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+const COMPUTE_DIR = join(__dirname, '..', 'compute')
 
 // Configuration
 const LOCAL_URL = 'http://127.0.0.1:7676'
@@ -49,7 +39,91 @@ if (useDeployed && !DEPLOYED_URL) {
 }
 
 console.log(`Testing against: ${BASE_URL}`)
+console.log(`Mode: ${useDeployed ? 'deployed' : 'local (spawning Viceroy per test)'}`)
 console.log('')
+
+// Viceroy process management
+let viceroyProcess = null
+
+/**
+ * Spawn Viceroy process (does not wait for ready - use waitForViceroy).
+ */
+async function startViceroy() {
+  if (useDeployed) return  // No-op for deployed mode
+
+  viceroyProcess = spawn('fastly', ['compute', 'serve', '--skip-build'], {
+    cwd: COMPUTE_DIR,
+    stdio: ['ignore', 'ignore', 'ignore'],
+    detached: true,
+  })
+
+  viceroyProcess.on('error', (err) => {
+    console.error(`\n      Viceroy spawn error: ${err.message}`)
+  })
+
+  // Small delay to let the process start
+  await new Promise(r => setTimeout(r, 100))
+}
+
+/**
+ * Stop Viceroy process and wait for port to be released.
+ */
+async function stopViceroy() {
+  if (useDeployed) return
+
+  // Use pkill to reliably kill Viceroy and the Fastly CLI wrapper
+  // This is more reliable than trying to kill process groups
+  const { execSync } = await import('child_process')
+  try {
+    execSync('pkill -9 viceroy 2>/dev/null; pkill -9 -f "fastly compute serve" 2>/dev/null', {
+      stdio: 'ignore',
+      timeout: 5000
+    })
+  } catch {
+    // pkill returns non-zero if no processes found, which is fine
+  }
+
+  viceroyProcess = null
+
+  // Wait for port to be released (poll until connection refused)
+  for (let i = 0; i < 50; i++) {
+    try {
+      await fetch(`${LOCAL_URL}/_version`, { signal: AbortSignal.timeout(100) })
+      // Still responding, wait more
+      await new Promise(r => setTimeout(r, 100))
+    } catch {
+      // Connection refused = port is free, wait a bit more for OS to fully release
+      await new Promise(r => setTimeout(r, 200))
+      return
+    }
+  }
+  console.warn('      Warning: Port may not be fully released')
+}
+
+/**
+ * Wait for Viceroy to be ready by polling /_version.
+ */
+async function waitForViceroy(maxAttempts = 100, delayMs = 100) {
+  if (useDeployed) return
+
+  for (let i = 0; i < maxAttempts; i++) {
+    // Check if process died
+    if (viceroyProcess && viceroyProcess.exitCode !== null) {
+      throw new Error(`Viceroy process exited with code ${viceroyProcess.exitCode}`)
+    }
+
+    try {
+      const resp = await fetch(`${LOCAL_URL}/_version`, {
+        signal: AbortSignal.timeout(500)
+      })
+      if (resp.ok) return
+    } catch {
+      // Not ready yet
+    }
+    await new Promise(r => setTimeout(r, delayMs))
+  }
+  throw new Error(`Viceroy did not become ready after ${maxAttempts * delayMs}ms`)
+}
 
 // Test results tracking
 let passed = 0
@@ -90,10 +164,8 @@ async function writeTestGraph(graph) {
 
   // Write to the compute directory for local testing
   const fs = await import('fs/promises')
-  await fs.writeFile(
-    new URL('../compute/security-rules.json', import.meta.url),
-    JSON.stringify(rulesJson, null, 2)
-  )
+  const filePath = new URL('../compute/security-rules.json', import.meta.url)
+  await fs.writeFile(filePath, JSON.stringify(rulesJson, null, 2))
 }
 
 /**
@@ -104,6 +176,7 @@ async function makeRequest(path, options = {}) {
   const response = await fetch(url, {
     method: options.method || 'GET',
     headers: options.headers || {},
+    redirect: 'manual',  // Don't follow redirects - we want to see the 3xx response
   })
 
   return {
@@ -115,16 +188,19 @@ async function makeRequest(path, options = {}) {
 
 /**
  * Run a single test case.
+ * In local mode, this spawns Viceroy, runs the test, then kills Viceroy.
  */
 async function runTest(name, graph, requests) {
-  console.log(`  ${name}`)
+  const startTime = Date.now()
+  process.stdout.write(`  ${name}... `)
 
   try {
-    // Write the test graph
+    // Write the test graph first
     await writeTestGraph(graph)
 
-    // Wait a moment for viceroy to pick up the change
-    await new Promise(r => setTimeout(r, 100))
+    // Start Viceroy (no-op in deployed mode)
+    await startViceroy()
+    await waitForViceroy()
 
     // Run each request
     for (const req of requests) {
@@ -156,12 +232,18 @@ async function runTest(name, graph, requests) {
       }
     }
 
-    console.log(`    PASS`)
+    const elapsed = Date.now() - startTime
+    console.log(`PASS (${elapsed}ms)`)
     passed++
   } catch (err) {
-    console.log(`    FAIL: ${err.message}`)
+    const elapsed = Date.now() - startTime
+    console.log(`FAIL (${elapsed}ms)`)
+    console.log(`      ${err.message}`)
     failed++
     failures.push({ name, error: err.message })
+  } finally {
+    // Always stop Viceroy after each test
+    await stopViceroy()
   }
 }
 
@@ -482,25 +564,356 @@ const methodGraph = {
 }
 
 // ============================================================================
+// NEW v1.1.5 TEST GRAPHS
+// ============================================================================
+
+/**
+ * Test: Redirect node with 302 status.
+ * Request -> Condition (path=/old) -> [true: Redirect, false: Backend]
+ */
+const redirectGraph = {
+  nodes: [
+    {
+      id: 'req-1',
+      type: 'request',
+      position: { x: 100, y: 100 },
+      data: {},
+    },
+    {
+      id: 'cond-1',
+      type: 'condition',
+      position: { x: 300, y: 100 },
+      data: {
+        field: 'path',
+        operator: 'equals',
+        value: '/old-page',
+      },
+    },
+    {
+      id: 'redirect-1',
+      type: 'redirect',
+      position: { x: 500, y: 50 },
+      data: {
+        url: 'https://example.com/new-page',
+        statusCode: 302,
+        preserveQuery: true,
+      },
+    },
+    {
+      id: 'backend-1',
+      type: 'backend',
+      position: { x: 500, y: 150 },
+      data: {
+        name: 'httpbin',
+        host: 'httpbin.org',
+        port: 443,
+        useTLS: true,
+      },
+    },
+  ],
+  edges: [
+    {
+      id: 'e1',
+      source: 'req-1',
+      sourceHandle: 'request',
+      target: 'cond-1',
+      targetHandle: 'trigger',
+    },
+    {
+      id: 'e2',
+      source: 'cond-1',
+      sourceHandle: 'true',
+      target: 'redirect-1',
+      targetHandle: 'trigger',
+    },
+    {
+      id: 'e3',
+      source: 'cond-1',
+      sourceHandle: 'false',
+      target: 'backend-1',
+      targetHandle: 'route',
+    },
+  ],
+}
+
+/**
+ * Test: Redirect with 301 permanent redirect.
+ */
+const redirect301Graph = {
+  nodes: [
+    {
+      id: 'req-1',
+      type: 'request',
+      position: { x: 100, y: 100 },
+      data: {},
+    },
+    {
+      id: 'redirect-1',
+      type: 'redirect',
+      position: { x: 300, y: 100 },
+      data: {
+        url: 'https://new-domain.com/',
+        statusCode: 301,
+        preserveQuery: false,
+      },
+    },
+  ],
+  edges: [
+    {
+      id: 'e1',
+      source: 'req-1',
+      sourceHandle: 'request',
+      target: 'redirect-1',
+      targetHandle: 'trigger',
+    },
+  ],
+}
+
+/**
+ * Test: inCidr operator for IP range matching.
+ * Note: Viceroy may not provide real client IPs, so we test the graph parses correctly.
+ */
+const inCidrGraph = {
+  nodes: [
+    {
+      id: 'req-1',
+      type: 'request',
+      position: { x: 100, y: 100 },
+      data: {},
+    },
+    {
+      id: 'cond-1',
+      type: 'condition',
+      position: { x: 300, y: 100 },
+      data: {
+        field: 'clientIp',
+        operator: 'inCidr',
+        value: '192.168.0.0/16, 10.0.0.0/8',  // Private ranges
+      },
+    },
+    {
+      id: 'action-1',
+      type: 'action',
+      position: { x: 500, y: 50 },
+      data: {
+        action: 'block',
+        statusCode: 403,
+        message: 'Internal IP blocked',
+      },
+    },
+    {
+      id: 'backend-1',
+      type: 'backend',
+      position: { x: 500, y: 150 },
+      data: {
+        name: 'httpbin',
+        host: 'httpbin.org',
+        port: 443,
+        useTLS: true,
+      },
+    },
+  ],
+  edges: [
+    {
+      id: 'e1',
+      source: 'req-1',
+      sourceHandle: 'request',
+      target: 'cond-1',
+      targetHandle: 'trigger',
+    },
+    {
+      id: 'e2',
+      source: 'cond-1',
+      sourceHandle: 'true',
+      target: 'action-1',
+      targetHandle: 'trigger',
+    },
+    {
+      id: 'e3',
+      source: 'cond-1',
+      sourceHandle: 'false',
+      target: 'backend-1',
+      targetHandle: 'route',
+    },
+  ],
+}
+
+/**
+ * Test: Regex matches operator.
+ */
+const regexGraph = {
+  nodes: [
+    {
+      id: 'req-1',
+      type: 'request',
+      position: { x: 100, y: 100 },
+      data: {},
+    },
+    {
+      id: 'cond-1',
+      type: 'condition',
+      position: { x: 300, y: 100 },
+      data: {
+        field: 'path',
+        operator: 'matches',
+        value: '^/api/v[0-9]+/',  // Matches /api/v1/, /api/v2/, etc.
+      },
+    },
+    {
+      id: 'action-1',
+      type: 'action',
+      position: { x: 500, y: 50 },
+      data: {
+        action: 'block',
+        statusCode: 403,
+        message: 'API blocked',
+      },
+    },
+    {
+      id: 'backend-1',
+      type: 'backend',
+      position: { x: 500, y: 150 },
+      data: {
+        name: 'httpbin',
+        host: 'httpbin.org',
+        port: 443,
+        useTLS: true,
+      },
+    },
+  ],
+  edges: [
+    {
+      id: 'e1',
+      source: 'req-1',
+      sourceHandle: 'request',
+      target: 'cond-1',
+      targetHandle: 'trigger',
+    },
+    {
+      id: 'e2',
+      source: 'cond-1',
+      sourceHandle: 'true',
+      target: 'action-1',
+      targetHandle: 'trigger',
+    },
+    {
+      id: 'e3',
+      source: 'cond-1',
+      sourceHandle: 'false',
+      target: 'backend-1',
+      targetHandle: 'route',
+    },
+  ],
+}
+
+/**
+ * Test: In list operator.
+ */
+const inListGraph = {
+  nodes: [
+    {
+      id: 'req-1',
+      type: 'request',
+      position: { x: 100, y: 100 },
+      data: {},
+    },
+    {
+      id: 'cond-1',
+      type: 'condition',
+      position: { x: 300, y: 100 },
+      data: {
+        field: 'method',
+        operator: 'in',
+        value: 'PUT, PATCH, DELETE',
+      },
+    },
+    {
+      id: 'action-1',
+      type: 'action',
+      position: { x: 500, y: 50 },
+      data: {
+        action: 'block',
+        statusCode: 405,
+        message: 'Method not allowed',
+      },
+    },
+    {
+      id: 'backend-1',
+      type: 'backend',
+      position: { x: 500, y: 150 },
+      data: {
+        name: 'httpbin',
+        host: 'httpbin.org',
+        port: 443,
+        useTLS: true,
+      },
+    },
+  ],
+  edges: [
+    {
+      id: 'e1',
+      source: 'req-1',
+      sourceHandle: 'request',
+      target: 'cond-1',
+      targetHandle: 'trigger',
+    },
+    {
+      id: 'e2',
+      source: 'cond-1',
+      sourceHandle: 'true',
+      target: 'action-1',
+      targetHandle: 'trigger',
+    },
+    {
+      id: 'e3',
+      source: 'cond-1',
+      sourceHandle: 'false',
+      target: 'backend-1',
+      targetHandle: 'route',
+    },
+  ],
+}
+
+// ============================================================================
 // RUN TESTS
 // ============================================================================
 
 async function main() {
   console.log('Visual Compute Engine Integration Tests')
-  console.log('============================')
+  console.log('========================================')
   console.log('')
 
-  // Check if server is running
-  try {
-    const versionResp = await fetch(`${BASE_URL}/_version`)
-    const version = await versionResp.json()
-    console.log(`Engine: ${version.engine} v${version.version}`)
+  // In deployed mode, verify the service is available
+  if (useDeployed) {
+    try {
+      const versionResp = await fetch(`${BASE_URL}/_version`)
+      const version = await versionResp.json()
+      console.log(`Engine: ${version.engine} v${version.version}`)
+      console.log('')
+    } catch (err) {
+      console.error(`Cannot connect to ${BASE_URL}`)
+      console.error('Check that VCE_TEST_DOMAIN is correct')
+      process.exit(1)
+    }
+  } else {
+    // In local mode, check that the WASM binary exists
+    const fs = await import('fs')
+    const wasmPath = join(COMPUTE_DIR, 'target', 'wasm32-wasip1', 'release', 'vce-engine.wasm')
+    if (!fs.existsSync(wasmPath)) {
+      console.error('WASM binary not found. Run: cd compute && cargo build --release --target wasm32-wasip1')
+      process.exit(1)
+    }
+    console.log('WASM binary found, running isolated tests...')
     console.log('')
-  } catch (err) {
-    console.error(`Cannot connect to ${BASE_URL}`)
-    console.error('Make sure fastly compute serve is running')
-    process.exit(1)
   }
+
+  // Cleanup handler
+  const cleanup = async () => {
+    await stopViceroy()
+    process.exit(failed > 0 ? 1 : 0)
+  }
+  process.on('SIGINT', cleanup)
+  process.on('SIGTERM', cleanup)
 
   console.log('Running tests...')
   console.log('')
@@ -575,6 +988,96 @@ async function main() {
       options: { method: 'DELETE' },
       expectStatus: 405,
       expectBodyContains: 'DELETE not allowed',
+    },
+    {
+      path: '/resource',
+      options: { method: 'GET' },
+      expectHeader: ['x-vce-action', 'routed:httpbin'],
+    },
+    {
+      path: '/resource',
+      options: { method: 'POST' },
+      expectHeader: ['x-vce-action', 'routed:httpbin'],
+    },
+  ])
+
+  // ============================================================================
+  // v1.1.5 NEW FEATURE TESTS
+  // ============================================================================
+
+  // Test 6: Redirect node (302)
+  await runTest('Redirect node - 302 Found', redirectGraph, [
+    {
+      path: '/old-page',
+      expectStatus: 302,
+      expectHeader: ['location', 'https://example.com/new-page'],
+    },
+    {
+      path: '/other',
+      expectHeader: ['x-vce-action', 'routed:httpbin'],
+    },
+  ])
+
+  // Test 7: Redirect node (301) - all requests
+  await runTest('Redirect node - 301 Permanent', redirect301Graph, [
+    {
+      path: '/anything',
+      expectStatus: 301,
+      expectHeader: ['location', 'https://new-domain.com/'],
+    },
+  ])
+
+  // Test 8: inCidr operator
+  // Note: Local testing with Viceroy may show 127.0.0.1 as client IP
+  // which doesn't match our CIDR ranges, so it routes to backend
+  await runTest('inCidr operator - IP range matching', inCidrGraph, [
+    {
+      path: '/test',
+      // Viceroy uses 127.0.0.1 which is NOT in 192.168.0.0/16 or 10.0.0.0/8
+      // So it should route to backend (not block)
+      expectHeader: ['x-vce-action', 'routed:httpbin'],
+    },
+  ])
+
+  // Test 9: Regex matches operator
+  await runTest('Regex matches operator', regexGraph, [
+    {
+      path: '/api/v1/users',
+      expectStatus: 403,
+      expectBodyContains: 'API blocked',
+    },
+    {
+      path: '/api/v2/orders',
+      expectStatus: 403,
+      expectHeader: ['x-vce-action', 'blocked'],
+    },
+    {
+      path: '/api/users',  // No version number
+      expectHeader: ['x-vce-action', 'routed:httpbin'],
+    },
+    {
+      path: '/public',
+      expectHeader: ['x-vce-action', 'routed:httpbin'],
+    },
+  ])
+
+  // Test 10: In list operator
+  await runTest('In list operator', inListGraph, [
+    {
+      path: '/resource',
+      options: { method: 'PUT' },
+      expectStatus: 405,
+      expectBodyContains: 'Method not allowed',
+    },
+    {
+      path: '/resource',
+      options: { method: 'PATCH' },
+      expectStatus: 405,
+    },
+    {
+      path: '/resource',
+      options: { method: 'DELETE' },
+      expectStatus: 405,
     },
     {
       path: '/resource',

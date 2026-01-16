@@ -1,6 +1,6 @@
 [package]
 name = "vce-engine"
-version = "1.1.4"
+version = "1.1.5"
 authors = ["Fastly"]
 edition = "2021"
 description = "Visual Compute Engine - Edge rules processing for Fastly Compute"
@@ -15,11 +15,11 @@ codegen-units = 1
 panic = "abort"
 
 [dependencies]
-fastly = "0.10.0"
+fastly = "0.11.12"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 regex = "1.5"
-cidr = "0.2"
+ipnet = "2.9"
 chrono = "0.4.39"
 uuid = { version = "1.11.0", features = ["v7", "serde"] }
 hmac = "0.12.1"

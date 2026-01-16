@@ -1,16 +1,20 @@
 import { type NodeProps, useReactFlow } from '@xyflow/react'
 import { useCallback } from 'react'
-import { NodeBase, NodeField, NodeSelect, NodeInput } from './NodeBase'
+import { NodeBase, NodeField, NodeSelect, NodeInput, NodeCheckbox } from './NodeBase'
 
 export type ActionNodeData = {
-  action: 'block' | 'allow' | 'challenge' | 'log'
+  action: 'block' | 'allow' | 'challenge' | 'log' | 'redirect'
   statusCode?: number
   message?: string
+  // Redirect-specific fields
+  url?: string
+  preserveQuery?: boolean
 }
 
 const actionOptions = [
   { value: 'block', label: 'Block' },
   { value: 'allow', label: 'Allow' },
+  { value: 'redirect', label: 'Redirect' },
   { value: 'challenge', label: 'Challenge' },
   { value: 'log', label: 'Log Only' },
 ]
@@ -22,12 +26,19 @@ const statusCodeOptions = [
   { value: '503', label: '503 Service Unavailable' },
 ]
 
+const redirectStatusOptions = [
+  { value: '302', label: '302 Found (Temporary)' },
+  { value: '301', label: '301 Moved Permanently' },
+  { value: '307', label: '307 Temporary Redirect' },
+  { value: '308', label: '308 Permanent Redirect' },
+]
+
 export function ActionNode({ id, data, selected }: NodeProps) {
   const nodeData = data as ActionNodeData
   const { setNodes } = useReactFlow()
   const action = nodeData.action || 'block'
 
-  const updateData = useCallback((field: string, value: string | number) => {
+  const updateData = useCallback((field: string, value: string | number | boolean) => {
     setNodes((nodes) =>
       nodes.map((node) =>
         node.id === id
@@ -41,6 +52,7 @@ export function ActionNode({ id, data, selected }: NodeProps) {
   const titles: Record<string, string> = {
     block: 'Block',
     allow: 'Allow',
+    redirect: 'Redirect',
     challenge: 'Challenge',
     log: 'Log',
   }
@@ -52,7 +64,7 @@ export function ActionNode({ id, data, selected }: NodeProps) {
       selected={selected}
       inputs={[{ id: 'trigger', label: 'Trigger', type: 'bool' }]}
       outputs={[]}
-      width={200}
+      width={action === 'redirect' ? 260 : 200}
     >
       <NodeField label="Action">
         <NodeSelect
@@ -90,6 +102,32 @@ export function ActionNode({ id, data, selected }: NodeProps) {
             placeholder="Log message..."
           />
         </NodeField>
+      )}
+
+      {action === 'redirect' && (
+        <>
+          <NodeField label="URL">
+            <NodeInput
+              value={nodeData.url || ''}
+              onChange={(v) => updateData('url', v)}
+              placeholder="https://example.com/path"
+            />
+          </NodeField>
+
+          <NodeField label="Status">
+            <NodeSelect
+              value={String(nodeData.statusCode || 302)}
+              onChange={(v) => updateData('statusCode', parseInt(v))}
+              options={redirectStatusOptions}
+            />
+          </NodeField>
+
+          <NodeCheckbox
+            checked={nodeData.preserveQuery ?? true}
+            onChange={(v) => updateData('preserveQuery', v)}
+            label="Preserve query string"
+          />
+        </>
       )}
     </NodeBase>
   )

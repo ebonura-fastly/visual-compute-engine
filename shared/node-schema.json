@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Visual Compute Engine Node Schema",
   "description": "Shared schema defining node types and their handles. Used by both editor-ui and compute engine.",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "nodes": {
     "request": {
       "description": "Entry point for incoming requests",
@@ -42,15 +42,17 @@
       }
     },
     "action": {
-      "description": "Terminal action (block/allow)",
+      "description": "Terminal action (block/allow/redirect/challenge/log)",
       "inputs": [
         { "id": "trigger", "label": "Trigger", "type": "bool" }
       ],
       "outputs": [],
       "data": {
-        "action": "block | allow",
-        "status_code": "number (for block)",
-        "message": "string (for block)"
+        "action": "block | allow | redirect | challenge | log",
+        "statusCode": "number (for block: 400/403/429/503, for redirect: 301/302/307/308)",
+        "message": "string (for block/log)",
+        "url": "string (for redirect - target URL)",
+        "preserveQuery": "boolean (for redirect - preserve query string)"
       }
     },
     "backend": {
@@ -70,7 +72,7 @@
       }
     },
     "rateLimit": {
-      "description": "Rate limiting check",
+      "description": "Rate limiting check using Fastly Edge Rate Limiting",
       "inputs": [
         { "id": "trigger", "label": "Trigger", "type": "bool" }
       ],
@@ -79,11 +81,37 @@
         { "id": "ok", "label": "OK", "type": "bool" }
       ],
       "data": {
-        "key": "string",
-        "window": "number (seconds)",
-        "maxRequests": "number"
-      },
-      "implemented": false
+        "limit": "number (max requests)",
+        "windowUnit": "string (second, minute, hour)",
+        "keyBy": "string (ip, fingerprint, header, path)",
+        "headerName": "string (when keyBy is header)"
+      }
+    },
+    "header": {
+      "description": "Set or remove request/response headers",
+      "inputs": [
+        { "id": "trigger", "label": "Trigger", "type": "bool" }
+      ],
+      "outputs": [
+        { "id": "out", "label": "Out", "type": "bool" }
+      ],
+      "data": {
+        "operation": "string (set, remove)",
+        "name": "string (header name)",
+        "value": "string (header value, for set)"
+      }
+    },
+    "redirect": {
+      "description": "Redirect to a different URL",
+      "inputs": [
+        { "id": "trigger", "label": "Trigger", "type": "bool" }
+      ],
+      "outputs": [],
+      "data": {
+        "url": "string (target URL)",
+        "statusCode": "number (301, 302, 307, 308)",
+        "preserveQuery": "boolean (keep query string)"
+      }
     },
     "listLookup": {
       "description": "Check if value exists in a list",
@@ -132,11 +160,30 @@
       { "id": "endsWith", "label": "ends with" },
       { "id": "matches", "label": "matches (regex)" },
       { "id": "in", "label": "in list" },
+      { "id": "notIn", "label": "not in list" },
+      { "id": "exists", "label": "exists" },
+      { "id": "notExists", "label": "not exists" }
+    ],
+    "number": [
+      { "id": "equals", "label": "equals" },
+      { "id": "notEquals", "label": "not equals" },
+      { "id": "greaterThan", "label": "greater than" },
+      { "id": "lessThan", "label": "less than" },
+      { "id": "greaterOrEqual", "label": "greater or equal" },
+      { "id": "lessOrEqual", "label": "less or equal" },
+      { "id": "in", "label": "in list" },
       { "id": "notIn", "label": "not in list" }
     ],
     "ip": [
       { "id": "equals", "label": "equals" },
-      { "id": "inCidr", "label": "in CIDR range" }
+      { "id": "notEquals", "label": "not equals" },
+      { "id": "inCidr", "label": "in CIDR range" },
+      { "id": "in", "label": "in list" },
+      { "id": "notIn", "label": "not in list" }
+    ],
+    "boolean": [
+      { "id": "equals", "label": "equals" },
+      { "id": "notEquals", "label": "not equals" }
     ]
   },
   "fieldCategories": {

@@ -4,15 +4,20 @@
 //! This allows the editor to deploy rules directly without conversion.
 
 use std::collections::HashMap;
+use std::net::IpAddr;
 use fastly::backend::BackendBuilder;
 use fastly::{Request, Response};
+use fastly::geo::geo_lookup;
+use fastly::device_detection::lookup as device_lookup;
 
 use std::time::Duration;
 use fastly::erl::{ERL, RateCounter, Penaltybox, RateWindow};
+use ipnet::IpNet;
 
 use super::types::{
     GraphPayload, GraphNode, GraphEdge,
     BackendNodeData, ActionNodeData, RuleGroupNodeData, ConditionNodeData, RateLimitNodeData,
+    HeaderNodeData, RedirectNodeData,
 };
 
 /// Result of evaluating the graph for a request.
@@ -21,10 +26,19 @@ pub enum GraphResult {
     Route { backend_name: String, backend_host: String, backend_port: u16, use_tls: bool },
     /// Block the request with a response
     Block { status_code: u16, message: String },
+    /// Redirect the request
+    Redirect { url: String, status_code: u16, preserve_query: bool },
     /// Allow the request (pass through to default backend)
     Allow,
     /// No matching path found
     NoMatch,
+}
+
+/// Header modification to apply before forwarding
+#[derive(Debug, Clone)]
+pub enum HeaderMod {
+    Set { name: String, value: String },
+    Remove { name: String },
 }
 
 /// Evaluates a graph against an incoming request.
@@ -32,6 +46,8 @@ pub struct GraphInterpreter<'a> {
     nodes: HashMap<String, &'a GraphNode>,
     edges_from: HashMap<String, Vec<&'a GraphEdge>>,
     rate_limiter: Option<ERL>,
+    /// Cached geo lookup result
+    geo_cache: std::cell::RefCell<Option<Option<fastly::geo::Geo>>>,
 }
 
 impl<'a> GraphInterpreter<'a> {
@@ -60,7 +76,35 @@ impl<'a> GraphInterpreter<'a> {
             None
         };
 
-        Self { nodes, edges_from, rate_limiter }
+        Self {
+            nodes,
+            edges_from,
+            rate_limiter,
+            geo_cache: std::cell::RefCell::new(None),
+        }
+    }
+
+    /// Get geo data for client IP, caching the result
+    fn get_geo(&self, req: &Request) -> Option<fastly::geo::Geo> {
+        let mut cache = self.geo_cache.borrow_mut();
+        if cache.is_none() {
+            let geo_result = match req.get_client_ip_addr() {
+                Some(ip) => geo_lookup(ip),
+                None => None,
+            };
+            *cache = Some(geo_result);
+        }
+        // Return a clone of the cached geo result
+        match cache.as_ref() {
+            Some(Some(geo)) => Some(geo.clone()),
+            _ => None,
+        }
+    }
+
+    /// Get device data for user agent (not cached since Device doesn't implement Clone)
+    fn get_device(&self, req: &Request) -> Option<fastly::device_detection::Device> {
+        let ua = req.get_header_str("user-agent").unwrap_or("");
+        device_lookup(ua)
     }
 
     /// Evaluate the graph for an incoming request.
@@ -155,6 +199,16 @@ impl<'a> GraphInterpreter<'a> {
                         message: data.message.unwrap_or_else(|| "Blocked".to_string()),
                     },
                     "allow" => GraphResult::Allow,
+                    "redirect" => {
+                        let url = data.url.unwrap_or_else(|| "/".to_string());
+                        println!("[Graph] Action Redirect: {} -> {} (preserve_query: {})",
+                            data.status_code.unwrap_or(302), url, data.preserve_query.unwrap_or(true));
+                        GraphResult::Redirect {
+                            url,
+                            status_code: data.status_code.unwrap_or(302),
+                            preserve_query: data.preserve_query.unwrap_or(true),
+                        }
+                    }
                     _ => GraphResult::Block {
                         status_code: data.status_code.unwrap_or(403),
                         message: data.message.unwrap_or_else(|| "Blocked".to_string()),
@@ -243,6 +297,46 @@ impl<'a> GraphInterpreter<'a> {
                 // Follow the appropriate output handle
                 let handle = if exceeded { "exceeded" } else { "ok" };
                 self.follow_outgoing(node_id, Some(handle), req)
+            }
+
+            "header" => {
+                // Header modification node - logs but actual modification happens at forward time
+                let data: HeaderNodeData = match serde_json::from_value(node.data.clone()) {
+                    Ok(d) => d,
+                    Err(e) => {
+                        println!("[Graph] Failed to parse header data: {}", e);
+                        return self.follow_outgoing(node_id, None, req);
+                    }
+                };
+
+                match data.operation.as_str() {
+                    "set" => println!("[Graph] Header SET: {} = {}", data.name, data.value.as_deref().unwrap_or("")),
+                    "remove" => println!("[Graph] Header REMOVE: {}", data.name),
+                    _ => println!("[Graph] Header unknown op: {}", data.operation),
+                }
+
+                // Continue to next node (header mods applied at forward time via main.rs)
+                self.follow_outgoing(node_id, None, req)
+            }
+
+            "redirect" => {
+                // Terminal node - return redirect result
+                let data: RedirectNodeData = match serde_json::from_value(node.data.clone()) {
+                    Ok(d) => d,
+                    Err(e) => {
+                        println!("[Graph] Failed to parse redirect data: {}", e);
+                        return GraphResult::Block { status_code: 500, message: "Invalid redirect config".to_string() };
+                    }
+                };
+
+                println!("[Graph] Redirect: {} -> {} (preserve_query: {})",
+                    data.status_code.unwrap_or(302), data.url, data.preserve_query.unwrap_or(true));
+
+                GraphResult::Redirect {
+                    url: data.url,
+                    status_code: data.status_code.unwrap_or(302),
+                    preserve_query: data.preserve_query.unwrap_or(true),
+                }
             }
 
             _ => {
@@ -340,24 +434,69 @@ impl<'a> GraphInterpreter<'a> {
     /// Evaluate a single condition against a request.
     fn evaluate_condition(&self, data: &ConditionNodeData, req: &Request) -> bool {
         let field_value = self.get_field_value(&data.field, req);
-        let field_value = field_value.as_deref().unwrap_or("");
+        let field_value_str = field_value.as_deref().unwrap_or("");
 
-        println!("[Graph] Checking {} {} {} (actual: {})", data.field, data.operator, data.value, field_value);
+        println!("[Graph] Checking {} {} {} (actual: {})", data.field, data.operator, data.value, field_value_str);
 
         match data.operator.as_str() {
-            "equals" => field_value == data.value,
-            "startsWith" | "starts" => field_value.starts_with(&data.value),
-            "endsWith" | "ends" => field_value.ends_with(&data.value),
-            "contains" => field_value.contains(&data.value),
-            "notEquals" | "!=" => field_value != data.value,
-            "in" => data.value.split(',').map(|s| s.trim()).any(|v| field_value == v),
-            "notIn" | "!in" => !data.value.split(',').map(|s| s.trim()).any(|v| field_value == v),
+            "equals" => field_value_str == data.value,
+            "startsWith" | "starts" => field_value_str.starts_with(&data.value),
+            "endsWith" | "ends" => field_value_str.ends_with(&data.value),
+            "contains" => field_value_str.contains(&data.value),
+            "notContains" => !field_value_str.contains(&data.value),
+            "notEquals" | "!=" => field_value_str != data.value,
+            "in" => data.value.split(',').map(|s| s.trim()).any(|v| field_value_str == v),
+            "notIn" | "!in" => !data.value.split(',').map(|s| s.trim()).any(|v| field_value_str == v),
             "matches" => {
-                // Simple regex matching
+                // Regex matching
                 regex::Regex::new(&data.value)
-                    .map(|re| re.is_match(field_value))
+                    .map(|re| re.is_match(field_value_str))
                     .unwrap_or(false)
             }
+            "inCidr" => {
+                // CIDR range matching for IP addresses
+                if let Some(ip_str) = &field_value {
+                    if let Ok(ip) = ip_str.parse::<IpAddr>() {
+                        // Support comma-separated CIDR list
+                        data.value.split(',').map(|s| s.trim()).any(|cidr| {
+                            cidr.parse::<IpNet>()
+                                .map(|net| net.contains(&ip))
+                                .unwrap_or(false)
+                        })
+                    } else {
+                        println!("[Graph] Failed to parse IP: {}", ip_str);
+                        false
+                    }
+                } else {
+                    false
+                }
+            }
+            "greaterThan" | ">" => {
+                field_value_str.parse::<f64>().ok()
+                    .zip(data.value.parse::<f64>().ok())
+                    .map(|(a, b)| a > b)
+                    .unwrap_or(false)
+            }
+            "lessThan" | "<" => {
+                field_value_str.parse::<f64>().ok()
+                    .zip(data.value.parse::<f64>().ok())
+                    .map(|(a, b)| a < b)
+                    .unwrap_or(false)
+            }
+            "greaterOrEqual" | ">=" => {
+                field_value_str.parse::<f64>().ok()
+                    .zip(data.value.parse::<f64>().ok())
+                    .map(|(a, b)| a >= b)
+                    .unwrap_or(false)
+            }
+            "lessOrEqual" | "<=" => {
+                field_value_str.parse::<f64>().ok()
+                    .zip(data.value.parse::<f64>().ok())
+                    .map(|(a, b)| a <= b)
+                    .unwrap_or(false)
+            }
+            "exists" => field_value.is_some() && !field_value_str.is_empty(),
+            "notExists" => field_value.is_none() || field_value_str.is_empty(),
             _ => {
                 println!("[Graph] Unknown operator: {}", data.operator);
                 false
@@ -368,7 +507,9 @@ impl<'a> GraphInterpreter<'a> {
     /// Get the value of a field from the request.
     fn get_field_value(&self, field: &str, req: &Request) -> Option<String> {
         match field {
-            // Request basics
+            // ═══════════════════════════════════════════════════════════════════
+            // REQUEST BASICS
+            // ═══════════════════════════════════════════════════════════════════
             "path" => Some(req.get_path().to_string()),
             "query" => {
                 let url = req.get_url_str();
@@ -378,42 +519,199 @@ impl<'a> GraphInterpreter<'a> {
             "host" => req.get_header_str("host")
                 .or_else(|| req.get_header_str("fastly-orig-host"))
                 .map(|s| s.to_string()),
-            "scheme" => {
-                // Check X-Forwarded-Proto or default to https for Fastly
-                req.get_header_str("x-forwarded-proto")
-                    .map(|s| s.to_string())
-                    .or_else(|| Some("https".to_string()))
-            }
+            "scheme" => req.get_header_str("x-forwarded-proto")
+                .map(|s| s.to_string())
+                .or_else(|| Some("https".to_string())),
 
-            // Client & Connection
+            // ═══════════════════════════════════════════════════════════════════
+            // CLIENT & CONNECTION
+            // ═══════════════════════════════════════════════════════════════════
             "clientIp" | "client-ip" | "ip" => {
-                req.get_header_str("fastly-client-ip")
-                    .or_else(|| req.get_header_str("x-forwarded-for"))
-                    .or_else(|| req.get_header_str("x-real-ip"))
-                    .map(|s| s.split(',').next().unwrap_or(s).trim().to_string())
+                // Try native API first, then headers
+                req.get_client_ip_addr()
+                    .map(|ip| ip.to_string())
+                    .or_else(|| req.get_header_str("fastly-client-ip").map(|s| s.to_string()))
+                    .or_else(|| req.get_header_str("x-forwarded-for")
+                        .map(|s| s.split(',').next().unwrap_or(s).trim().to_string()))
             }
-            "asn" => req.get_header_str("client-geo-asn")
-                .or_else(|| req.get_header_str("fastly-client-geo-asn"))
-                .map(|s| s.to_string()),
+            "asn" => {
+                // Try native geo lookup first
+                self.get_geo(req)
+                    .map(|g| g.as_number().to_string())
+                    .or_else(|| req.get_header_str("fastly-client-geo-asn").map(|s| s.to_string()))
+            }
             "datacenter" | "pop" => {
-                // FASTLY_POP is set as env var, but we can also check headers
                 req.get_header_str("fastly-pop")
                     .map(|s| s.to_string())
                     .or_else(|| std::env::var("FASTLY_POP").ok())
             }
 
-            // Geolocation
-            "country" => req.get_header_str("client-geo-country")
-                .or_else(|| req.get_header_str("fastly-client-geo-country"))
-                .map(|s| s.to_string()),
-            "city" => req.get_header_str("client-geo-city")
-                .or_else(|| req.get_header_str("fastly-client-geo-city"))
-                .map(|s| s.to_string()),
-            "continent" => req.get_header_str("client-geo-continent")
-                .or_else(|| req.get_header_str("fastly-client-geo-continent"))
-                .map(|s| s.to_string()),
+            // ═══════════════════════════════════════════════════════════════════
+            // GEOLOCATION (Native Fastly Geo API with header fallback)
+            // ═══════════════════════════════════════════════════════════════════
+            "country" => {
+                self.get_geo(req)
+                    .map(|g| g.country_code().to_string())
+                    .or_else(|| req.get_header_str("fastly-client-geo-country").map(|s| s.to_string()))
+            }
+            "countryCode3" => {
+                self.get_geo(req)
+                    .map(|g| g.country_code3().to_string())
+            }
+            "continent" => {
+                self.get_geo(req)
+                    .map(|g| format!("{:?}", g.continent()))
+                    .or_else(|| req.get_header_str("fastly-client-geo-continent").map(|s| s.to_string()))
+            }
+            "city" => {
+                self.get_geo(req)
+                    .map(|g| g.city().to_string())
+                    .or_else(|| req.get_header_str("fastly-client-geo-city").map(|s| s.to_string()))
+            }
+            "region" => {
+                self.get_geo(req)
+                    .and_then(|g| g.region().map(|s| s.to_string()))
+            }
+            "postalCode" => {
+                self.get_geo(req)
+                    .map(|g| g.postal_code().to_string())
+            }
+            "latitude" => {
+                self.get_geo(req)
+                    .map(|g| g.latitude().to_string())
+            }
+            "longitude" => {
+                self.get_geo(req)
+                    .map(|g| g.longitude().to_string())
+            }
+            "metroCode" => {
+                self.get_geo(req)
+                    .map(|g| g.metro_code().to_string())
+            }
+            "utcOffset" => {
+                self.get_geo(req)
+                    .and_then(|g| g.utc_offset().map(|uo| {
+                        let (h, m, _) = uo.as_hms();
+                        if m == 0 { format!("{}", h) } else { format!("{}:{:02}", h, m.abs()) }
+                    }))
+            }
+            "connSpeed" => {
+                self.get_geo(req)
+                    .map(|g| format!("{:?}", g.conn_speed()))
+            }
+            "connType" => {
+                self.get_geo(req)
+                    .map(|g| format!("{:?}", g.conn_type()))
+            }
 
-            // Common Request Headers
+            // ═══════════════════════════════════════════════════════════════════
+            // PROXY/VPN DETECTION (Native Fastly Geo API)
+            // ═══════════════════════════════════════════════════════════════════
+            "proxyType" => {
+                self.get_geo(req)
+                    .map(|g| format!("{:?}", g.proxy_type()))
+            }
+            "proxyDescription" => {
+                self.get_geo(req)
+                    .map(|g| format!("{:?}", g.proxy_description()))
+            }
+            "isHostingProvider" => {
+                // Check if proxy_description indicates hosting
+                self.get_geo(req)
+                    .map(|g| {
+                        let desc = format!("{:?}", g.proxy_description()).to_lowercase();
+                        desc.contains("hosting").to_string()
+                    })
+                    .or(Some("false".to_string()))
+            }
+
+            // ═══════════════════════════════════════════════════════════════════
+            // DEVICE DETECTION (Native Fastly Device Detection API)
+            // ═══════════════════════════════════════════════════════════════════
+            "isBot" => {
+                self.get_device(req)
+                    .and_then(|d| d.is_bot().map(|b| b.to_string()))
+                    .or(Some("false".to_string()))
+            }
+            "botName" => {
+                self.get_device(req)
+                    .and_then(|d| {
+                        if d.is_bot().unwrap_or(false) {
+                            d.device_name().map(|s| s.to_string())
+                        } else {
+                            None
+                        }
+                    })
+            }
+            "isMobile" => {
+                self.get_device(req)
+                    .and_then(|d| d.is_mobile().map(|b| b.to_string()))
+                    .or(Some("false".to_string()))
+            }
+            "isTablet" => {
+                self.get_device(req)
+                    .and_then(|d| d.is_tablet().map(|b| b.to_string()))
+                    .or(Some("false".to_string()))
+            }
+            "isDesktop" => {
+                self.get_device(req)
+                    .and_then(|d| d.is_desktop().map(|b| b.to_string()))
+                    .or(Some("false".to_string()))
+            }
+            "isSmartTV" => {
+                self.get_device(req)
+                    .and_then(|d| d.is_smarttv().map(|b| b.to_string()))
+                    .or(Some("false".to_string()))
+            }
+            "isGameConsole" => {
+                self.get_device(req)
+                    .and_then(|d| d.is_gameconsole().map(|b| b.to_string()))
+                    .or(Some("false".to_string()))
+            }
+            "deviceName" => {
+                self.get_device(req)
+                    .and_then(|d| d.device_name().map(|s| s.to_string()))
+            }
+            "deviceBrand" => {
+                self.get_device(req)
+                    .and_then(|d| d.brand().map(|s| s.to_string()))
+            }
+            "deviceModel" => {
+                self.get_device(req)
+                    .and_then(|d| d.model().map(|s| s.to_string()))
+            }
+            "browserName" => {
+                self.get_device(req)
+                    .and_then(|d| d.user_agent_name().map(|s| s.to_string()))
+            }
+            "browserVersion" => {
+                // Combine major.minor.patch versions
+                self.get_device(req)
+                    .and_then(|d| {
+                        d.user_agent_major_version().map(|major| {
+                            let minor = d.user_agent_minor_version().unwrap_or("0");
+                            format!("{}.{}", major, minor)
+                        })
+                    })
+            }
+            "osName" => {
+                self.get_device(req)
+                    .and_then(|d| d.os_name().map(|s| s.to_string()))
+            }
+            "osVersion" => {
+                // Combine major.minor versions
+                self.get_device(req)
+                    .and_then(|d| {
+                        d.os_major_version().map(|major| {
+                            let minor = d.os_minor_version().unwrap_or("0");
+                            format!("{}.{}", major, minor)
+                        })
+                    })
+            }
+
+            // ═══════════════════════════════════════════════════════════════════
+            // COMMON REQUEST HEADERS
+            // ═══════════════════════════════════════════════════════════════════
             "userAgent" | "user-agent" => req.get_header_str("user-agent").map(|s| s.to_string()),
             "referer" | "referrer" => req.get_header_str("referer").map(|s| s.to_string()),
             "accept" => req.get_header_str("accept").map(|s| s.to_string()),
@@ -425,7 +723,9 @@ impl<'a> GraphInterpreter<'a> {
             "xForwardedProto" | "x-forwarded-proto" => req.get_header_str("x-forwarded-proto").map(|s| s.to_string()),
             "xRequestedWith" | "x-requested-with" => req.get_header_str("x-requested-with").map(|s| s.to_string()),
 
-            // TLS/Security fingerprints (these come from Fastly's client info via headers)
+            // ═══════════════════════════════════════════════════════════════════
+            // TLS/SECURITY FINGERPRINTS
+            // ═══════════════════════════════════════════════════════════════════
             "tlsVersion" | "tls-version" => req.get_header_str("fastly-ssl-protocol")
                 .or_else(|| req.get_header_str("tls-client-protocol"))
                 .map(|s| s.to_string()),
@@ -443,7 +743,9 @@ impl<'a> GraphInterpreter<'a> {
             "ohFingerprint" | "oh-fingerprint" => req.get_header_str("fastly-client-oh-fingerprint")
                 .map(|s| s.to_string()),
 
-            // Fallback: try as a header name directly
+            // ═══════════════════════════════════════════════════════════════════
+            // FALLBACK: Try as a header name directly
+            // ═══════════════════════════════════════════════════════════════════
             _ => {
                 req.get_header_str(field).map(|s| s.to_string())
             }

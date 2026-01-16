@@ -134,6 +134,38 @@ fn main(req: Request) -> Result<Response, Error> {
             }
         }
 
+        GraphResult::Redirect { url, status_code, preserve_query } => {
+            println!("Redirecting to: {} (status: {})", url, status_code);
+            log_entry.set_final_action(&format!("redirect:{}", status_code));
+
+            // Build redirect URL
+            let redirect_url = if preserve_query {
+                if let Some(query) = req.get_query_str() {
+                    if url.contains('?') {
+                        format!("{}&{}", url, query)
+                    } else {
+                        format!("{}?{}", url, query)
+                    }
+                } else {
+                    url
+                }
+            } else {
+                url
+            };
+
+            let mut response = Response::from_status(
+                StatusCode::from_u16(status_code).unwrap_or(StatusCode::FOUND)
+            );
+            response.set_header("Location", &redirect_url);
+            response.set_header("X-VCE-Action", &format!("redirect:{}", status_code));
+
+            log_entry.add_response(&response);
+            log_entry.finalize();
+            writeln!(logger, "{}", serde_json::to_string(&log_entry)?)?;
+
+            Ok(response)
+        }
+
         GraphResult::Allow => {
             println!("Allowed - using default backend");
             forward_to_default_backend_with_reason(req, &mut logger, log_entry, "allowed")
