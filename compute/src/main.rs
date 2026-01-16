@@ -8,7 +8,7 @@
 //!
 //! Rules are designed in the visual editor and deployed as graphs (nodes + edges).
 
-use fastly::http::StatusCode;
+use fastly::http::{HeaderValue, StatusCode};
 use fastly::log::Endpoint;
 use fastly::ConfigStore;
 use fastly::{Error, Request, Response};
@@ -160,6 +160,28 @@ fn main(req: Request) -> Result<Response, Error> {
             }
             if !header_mods.is_empty() {
                 println!("Applied {} header modification(s)", header_mods.len());
+            }
+
+            // Apply cache settings from graph traversal
+            let cache_settings = interpreter.get_cache_settings();
+            if cache_settings.pass {
+                println!("Cache: bypass enabled (pass mode)");
+                backend_req.set_pass(true);
+            } else {
+                if let Some(ttl) = cache_settings.ttl {
+                    println!("Cache: TTL = {}s", ttl);
+                    backend_req.set_ttl(ttl as u32);
+                }
+                if let Some(swr) = cache_settings.stale_while_revalidate {
+                    println!("Cache: SWR = {}s", swr);
+                    backend_req.set_stale_while_revalidate(swr as u32);
+                }
+                for key in &cache_settings.surrogate_keys {
+                    println!("Cache: surrogate key = {}", key);
+                    if let Ok(header_val) = HeaderValue::from_str(key) {
+                        backend_req.set_surrogate_key(header_val);
+                    }
+                }
             }
 
             match send_to_backend(backend_req, &backend_data) {

@@ -14,20 +14,6 @@ const operationOptions = [
   { value: 'remove', label: 'Remove' },
 ]
 
-// Common header name suggestions
-const commonHeaders = [
-  'X-Custom-Header',
-  'X-Request-ID',
-  'X-Forwarded-For',
-  'X-Real-IP',
-  'Cache-Control',
-  'X-Frame-Options',
-  'X-Content-Type-Options',
-  'Strict-Transport-Security',
-  'Content-Security-Policy',
-  'X-XSS-Protection',
-]
-
 export function HeaderNode({ id, data, selected }: NodeProps) {
   const nodeData = data as HeaderNodeData
   const { setNodes } = useReactFlow()

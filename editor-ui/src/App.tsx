@@ -20,7 +20,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
-import { ConditionNode, ActionNode, RequestNode, RateLimitNode, TransformNode, BackendNode, LoggingNode, RuleGroupNode, HeaderNode } from './components/nodes'
+import { ConditionNode, ActionNode, RequestNode, RateLimitNode, TransformNode, BackendNode, LoggingNode, RuleGroupNode, HeaderNode, CacheNode } from './components/nodes'
 import { DeletableEdge } from './components/edges'
 import { Sidebar } from './components/Sidebar'
 import { ThemeContext, lightTheme, darkTheme, useTheme, type ThemeMode, fonts } from './styles/theme'
@@ -35,6 +35,7 @@ const nodeTypes: NodeTypes = {
   action: ActionNode,
   ruleGroup: RuleGroupNode,
   header: HeaderNode,
+  cache: CacheNode,
 }
 
 const edgeTypes: EdgeTypes = {
@@ -65,6 +66,8 @@ function getDefaultData(type: string) {
       }
     case 'header':
       return { operation: 'set', name: 'X-Custom-Header', value: '' }
+    case 'cache':
+      return { mode: 'configure', ttl: 300, ttlUnit: 'seconds', staleWhileRevalidate: 60, swrUnit: 'seconds' }
     default:
       return {}
   }

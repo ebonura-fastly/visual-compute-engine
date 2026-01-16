@@ -203,6 +203,27 @@ pub struct HeaderNodeData {
     pub value: Option<String>,
 }
 
+/// Node data for cache control nodes.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct CacheNodeData {
+    /// Mode: "configure" or "pass"
+    pub mode: String,
+    /// Time-to-live value
+    pub ttl: Option<u64>,
+    /// TTL unit: "seconds", "minutes", "hours", "days"
+    #[serde(rename = "ttlUnit")]
+    pub ttl_unit: Option<String>,
+    /// Stale-while-revalidate duration
+    #[serde(rename = "staleWhileRevalidate")]
+    pub stale_while_revalidate: Option<u64>,
+    /// SWR unit: "seconds", "minutes", "hours"
+    #[serde(rename = "swrUnit")]
+    pub swr_unit: Option<String>,
+    /// Space-separated surrogate keys for cache purging
+    #[serde(rename = "surrogateKeys")]
+    pub surrogate_keys: Option<String>,
+}
+
 /// Node data for redirect nodes.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RedirectNodeData {
@@ -891,5 +912,207 @@ mod tests {
         assert_eq!(cond_data.operator, "equals");
         assert_eq!(cond_data.value, "secret-token");
         assert_eq!(cond_data.header_name, Some("X-API-Key".to_string()));
+    }
+
+    // ========================================================================
+    // Cache Node Tests
+    // ========================================================================
+
+    #[test]
+    fn test_cache_node_configure_mode() {
+        let json = r#"{
+            "mode": "configure",
+            "ttl": 300,
+            "ttlUnit": "seconds",
+            "staleWhileRevalidate": 60,
+            "swrUnit": "seconds",
+            "surrogateKeys": "homepage static-assets"
+        }"#;
+
+        let data: CacheNodeData = serde_json::from_str(json).unwrap();
+        assert_eq!(data.mode, "configure");
+        assert_eq!(data.ttl, Some(300));
+        assert_eq!(data.ttl_unit, Some("seconds".to_string()));
+        assert_eq!(data.stale_while_revalidate, Some(60));
+        assert_eq!(data.swr_unit, Some("seconds".to_string()));
+        assert_eq!(data.surrogate_keys, Some("homepage static-assets".to_string()));
+    }
+
+    #[test]
+    fn test_cache_node_pass_mode() {
+        let json = r#"{
+            "mode": "pass"
+        }"#;
+
+        let data: CacheNodeData = serde_json::from_str(json).unwrap();
+        assert_eq!(data.mode, "pass");
+        assert_eq!(data.ttl, None);
+        assert_eq!(data.ttl_unit, None);
+        assert_eq!(data.stale_while_revalidate, None);
+        assert_eq!(data.surrogate_keys, None);
+    }
+
+    #[test]
+    fn test_cache_node_ttl_units() {
+        // Test with different time units
+        let json = r#"{
+            "mode": "configure",
+            "ttl": 1,
+            "ttlUnit": "hours",
+            "staleWhileRevalidate": 30,
+            "swrUnit": "minutes"
+        }"#;
+
+        let data: CacheNodeData = serde_json::from_str(json).unwrap();
+        assert_eq!(data.ttl, Some(1));
+        assert_eq!(data.ttl_unit, Some("hours".to_string()));
+        assert_eq!(data.stale_while_revalidate, Some(30));
+        assert_eq!(data.swr_unit, Some("minutes".to_string()));
+    }
+
+    #[test]
+    fn test_cache_node_days_unit() {
+        let json = r#"{
+            "mode": "configure",
+            "ttl": 7,
+            "ttlUnit": "days"
+        }"#;
+
+        let data: CacheNodeData = serde_json::from_str(json).unwrap();
+        assert_eq!(data.ttl, Some(7));
+        assert_eq!(data.ttl_unit, Some("days".to_string()));
+    }
+
+    #[test]
+    fn test_cache_node_serialization_roundtrip() {
+        let original = CacheNodeData {
+            mode: "configure".to_string(),
+            ttl: Some(3600),
+            ttl_unit: Some("seconds".to_string()),
+            stale_while_revalidate: Some(300),
+            swr_unit: Some("seconds".to_string()),
+            surrogate_keys: Some("api products".to_string()),
+        };
+
+        let json = serde_json::to_string(&original).unwrap();
+        let deserialized: CacheNodeData = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(original.mode, deserialized.mode);
+        assert_eq!(original.ttl, deserialized.ttl);
+        assert_eq!(original.ttl_unit, deserialized.ttl_unit);
+        assert_eq!(original.stale_while_revalidate, deserialized.stale_while_revalidate);
+        assert_eq!(original.swr_unit, deserialized.swr_unit);
+        assert_eq!(original.surrogate_keys, deserialized.surrogate_keys);
+    }
+
+    #[test]
+    fn test_graph_payload_with_cache_node() {
+        let json = r#"{
+            "nodes": [
+                {
+                    "id": "req-1",
+                    "type": "request",
+                    "position": { "x": 100, "y": 100 },
+                    "data": {}
+                },
+                {
+                    "id": "cache-1",
+                    "type": "cache",
+                    "position": { "x": 200, "y": 100 },
+                    "data": {
+                        "mode": "configure",
+                        "ttl": 300,
+                        "ttlUnit": "seconds",
+                        "staleWhileRevalidate": 60,
+                        "swrUnit": "seconds",
+                        "surrogateKeys": "static images"
+                    }
+                },
+                {
+                    "id": "backend-1",
+                    "type": "backend",
+                    "position": { "x": 300, "y": 100 },
+                    "data": {
+                        "name": "origin",
+                        "host": "example.com"
+                    }
+                }
+            ],
+            "edges": [
+                { "id": "e1", "source": "req-1", "sourceHandle": "request", "target": "cache-1", "targetHandle": "trigger" },
+                { "id": "e2", "source": "cache-1", "sourceHandle": "next", "target": "backend-1", "targetHandle": "route" }
+            ]
+        }"#;
+
+        let graph: GraphPayload = serde_json::from_str(json).unwrap();
+        assert_eq!(graph.nodes.len(), 3);
+        assert_eq!(graph.edges.len(), 2);
+
+        // Find and verify the cache node
+        let cache_node = graph.nodes.iter().find(|n| n.node_type == "cache").unwrap();
+        let cache_data: CacheNodeData = serde_json::from_value(cache_node.data.clone()).unwrap();
+
+        assert_eq!(cache_data.mode, "configure");
+        assert_eq!(cache_data.ttl, Some(300));
+        assert_eq!(cache_data.ttl_unit, Some("seconds".to_string()));
+        assert_eq!(cache_data.stale_while_revalidate, Some(60));
+        assert_eq!(cache_data.surrogate_keys, Some("static images".to_string()));
+    }
+
+    #[test]
+    fn test_graph_with_cache_pass_node() {
+        let json = r#"{
+            "nodes": [
+                {
+                    "id": "req-1",
+                    "type": "request",
+                    "position": { "x": 100, "y": 100 },
+                    "data": {}
+                },
+                {
+                    "id": "cond-1",
+                    "type": "condition",
+                    "position": { "x": 200, "y": 100 },
+                    "data": {
+                        "field": "path",
+                        "operator": "startsWith",
+                        "value": "/api/"
+                    }
+                },
+                {
+                    "id": "cache-1",
+                    "type": "cache",
+                    "position": { "x": 300, "y": 50 },
+                    "data": {
+                        "mode": "pass"
+                    }
+                },
+                {
+                    "id": "backend-1",
+                    "type": "backend",
+                    "position": { "x": 400, "y": 100 },
+                    "data": {
+                        "name": "api-origin",
+                        "host": "api.example.com"
+                    }
+                }
+            ],
+            "edges": [
+                { "id": "e1", "source": "req-1", "sourceHandle": "request", "target": "cond-1", "targetHandle": "trigger" },
+                { "id": "e2", "source": "cond-1", "sourceHandle": "true", "target": "cache-1", "targetHandle": "trigger" },
+                { "id": "e3", "source": "cache-1", "sourceHandle": "next", "target": "backend-1", "targetHandle": "route" }
+            ]
+        }"#;
+
+        let graph: GraphPayload = serde_json::from_str(json).unwrap();
+        assert_eq!(graph.nodes.len(), 4);
+        assert_eq!(graph.edges.len(), 3);
+
+        // Find and verify the cache node is in pass mode
+        let cache_node = graph.nodes.iter().find(|n| n.node_type == "cache").unwrap();
+        let cache_data: CacheNodeData = serde_json::from_value(cache_node.data.clone()).unwrap();
+
+        assert_eq!(cache_data.mode, "pass");
+        assert_eq!(cache_data.ttl, None);
     }
 }

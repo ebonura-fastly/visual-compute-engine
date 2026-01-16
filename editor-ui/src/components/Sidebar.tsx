@@ -57,6 +57,12 @@ const nodeTypes = [
     description: 'Set, append, or remove headers',
   },
   {
+    type: 'cache',
+    label: 'Cache',
+    category: 'routing' as const,
+    description: 'Control cache TTL and behavior',
+  },
+  {
     type: 'logging',
     label: 'Logging',
     category: 'action' as const,

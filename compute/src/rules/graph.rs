@@ -17,7 +17,7 @@ use ipnet::IpNet;
 use super::types::{
     GraphPayload, GraphNode, GraphEdge,
     BackendNodeData, ActionNodeData, RuleGroupNodeData, ConditionNodeData, RateLimitNodeData,
-    HeaderNodeData, RedirectNodeData,
+    HeaderNodeData, RedirectNodeData, CacheNodeData,
 };
 
 /// Result of evaluating the graph for a request.
@@ -42,6 +42,19 @@ pub enum HeaderMod {
     Remove { name: String },
 }
 
+/// Cache settings collected during graph traversal
+#[derive(Debug, Clone, Default)]
+pub struct CacheSettings {
+    /// Bypass cache entirely
+    pub pass: bool,
+    /// Time-to-live in seconds
+    pub ttl: Option<u64>,
+    /// Stale-while-revalidate duration in seconds
+    pub stale_while_revalidate: Option<u64>,
+    /// Surrogate keys for cache purging
+    pub surrogate_keys: Vec<String>,
+}
+
 /// Evaluates a graph against an incoming request.
 pub struct GraphInterpreter<'a> {
     nodes: HashMap<String, &'a GraphNode>,
@@ -53,6 +66,8 @@ pub struct GraphInterpreter<'a> {
     geo_cache: std::cell::RefCell<Option<Option<fastly::geo::Geo>>>,
     /// Header modifications collected during traversal
     header_mods: std::cell::RefCell<Vec<HeaderMod>>,
+    /// Cache settings collected during traversal
+    cache_settings: std::cell::RefCell<CacheSettings>,
 }
 
 impl<'a> GraphInterpreter<'a> {
@@ -90,6 +105,7 @@ impl<'a> GraphInterpreter<'a> {
             rate_counter_debug,
             geo_cache: std::cell::RefCell::new(None),
             header_mods: std::cell::RefCell::new(Vec::new()),
+            cache_settings: std::cell::RefCell::new(CacheSettings::default()),
         }
     }
 
@@ -102,6 +118,12 @@ impl<'a> GraphInterpreter<'a> {
     /// Clear collected header modifications (for reuse).
     pub fn clear_header_mods(&self) {
         self.header_mods.borrow_mut().clear();
+    }
+
+    /// Get the cache settings collected during evaluation.
+    /// Call this after evaluate() to get the settings to apply.
+    pub fn get_cache_settings(&self) -> CacheSettings {
+        self.cache_settings.borrow().clone()
     }
 
     /// Get geo data for client IP, caching the result
@@ -373,6 +395,69 @@ impl<'a> GraphInterpreter<'a> {
 
                 if let Some(hm) = header_mod {
                     self.header_mods.borrow_mut().push(hm);
+                }
+
+                // Continue to next node
+                self.follow_outgoing(node_id, Some("next"), req)
+            }
+
+            "cache" => {
+                // Cache control node - collect settings and continue
+                let data: CacheNodeData = match serde_json::from_value(node.data.clone()) {
+                    Ok(d) => d,
+                    Err(e) => {
+                        println!("[Graph] Failed to parse cache data: {}", e);
+                        return self.follow_outgoing(node_id, Some("next"), req);
+                    }
+                };
+
+                let mut settings = self.cache_settings.borrow_mut();
+
+                match data.mode.as_str() {
+                    "pass" => {
+                        println!("[Graph] Cache: BYPASS (pass mode)");
+                        settings.pass = true;
+                    }
+                    "configure" => {
+                        // Calculate TTL in seconds based on unit
+                        if let Some(ttl_value) = data.ttl {
+                            let multiplier = match data.ttl_unit.as_deref().unwrap_or("seconds") {
+                                "minutes" => 60,
+                                "hours" => 3600,
+                                "days" => 86400,
+                                _ => 1, // seconds
+                            };
+                            let ttl_secs = ttl_value * multiplier;
+                            println!("[Graph] Cache: TTL = {}s", ttl_secs);
+                            settings.ttl = Some(ttl_secs);
+                        }
+
+                        // Calculate SWR in seconds based on unit
+                        if let Some(swr_value) = data.stale_while_revalidate {
+                            let multiplier = match data.swr_unit.as_deref().unwrap_or("seconds") {
+                                "minutes" => 60,
+                                "hours" => 3600,
+                                _ => 1, // seconds
+                            };
+                            let swr_secs = swr_value * multiplier;
+                            println!("[Graph] Cache: SWR = {}s", swr_secs);
+                            settings.stale_while_revalidate = Some(swr_secs);
+                        }
+
+                        // Parse surrogate keys (space-separated)
+                        if let Some(ref keys) = data.surrogate_keys {
+                            if !keys.is_empty() {
+                                let parsed_keys: Vec<String> = keys.split_whitespace()
+                                    .map(|s| s.to_string())
+                                    .collect();
+                                println!("[Graph] Cache: Surrogate keys = {:?}", parsed_keys);
+                                settings.surrogate_keys = parsed_keys;
+                            }
+                        }
+                    }
+                    _ => {
+                        println!("[Graph] Cache: unknown mode '{}'", data.mode);
+                    }
                 }
 
                 // Continue to next node
