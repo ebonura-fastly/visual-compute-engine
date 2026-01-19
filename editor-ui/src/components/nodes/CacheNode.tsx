@@ -72,6 +72,7 @@ export function CacheNode({ id, data, selected }: NodeProps) {
         { id: 'next', label: 'Next', type: 'bool' },
       ]}
       width={220}
+      docUrl="https://docs.fastly.com/en/guides/controlling-caching"
     >
       <NodeField label="Mode">
         <NodeSelect

@@ -65,6 +65,7 @@ export function ActionNode({ id, data, selected }: NodeProps) {
       inputs={[{ id: 'trigger', label: 'Trigger', type: 'bool' }]}
       outputs={[]}
       width={action === 'redirect' ? 260 : 200}
+      docUrl="https://docs.fastly.com/en/guides/compute/"
     >
       <NodeField label="Action">
         <NodeSelect

@@ -12,6 +12,7 @@ export function RequestNode({ selected }: NodeProps) {
         { id: 'request', label: 'Request', type: 'geometry' },
       ]}
       width={140}
+      docUrl="https://docs.fastly.com/en/guides/compute/"
     >
       <div style={{
         fontSize: 10,

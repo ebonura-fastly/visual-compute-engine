@@ -69,6 +69,7 @@ export function TransformNode({ id, data, selected }: NodeProps) {
         { id: 'value_out', label: 'Result', type: 'string' },
       ]}
       width={190}
+      docUrl="https://docs.fastly.com/en/guides/compute/"
     >
       <NodeField label="Transform">
         <NodeSelect

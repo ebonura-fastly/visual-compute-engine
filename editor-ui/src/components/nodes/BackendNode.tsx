@@ -82,6 +82,7 @@ export function BackendNode({ id, data, selected }: NodeProps) {
         { id: 'error', label: 'Error', type: 'bool' },
       ]}
       width={240}
+      docUrl="https://docs.fastly.com/en/guides/working-with-hosts"
     >
       {/* Basic - Always visible */}
       <NodeField label="Name">

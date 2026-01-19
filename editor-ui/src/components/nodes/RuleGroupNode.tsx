@@ -182,24 +182,52 @@ export function RuleGroupNode({ id, data, selected }: NodeProps) {
             placeholder="Rule name..."
           />
         </div>
-        <select
-          value={logic}
-          onChange={(e) => updateData({ logic: e.target.value as 'AND' | 'OR' })}
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            padding: '4px 8px',
-            background: theme.bgTertiary,
-            border: `1px solid ${colors.border}`,
-            borderRadius: 4,
-            color: theme.text,
-            fontSize: 11,
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          <option value="AND">AND</option>
-          <option value="OR">OR</option>
-        </select>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <select
+            value={logic}
+            onChange={(e) => updateData({ logic: e.target.value as 'AND' | 'OR' })}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              padding: '4px 8px',
+              background: theme.bgTertiary,
+              border: `1px solid ${colors.border}`,
+              borderRadius: 4,
+              color: theme.text,
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            <option value="AND">AND</option>
+            <option value="OR">OR</option>
+          </select>
+          <a
+            href="https://docs.fastly.com/en/guides/compute/"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            title="View documentation"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 18,
+              height: 18,
+              borderRadius: '50%',
+              background: colors.text + '20',
+              color: colors.text,
+              fontSize: 11,
+              fontWeight: 600,
+              textDecoration: 'none',
+              opacity: 0.7,
+              transition: 'opacity 0.15s',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.7')}
+          >
+            ?
+          </a>
+        </div>
       </div>
 
       {/* Handles */}

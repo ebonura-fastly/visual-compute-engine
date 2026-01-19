@@ -87,6 +87,7 @@ export function LoggingNode({ id, data, selected }: NodeProps) {
         { id: 'done', label: 'Done', type: 'bool' },
       ]}
       width={220}
+      docUrl="https://docs.fastly.com/en/guides/setting-up-remote-log-streaming-for-compute"
     >
       <NodeField label="Endpoint">
         <NodeSelect
