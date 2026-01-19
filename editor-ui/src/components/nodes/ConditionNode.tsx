@@ -166,6 +166,7 @@ export function ConditionNode({ id, data, selected }: NodeProps) {
         { id: 'false', label: 'False', type: 'bool' },
       ]}
       width={220}
+      docUrl="https://docs.fastly.com/en/guides/compute/"
     >
       <NodeField label="Field">
         <NodeSelect

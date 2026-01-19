@@ -20,6 +20,7 @@ type NodeBaseProps = {
   minWidth?: number
   maxWidth?: number
   resizable?: boolean
+  docUrl?: string
 }
 
 // Layout constants
@@ -40,6 +41,7 @@ export function NodeBase({
   minWidth = 180,
   maxWidth = 400,
   resizable = false,
+  docUrl,
 }: NodeBaseProps) {
   const [collapsed, setCollapsed] = useState(initialCollapsed)
   const { theme } = useTheme()
@@ -108,6 +110,7 @@ export function NodeBase({
           boxSizing: 'border-box',
           display: 'flex',
           alignItems: 'center',
+          justifyContent: 'space-between',
           cursor: 'pointer',
           userSelect: 'none',
           borderBottom: `1px solid ${colors.border}`,
@@ -115,8 +118,38 @@ export function NodeBase({
         }}
         onClick={() => setCollapsed(!collapsed)}
       >
-        <span style={{ marginRight: 8, fontSize: 10, color: colors.text }}>{collapsed ? '▸' : '▾'}</span>
-        <span style={{ fontWeight: 600, fontSize: 13, letterSpacing: '0.2px', color: colors.text }}>{title}</span>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <span style={{ marginRight: 8, fontSize: 10, color: colors.text }}>{collapsed ? '▸' : '▾'}</span>
+          <span style={{ fontWeight: 600, fontSize: 13, letterSpacing: '0.2px', color: colors.text }}>{title}</span>
+        </div>
+        {docUrl && (
+          <a
+            href={docUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            title="View documentation"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 18,
+              height: 18,
+              borderRadius: '50%',
+              background: colors.text + '20',
+              color: colors.text,
+              fontSize: 11,
+              fontWeight: 600,
+              textDecoration: 'none',
+              opacity: 0.7,
+              transition: 'opacity 0.15s',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.7')}
+          >
+            ?
+          </a>
+        )}
       </div>
 
       {/* Handles - positioned absolutely relative to the node */}

@@ -55,6 +55,7 @@ export function HeaderNode({ id, data, selected }: NodeProps) {
         { id: 'next', label: 'Next', type: 'bool' },
       ]}
       width={220}
+      docUrl="https://docs.fastly.com/en/guides/adding-or-modifying-headers-on-http-requests-and-responses"
     >
       <NodeField label="Operation">
         <NodeSelect

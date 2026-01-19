@@ -52,6 +52,7 @@ export function RateLimitNode({ id, data, selected }: NodeProps) {
         { id: 'ok', label: 'OK', type: 'bool' },
       ]}
       width={200}
+      docUrl="https://docs.fastly.com/products/edge-rate-limiting"
     >
       <NodeField label="Limit">
         <NodeInput

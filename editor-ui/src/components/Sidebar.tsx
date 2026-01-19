@@ -3123,7 +3123,7 @@ function FastlyTab({
           fontSize: 9,
           margin: '0 0 6px 0',
           opacity: 0.8,
-        }}>Push your graph to the edge (updates in ~2-5 seconds)</p>
+        }}>Push your graph to the edge (updates in ~30-40 seconds)</p>
         <button
           onClick={handleDeployRules}
           disabled={loading || !selectedConfigStore || !selectedService}
@@ -3217,20 +3217,19 @@ function FastlyTab({
           }
 
           const graphPayload = { nodes, edges }
-          const compressed = await compressRules(JSON.stringify(graphPayload))
-          const fileContent = JSON.stringify({ rules_packed: compressed }, null, 2)
+          const fileContent = JSON.stringify(graphPayload, null, 2)
 
           const blob = new Blob([fileContent], { type: 'application/json' })
           const url = URL.createObjectURL(blob)
           const a = document.createElement('a')
           a.href = url
-          a.download = 'security-rules.json'
+          a.download = 'graph.json'
           document.body.appendChild(a)
           a.click()
           document.body.removeChild(a)
           URL.revokeObjectURL(url)
 
-          setStatus('Exported security-rules.json - copy to compute/ folder for local testing')
+          setStatus('Exported graph.json - readable JSON format for inspection')
         }}
         disabled={loading}
         style={{
