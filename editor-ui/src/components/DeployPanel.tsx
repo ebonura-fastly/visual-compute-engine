@@ -205,10 +205,10 @@ export function DeployPanel({ nodes, edges }: Props) {
 
             {stats.fitsInConfigStore && (
               <div className="vce-panel-actions vce-mt-3">
-                <button onClick={handleExportConfigStore} className="btn flex-1">
+                <button onClick={handleExportConfigStore} className="btn flex-1" data-variant="secondary">
                   Export Config Store JSON
                 </button>
-                <button onClick={handleExportFastlyToml} className="btn flex-1">
+                <button onClick={handleExportFastlyToml} className="btn flex-1" data-variant="secondary">
                   Export fastly.toml
                 </button>
               </div>

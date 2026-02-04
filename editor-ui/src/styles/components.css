@@ -64,26 +64,53 @@
   border-color: var(--color-action-active);
 }
 
-/* Danger variant */
+/* Danger variant (destructive actions) */
 .btn[data-variant="danger"] {
+  background: transparent;
+  border-color: var(--color-error-border);
+  color: var(--color-error);
+}
+
+.btn[data-variant="danger"]:hover:not(:disabled) {
+  background: var(--color-error-surface);
+  border-color: var(--color-error);
+}
+
+/* Danger solid variant (for prominent destructive actions) */
+.btn[data-variant="danger-solid"] {
   background: var(--color-error);
   border-color: var(--color-error);
   color: var(--text-inverse);
 }
 
-.btn[data-variant="danger"]:hover:not(:disabled) {
-  background: var(--color-red-60);
-  border-color: var(--color-red-60);
+.btn[data-variant="danger-solid"]:hover:not(:disabled) {
+  background: var(--color-error-hover);
+  border-color: var(--color-error-hover);
 }
 
-/* Ghost variant (no background) */
+/* Secondary variant (outline style per Uniform) */
+.btn[data-variant="secondary"] {
+  background: transparent;
+  border-color: var(--border-secondary);
+  color: var(--text-primary);
+}
+
+.btn[data-variant="secondary"]:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--color-action);
+  color: var(--color-action);
+}
+
+/* Ghost variant (no background, no border) */
 .btn[data-variant="ghost"] {
   background: transparent;
   border-color: transparent;
+  color: var(--text-secondary);
 }
 
 .btn[data-variant="ghost"]:hover:not(:disabled) {
   background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 /* Size variants */
@@ -591,12 +618,6 @@
   color: var(--color-info);
 }
 
-.alert--local {
-  background: color-mix(in srgb, var(--color-data-viz-7) 15%, var(--bg-primary));
-  border-color: var(--color-data-viz-7);
-  color: var(--color-data-viz-9);
-}
-
 /* ===========================================
  * Cards
  * =========================================== */
@@ -778,31 +799,6 @@
 .mb-2 { margin-bottom: var(--space-2); }
 .mb-3 { margin-bottom: var(--space-3); }
 .mb-4 { margin-bottom: var(--space-4); }
-
-/* ===========================================
- * Local Dev Mode Button (Uniform data-viz purple)
- * =========================================== */
-
-.btn[data-variant="local"] {
-  background: var(--color-data-viz-7);
-  border-color: var(--color-data-viz-7);
-  color: var(--color-gray-100);
-}
-
-.btn[data-variant="local"]:hover:not(:disabled) {
-  background: #9a60c4;
-  border-color: #9a60c4;
-}
-
-.btn[data-variant="local-outline"] {
-  background: color-mix(in srgb, var(--color-data-viz-7) 15%, var(--bg-primary));
-  border-color: var(--color-data-viz-7);
-  color: var(--color-data-viz-9);
-}
-
-.btn[data-variant="local-outline"]:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-data-viz-7) 25%, var(--bg-primary));
-}
 
 /* ===========================================
  * Dashed Button (Create New)

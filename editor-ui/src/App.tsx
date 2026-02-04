@@ -141,6 +141,7 @@ function Flow() {
         <button
           onClick={toggle}
           className="btn"
+          data-variant="secondary"
           title={`Switch to ${isDark ? 'light' : 'dark'} mode`}
         >
           {isDark ? 'Light' : 'Dark'}

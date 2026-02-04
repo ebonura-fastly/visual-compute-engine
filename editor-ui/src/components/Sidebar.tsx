@@ -1710,7 +1710,7 @@ function FastlyTab({
           onClick={handleDeployLocal}
           disabled={loading}
           className="btn w-full vce-mb-2"
-          data-variant="local"
+          data-variant="primary"
         >
           {loading ? 'Saving...' : 'Save Rules Locally'}
         </button>
@@ -1769,7 +1769,7 @@ function FastlyTab({
         <button
           onClick={checkLocalEnvironment}
           className="btn w-full vce-mb-4"
-          data-variant="local"
+          data-variant="primary"
         >
           Use Local Dev Mode
         </button>
@@ -1803,6 +1803,7 @@ function FastlyTab({
           onClick={handleConnect}
           disabled={loading || !apiToken}
           className="btn w-full"
+          data-variant="primary"
         >
           {loading ? 'Connecting...' : 'Connect to Fastly'}
         </button>
@@ -1824,7 +1825,7 @@ function FastlyTab({
         <button
           onClick={checkLocalEnvironment}
           className="btn w-full vce-mb-3"
-          data-variant="local-outline"
+          data-variant="secondary"
         >
           Switch to Local Dev Mode
         </button>
@@ -2296,6 +2297,7 @@ function FastlyTab({
         }}
         disabled={loading}
         className="btn w-full vce-mt-2"
+        data-variant="secondary"
       >
         Export JSON (for local dev)
       </button>
