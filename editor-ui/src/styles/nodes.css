@@ -426,3 +426,174 @@
   border-color: var(--color-error);
   color: var(--text-inverse);
 }
+
+/* ===========================================
+ * Rule Group Node (Special Complex Node)
+ * =========================================== */
+
+.vce-rule-group {
+  min-width: 280px;
+}
+
+.vce-rule-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.vce-rule-group-header[data-collapsed="true"] {
+  border-radius: calc(var(--radius-lg) - 1px);
+}
+
+.vce-rule-group-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.vce-rule-group-header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.vce-rule-group-name-input {
+  background: transparent;
+  border: none;
+  font-weight: var(--font-weight-semibold);
+  font-size: 13px;
+  color: var(--node-text);
+  outline: none;
+  width: 140px;
+}
+
+.vce-rule-group-name-input::placeholder {
+  color: var(--node-text);
+  opacity: 0.5;
+}
+
+.vce-rule-group-logic-select {
+  padding: var(--space-1) var(--space-2);
+  background: var(--bg-tertiary);
+  border: var(--border-width-sm) solid var(--node-border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.vce-rule-group-ports {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: var(--border-width-sm) solid var(--node-border);
+}
+
+.vce-rule-group-ports-left,
+.vce-rule-group-ports-right {
+  display: flex;
+  flex-direction: column;
+}
+
+.vce-rule-group-ports-right {
+  align-items: flex-end;
+}
+
+.vce-rule-group-port-label {
+  font-size: 11px;
+  color: var(--text-disabled);
+  height: 22px;
+  display: flex;
+  align-items: center;
+}
+
+.vce-rule-group-port-label--match {
+  color: var(--port-bool);
+}
+
+.vce-rule-group-body {
+  padding: var(--space-3);
+}
+
+.vce-rule-group-logic-hint {
+  text-align: center;
+  font-size: var(--font-size-xs);
+  color: var(--text-disabled);
+  margin-bottom: var(--space-2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.vce-rule-group-conditions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.vce-rule-group-condition {
+  background: var(--bg-tertiary);
+  border: var(--border-width-sm) solid var(--border-primary);
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
+  position: relative;
+}
+
+.vce-rule-group-logic-connector {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--node-text);
+  background: var(--node-body);
+  padding: 0 var(--space-1);
+}
+
+.vce-rule-group-condition-remove {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-disabled);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  transition: var(--transition-efficient);
+}
+
+.vce-rule-group-condition-remove:hover {
+  color: var(--color-error);
+}
+
+.vce-rule-group-condition-fields {
+  display: flex;
+  gap: var(--space-1);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.vce-rule-group-condition-fields .vce-node-select,
+.vce-rule-group-condition-fields .vce-node-input {
+  flex: 0 0 auto;
+}
+
+.vce-rule-group-header-input {
+  width: 80px;
+}
+
+.vce-rule-group-value-input {
+  flex: 1 !important;
+  min-width: 80px;
+}
+
+.vce-rule-group-add-btn {
+  margin-top: var(--space-2);
+}

@@ -45,7 +45,7 @@ function applyTheme(mode: ThemeMode) {
  *
  * Usage:
  * ```tsx
- * const { theme, isDark, toggle, setTheme } = useTheme()
+ * const { mode, isDark, toggle, setTheme } = useTheme()
  * ```
  */
 export function useTheme() {
@@ -82,15 +82,11 @@ export function useTheme() {
   }, [])
 
   return {
-    // New API
     mode,
     isDark: mode === 'dark',
     isLight: mode === 'light',
     toggle,
     setTheme,
-    // Backward compatibility: theme as colors object
-    theme: lightTheme,
-    toggleTheme: toggle,
   }
 }
 
@@ -101,97 +97,4 @@ export function useTheme() {
 export function initializeTheme() {
   const theme = getInitialTheme()
   applyTheme(theme)
-}
-
-// =============================================================================
-// Backward Compatibility Exports
-// TODO: Remove these once all components are migrated to CSS classes
-// =============================================================================
-
-/** @deprecated Use CSS var(--font-family) instead */
-export const fonts = {
-  sans: 'var(--font-family)',
-  mono: 'var(--font-family-mono)',
-}
-
-/** @deprecated Use CSS variables instead */
-export type ThemeColors = {
-  bg: string
-  bgSecondary: string
-  bgTertiary: string
-  bgHover: string
-  text: string
-  textSecondary: string
-  textMuted: string
-  border: string
-  borderLight: string
-  primary: string
-  primaryHover: string
-  primaryLight: string
-  success: string
-  successBg: string
-  successBorder: string
-  warning: string
-  warningBg: string
-  error: string
-  errorBg: string
-  errorBorder: string
-  nodeInput: { header: string; body: string; border: string; text: string }
-  nodeCondition: { header: string; body: string; border: string; text: string }
-  nodeLogic: { header: string; body: string; border: string; text: string }
-  nodeAction: { header: string; body: string; border: string; text: string }
-  nodeRouting: { header: string; body: string; border: string; text: string }
-  portBool: string
-  portString: string
-  portNumber: string
-  portGeometry: string
-  portAny: string
-  canvasBg: string
-  canvasDots: string
-  minimapMask: string
-}
-
-/** @deprecated Use CSS variables instead */
-export const lightTheme: ThemeColors = {
-  bg: 'var(--bg-primary)',
-  bgSecondary: 'var(--bg-secondary)',
-  bgTertiary: 'var(--bg-tertiary)',
-  bgHover: 'var(--bg-hover)',
-  text: 'var(--text-primary)',
-  textSecondary: 'var(--text-secondary)',
-  textMuted: 'var(--text-disabled)',
-  border: 'var(--border-primary)',
-  borderLight: 'var(--border-secondary)',
-  primary: 'var(--color-action)',
-  primaryHover: 'var(--color-action-hover)',
-  primaryLight: 'var(--color-action-surface)',
-  success: 'var(--color-success)',
-  successBg: 'var(--color-success-surface)',
-  successBorder: 'var(--color-success)',
-  warning: 'var(--color-warning)',
-  warningBg: 'var(--color-warning-surface)',
-  error: 'var(--color-error)',
-  errorBg: 'var(--color-error-surface)',
-  errorBorder: 'var(--color-error)',
-  nodeInput: { header: 'var(--node-input-header)', body: 'var(--node-input-body)', border: 'var(--node-input-border)', text: 'var(--node-input-text)' },
-  nodeCondition: { header: 'var(--node-condition-header)', body: 'var(--node-condition-body)', border: 'var(--node-condition-border)', text: 'var(--node-condition-text)' },
-  nodeLogic: { header: 'var(--node-logic-header)', body: 'var(--node-logic-body)', border: 'var(--node-logic-border)', text: 'var(--node-logic-text)' },
-  nodeAction: { header: 'var(--node-action-header)', body: 'var(--node-action-body)', border: 'var(--node-action-border)', text: 'var(--node-action-text)' },
-  nodeRouting: { header: 'var(--node-routing-header)', body: 'var(--node-routing-body)', border: 'var(--node-routing-border)', text: 'var(--node-routing-text)' },
-  portBool: 'var(--port-bool)',
-  portString: 'var(--port-string)',
-  portNumber: 'var(--port-number)',
-  portGeometry: 'var(--port-geometry)',
-  portAny: 'var(--port-any)',
-  canvasBg: 'var(--canvas-bg)',
-  canvasDots: 'var(--canvas-dots)',
-  minimapMask: 'var(--canvas-minimap-mask)',
-}
-
-/** @deprecated Use CSS variables instead */
-export const darkTheme: ThemeColors = lightTheme // Same object since CSS vars handle theming
-
-/** @deprecated Use ThemeContext removal pattern */
-export const ThemeContext = {
-  Provider: ({ children }: { children: React.ReactNode }) => children,
 }

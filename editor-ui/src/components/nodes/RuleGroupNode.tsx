@@ -1,6 +1,5 @@
 import { Handle, Position, type NodeProps, useReactFlow } from '@xyflow/react'
 import { useCallback, useState } from 'react'
-import { useTheme, fonts } from '../../styles/theme'
 
 // Fields that return boolean values - show checkbox instead of text input
 const booleanFields = new Set([
@@ -85,14 +84,16 @@ const operatorOptions = [
   { value: 'in', label: 'in' },
   { value: 'notIn', label: '!in' },
   { value: 'inCidr', label: 'in CIDR' },
+  { value: 'notInCidr', label: 'not in CIDR' },
 ]
 
 const HANDLE_SIZE = 12
+const HEADER_HEIGHT = 44  // Header with padding + content
+const PORT_ROW_HEIGHT = 22  // Height of each port label row
 
 export function RuleGroupNode({ id, data, selected }: NodeProps) {
   const nodeData = data as RuleGroupNodeData
   const { setNodes } = useReactFlow()
-  const { theme } = useTheme()
   const [collapsed, setCollapsed] = useState(nodeData.collapsed ?? false)
 
   const conditions = nodeData.conditions || []
@@ -131,72 +132,35 @@ export function RuleGroupNode({ id, data, selected }: NodeProps) {
     updateData({ conditions: conditions.filter((c) => c.id !== condId) })
   }, [conditions, updateData])
 
-  const colors = theme.nodeLogic
-
   return (
     <div
-      style={{
-        borderRadius: 10,
-        border: `2px solid ${selected ? theme.primary : colors.border}`,
-        fontFamily: fonts.sans,
-        fontSize: 12,
-        color: theme.textSecondary,
-        boxShadow: selected
-          ? `0 0 0 2px ${theme.primary}40, 0 4px 12px -2px rgba(0, 0, 0, 0.15)`
-          : '0 4px 12px -2px rgba(0, 0, 0, 0.15)',
-        background: colors.body,
-        minWidth: 280,
-      }}
+      className="vce-node vce-rule-group"
+      data-category="logic"
+      data-selected={selected}
     >
       {/* Header */}
       <div
-        style={{
-          padding: '10px 14px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          cursor: 'pointer',
-          userSelect: 'none',
-          borderBottom: `1px solid ${colors.border}`,
-          background: colors.header,
-          borderRadius: collapsed ? '8px' : '8px 8px 0 0',
-        }}
+        className="vce-node-header vce-rule-group-header"
+        data-collapsed={collapsed}
         onClick={() => setCollapsed(!collapsed)}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 10, color: colors.text }}>{collapsed ? '▸' : '▾'}</span>
+        <div className="vce-rule-group-header-left">
+          <span className="vce-node-collapse-icon">{collapsed ? '▸' : '▾'}</span>
           <input
             type="text"
             value={name}
             onChange={(e) => updateData({ name: e.target.value })}
             onClick={(e) => e.stopPropagation()}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              fontWeight: 600,
-              fontSize: 13,
-              color: colors.text,
-              outline: 'none',
-              width: 140,
-            }}
+            className="vce-rule-group-name-input"
             placeholder="Rule name..."
           />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="vce-rule-group-header-right">
           <select
             value={logic}
             onChange={(e) => updateData({ logic: e.target.value as 'AND' | 'OR' })}
             onClick={(e) => e.stopPropagation()}
-            style={{
-              padding: '4px 8px',
-              background: theme.bgTertiary,
-              border: `1px solid ${colors.border}`,
-              borderRadius: 4,
-              color: theme.text,
-              fontSize: 11,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
+            className="vce-rule-group-logic-select"
           >
             <option value="AND">AND</option>
             <option value="OR">OR</option>
@@ -207,127 +171,82 @@ export function RuleGroupNode({ id, data, selected }: NodeProps) {
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
             title="View documentation"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 18,
-              height: 18,
-              borderRadius: '50%',
-              background: colors.text + '20',
-              color: colors.text,
-              fontSize: 11,
-              fontWeight: 600,
-              textDecoration: 'none',
-              opacity: 0.7,
-              transition: 'opacity 0.15s',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-            onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.7')}
+            className="vce-node-doc-link"
           >
             ?
           </a>
         </div>
       </div>
 
-      {/* Handles */}
+      {/* Handles - positions must align with port labels */}
       <Handle
         type="target"
         position={Position.Left}
         id="trigger"
+        className="vce-handle"
+        data-port-type="bool"
         style={{
           width: HANDLE_SIZE,
           height: HANDLE_SIZE,
-          border: `2px solid ${colors.border}`,
-          borderRadius: '50%',
-          background: theme.portBool,
-          top: 24,
+          top: collapsed ? HEADER_HEIGHT / 2 : HEADER_HEIGHT + PORT_ROW_HEIGHT / 2 + 6,
         }}
       />
       <Handle
         type="source"
         position={Position.Right}
         id="match"
+        className="vce-handle"
+        data-port-type="bool"
         style={{
           width: HANDLE_SIZE,
           height: HANDLE_SIZE,
-          border: `2px solid ${colors.border}`,
-          borderRadius: '50%',
-          background: theme.portBool,
-          top: collapsed ? 24 : 24,
+          top: collapsed ? HEADER_HEIGHT / 2 : HEADER_HEIGHT + PORT_ROW_HEIGHT / 2 + 6,
         }}
       />
       <Handle
         type="source"
         position={Position.Right}
         id="noMatch"
+        className="vce-handle"
+        data-port-type="bool"
         style={{
           width: HANDLE_SIZE,
           height: HANDLE_SIZE,
-          border: `2px solid ${colors.border}`,
-          borderRadius: '50%',
-          background: theme.portBool,
-          top: collapsed ? 24 : 52,
+          top: collapsed ? HEADER_HEIGHT / 2 : HEADER_HEIGHT + PORT_ROW_HEIGHT + PORT_ROW_HEIGHT / 2 + 6,
         }}
       />
 
       {/* Port labels (always visible) */}
       {!collapsed && (
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          padding: '6px 14px',
-          borderBottom: `1px solid ${colors.border}`,
-        }}>
-          <span style={{ fontSize: 11, color: theme.textMuted }}>Trigger</span>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-            <span style={{ fontSize: 11, color: theme.portBool }}>Match</span>
-            <span style={{ fontSize: 11, color: theme.textMuted }}>No Match</span>
+        <div className="vce-rule-group-ports">
+          <div className="vce-rule-group-ports-left">
+            <span className="vce-rule-group-port-label">Trigger</span>
+          </div>
+          <div className="vce-rule-group-ports-right">
+            <span className="vce-rule-group-port-label vce-rule-group-port-label--match">Match</span>
+            <span className="vce-rule-group-port-label">No Match</span>
           </div>
         </div>
       )}
 
       {/* Conditions */}
       {!collapsed && (
-        <div style={{ padding: 10 }}>
+        <div className="vce-rule-group-body">
           {/* Logic indicator */}
-          <div style={{
-            textAlign: 'center',
-            fontSize: 10,
-            color: theme.textMuted,
-            marginBottom: 8,
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px',
-          }}>
+          <div className="vce-rule-group-logic-hint">
             {logic === 'AND' ? 'All conditions must match' : 'Any condition must match'}
           </div>
 
           {/* Condition cards */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div className="vce-rule-group-conditions">
             {conditions.map((condition, idx) => (
               <div
                 key={condition.id}
-                style={{
-                  background: theme.bgTertiary,
-                  border: `1px solid ${theme.border}`,
-                  borderRadius: 6,
-                  padding: 8,
-                  position: 'relative',
-                }}
+                className="vce-rule-group-condition"
               >
                 {/* Logic connector between conditions */}
                 {idx > 0 && (
-                  <div style={{
-                    position: 'absolute',
-                    top: -14,
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    fontSize: 9,
-                    fontWeight: 600,
-                    color: colors.text,
-                    background: colors.body,
-                    padding: '0 4px',
-                  }}>
+                  <div className="vce-rule-group-logic-connector">
                     {logic}
                   </div>
                 )}
@@ -335,33 +254,13 @@ export function RuleGroupNode({ id, data, selected }: NodeProps) {
                 {/* Remove button */}
                 <button
                   onClick={() => removeCondition(condition.id)}
-                  style={{
-                    position: 'absolute',
-                    top: 4,
-                    right: 4,
-                    width: 16,
-                    height: 16,
-                    border: 'none',
-                    background: 'transparent',
-                    color: theme.textMuted,
-                    cursor: 'pointer',
-                    fontSize: 12,
-                    lineHeight: 1,
-                    padding: 0,
-                    borderRadius: 4,
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.color = '#ef4444'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.color = theme.textMuted
-                  }}
+                  className="vce-rule-group-condition-remove"
                 >
                   ×
                 </button>
 
                 {/* Condition fields */}
-                <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div className="vce-rule-group-condition-fields">
                   <select
                     value={condition.field}
                     onChange={(e) => {
@@ -379,15 +278,7 @@ export function RuleGroupNode({ id, data, selected }: NodeProps) {
                         updateCondition(condition.id, 'field', newField)
                       }
                     }}
-                    style={{
-                      padding: '4px 6px',
-                      background: theme.bg,
-                      border: `1px solid ${theme.border}`,
-                      borderRadius: 4,
-                      color: theme.text,
-                      fontSize: 11,
-                      flex: '0 0 auto',
-                    }}
+                    className="vce-node-select"
                   >
                     {fieldOptions.map((opt) => (
                       <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -408,29 +299,12 @@ export function RuleGroupNode({ id, data, selected }: NodeProps) {
                         })
                       }}
                       placeholder="Header name"
-                      style={{
-                        padding: '4px 6px',
-                        background: theme.bg,
-                        border: `1px solid ${theme.border}`,
-                        borderRadius: 4,
-                        color: theme.text,
-                        fontSize: 11,
-                        flex: '0 0 auto',
-                        width: 80,
-                      }}
+                      className="vce-node-input vce-rule-group-header-input"
                     />
                   )}
 
                   {booleanFields.has(condition.field) ? (
-                    <label style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      fontSize: 11,
-                      color: theme.textMuted,
-                      cursor: 'pointer',
-                      flex: 1,
-                    }}>
+                    <label className="vce-node-checkbox">
                       <input
                         type="checkbox"
                         checked={condition.value === 'true'}
@@ -443,24 +317,15 @@ export function RuleGroupNode({ id, data, selected }: NodeProps) {
                             ),
                           })
                         }}
-                        style={{ accentColor: '#FF282D' }}
                       />
-                      {condition.value === 'true' ? 'Yes' : 'No'}
+                      <span>{condition.value === 'true' ? 'Yes' : 'No'}</span>
                     </label>
                   ) : (
                     <>
                       <select
                         value={condition.operator}
                         onChange={(e) => updateCondition(condition.id, 'operator', e.target.value)}
-                        style={{
-                          padding: '4px 6px',
-                          background: theme.bg,
-                          border: `1px solid ${theme.border}`,
-                          borderRadius: 4,
-                          color: theme.text,
-                          fontSize: 11,
-                          flex: '0 0 auto',
-                        }}
+                        className="vce-node-select"
                       >
                         {operatorOptions.map((opt) => (
                           <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -472,16 +337,7 @@ export function RuleGroupNode({ id, data, selected }: NodeProps) {
                         value={condition.value}
                         onChange={(e) => updateCondition(condition.id, 'value', e.target.value)}
                         placeholder="value"
-                        style={{
-                          padding: '4px 6px',
-                          background: theme.bg,
-                          border: `1px solid ${theme.border}`,
-                          borderRadius: 4,
-                          color: theme.text,
-                          fontSize: 11,
-                          flex: 1,
-                          minWidth: 80,
-                        }}
+                        className="vce-node-input vce-rule-group-value-input"
                       />
                     </>
                   )}
@@ -493,29 +349,8 @@ export function RuleGroupNode({ id, data, selected }: NodeProps) {
           {/* Add condition button */}
           <button
             onClick={addCondition}
-            style={{
-              width: '100%',
-              marginTop: 8,
-              padding: '6px 12px',
-              background: 'transparent',
-              border: `1px dashed ${theme.border}`,
-              borderRadius: 6,
-              color: theme.textMuted,
-              cursor: 'pointer',
-              fontSize: 11,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 4,
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = colors.border
-              e.currentTarget.style.color = colors.text
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = theme.border
-              e.currentTarget.style.color = theme.textMuted
-            }}
+            className="btn w-full vce-rule-group-add-btn"
+            data-variant="dashed"
           >
             + Add Condition
           </button>

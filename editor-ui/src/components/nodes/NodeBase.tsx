@@ -1,6 +1,5 @@
 import { Handle, Position, NodeResizer } from '@xyflow/react'
 import { useState, type ReactNode } from 'react'
-import { useTheme, fonts } from '../../styles/theme'
 
 type PortDef = {
   id: string
@@ -44,83 +43,40 @@ export function NodeBase({
   docUrl,
 }: NodeBaseProps) {
   const [collapsed, setCollapsed] = useState(initialCollapsed)
-  const { theme } = useTheme()
-
-  const getNodeColors = () => {
-    switch (category) {
-      case 'input': return theme.nodeInput
-      case 'condition': return theme.nodeCondition
-      case 'logic': return theme.nodeLogic
-      case 'action': return theme.nodeAction
-      case 'routing': return theme.nodeRouting
-      default: return theme.nodeCondition
-    }
-  }
-
-  const getPortColor = (type: string) => {
-    switch (type) {
-      case 'bool': return theme.portBool
-      case 'string': return theme.portString
-      case 'number': return theme.portNumber
-      case 'geometry': return theme.portGeometry
-      default: return theme.portAny
-    }
-  }
-
-  const colors = getNodeColors()
   const maxPorts = Math.max(inputs.length, outputs.length)
 
   // Calculate handle positions - must match the visual row positions exactly
   const getHandleTop = (idx: number) => {
-    // Header + padding + (row index * row height) + half row height to center
     return HEADER_HEIGHT + PORT_SECTION_PADDING + idx * PORT_ROW_HEIGHT + PORT_ROW_HEIGHT / 2
   }
 
+  const nodeStyle: React.CSSProperties = resizable
+    ? { width: '100%', minWidth, maxWidth, height: '100%' }
+    : { width }
+
   return (
-    <div style={{
-      borderRadius: 8,
-      border: `1px solid ${selected ? theme.primary : colors.border}`,
-      fontFamily: fonts.sans,
-      fontSize: 12,
-      color: theme.textSecondary,
-      boxShadow: selected
-        ? `0 0 0 1px ${theme.primary}60, 0 4px 6px -1px rgba(0, 0, 0, 0.1)`
-        : '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-      width: resizable ? '100%' : width,
-      minWidth: resizable ? minWidth : undefined,
-      maxWidth: resizable ? maxWidth : undefined,
-      height: resizable ? '100%' : undefined,
-      background: colors.body,
-    }}>
+    <div
+      className="vce-node"
+      data-category={category}
+      data-selected={selected}
+      style={nodeStyle}
+    >
       {resizable && (
         <NodeResizer
           minWidth={minWidth}
           maxWidth={maxWidth}
           minHeight={100}
           isVisible={selected}
-          lineStyle={{ borderColor: theme.primary, borderWidth: 1 }}
-          handleStyle={{ backgroundColor: theme.primary, width: 8, height: 8, borderRadius: 2 }}
+          lineClassName="vce-node-resizer-line"
+          handleClassName="vce-node-resizer-handle"
         />
       )}
+
       {/* Header */}
-      <div
-        style={{
-          padding: '10px 14px',
-          height: HEADER_HEIGHT,
-          boxSizing: 'border-box',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          cursor: 'pointer',
-          userSelect: 'none',
-          borderBottom: `1px solid ${colors.border}`,
-          background: colors.header,
-        }}
-        onClick={() => setCollapsed(!collapsed)}
-      >
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <span style={{ marginRight: 8, fontSize: 10, color: colors.text }}>{collapsed ? '▸' : '▾'}</span>
-          <span style={{ fontWeight: 600, fontSize: 13, letterSpacing: '0.2px', color: colors.text }}>{title}</span>
+      <div className="vce-node-header" onClick={() => setCollapsed(!collapsed)}>
+        <div className="vce-node-header-content">
+          <span className="vce-node-collapse-icon">{collapsed ? '▸' : '▾'}</span>
+          <span className="vce-node-title">{title}</span>
         </div>
         {docUrl && (
           <a
@@ -129,23 +85,7 @@ export function NodeBase({
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
             title="View documentation"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 18,
-              height: 18,
-              borderRadius: '50%',
-              background: colors.text + '20',
-              color: colors.text,
-              fontSize: 11,
-              fontWeight: 600,
-              textDecoration: 'none',
-              opacity: 0.7,
-              transition: 'opacity 0.15s',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-            onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.7')}
+            className="vce-node-doc-link"
           >
             ?
           </a>
@@ -159,14 +99,9 @@ export function NodeBase({
           type="target"
           position={Position.Left}
           id={port.id}
-          style={{
-            width: HANDLE_SIZE,
-            height: HANDLE_SIZE,
-            border: `2px solid ${colors.border}`,
-            borderRadius: '50%',
-            background: getPortColor(port.type),
-            top: collapsed ? HEADER_HEIGHT / 2 : getHandleTop(idx),
-          }}
+          className="vce-handle"
+          data-port-type={port.type}
+          style={{ top: collapsed ? HEADER_HEIGHT / 2 : getHandleTop(idx) }}
         />
       ))}
 
@@ -176,51 +111,30 @@ export function NodeBase({
           type="source"
           position={Position.Right}
           id={port.id}
-          style={{
-            width: HANDLE_SIZE,
-            height: HANDLE_SIZE,
-            border: `2px solid ${colors.border}`,
-            borderRadius: '50%',
-            background: getPortColor(port.type),
-            top: collapsed ? HEADER_HEIGHT / 2 : getHandleTop(idx),
-          }}
+          className="vce-handle"
+          data-port-type={port.type}
+          style={{ top: collapsed ? HEADER_HEIGHT / 2 : getHandleTop(idx) }}
         />
       ))}
 
       {/* Body (collapsible) */}
       {!collapsed && (
-        <div style={{ padding: `${PORT_SECTION_PADDING}px 0` }}>
+        <div className="vce-node-body">
           {/* Port labels - rows must match handle positions */}
           {maxPorts > 0 && (
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              padding: '0 14px',
-            }}>
+            <div className="vce-port-rows">
               {/* Left ports labels */}
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <div className="vce-port-column vce-port-column--left">
                 {inputs.map((port) => (
-                  <div key={port.id} style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    fontSize: 12,
-                    color: theme.textMuted,
-                    height: PORT_ROW_HEIGHT,
-                  }}>
+                  <div key={port.id} className="vce-port-label">
                     {port.label}
                   </div>
                 ))}
               </div>
               {/* Right ports labels */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+              <div className="vce-port-column vce-port-column--right">
                 {outputs.map((port) => (
-                  <div key={port.id} style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    fontSize: 12,
-                    color: theme.textMuted,
-                    height: PORT_ROW_HEIGHT,
-                  }}>
+                  <div key={port.id} className="vce-port-label">
                     {port.label}
                   </div>
                 ))}
@@ -230,11 +144,7 @@ export function NodeBase({
 
           {/* Node content (form fields) */}
           {children && (
-            <div style={{
-              padding: '10px 14px',
-              borderTop: `1px solid ${colors.border}`,
-              marginTop: maxPorts > 0 ? 8 : 0,
-            }}>
+            <div className={`vce-node-content ${maxPorts > 0 ? 'vce-node-content--with-ports' : ''}`}>
               {children}
             </div>
           )}
@@ -252,21 +162,10 @@ export function NodeField({
   label: string
   children: ReactNode
 }) {
-  const { theme } = useTheme()
   return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      marginBottom: 8,
-      gap: 10,
-    }}>
-      <label style={{
-        color: theme.textMuted,
-        fontSize: 12,
-        minWidth: 60,
-        fontWeight: 500,
-      }}>{label}</label>
-      <div style={{ flex: 1 }}>{children}</div>
+    <div className="vce-node-field">
+      <label className="vce-node-field-label">{label}</label>
+      <div className="vce-node-field-input">{children}</div>
     </div>
   )
 }
@@ -280,22 +179,11 @@ export function NodeSelect({
   onChange: (value: string) => void
   options: { value: string; label: string }[]
 }) {
-  const { theme } = useTheme()
   return (
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      style={{
-        width: '100%',
-        padding: '6px 10px',
-        background: theme.bgTertiary,
-        border: `1px solid ${theme.border}`,
-        borderRadius: 6,
-        color: theme.text,
-        fontSize: 12,
-        cursor: 'pointer',
-        outline: 'none',
-      }}
+      className="vce-node-select"
     >
       {options.map((opt) => (
         <option key={opt.value} value={opt.value}>
@@ -317,24 +205,13 @@ export function NodeInput({
   placeholder?: string
   type?: 'text' | 'number'
 }) {
-  const { theme } = useTheme()
   return (
     <input
       type={type}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      style={{
-        width: '100%',
-        padding: '6px 10px',
-        background: theme.bgTertiary,
-        border: `1px solid ${theme.border}`,
-        borderRadius: 6,
-        color: theme.text,
-        fontSize: 12,
-        boxSizing: 'border-box',
-        outline: 'none',
-      }}
+      className="vce-node-input"
     />
   )
 }
@@ -348,23 +225,14 @@ export function NodeCheckbox({
   onChange: (checked: boolean) => void
   label: string
 }) {
-  const { theme } = useTheme()
   return (
-    <label style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: 8,
-      fontSize: 12,
-      color: theme.textMuted,
-      cursor: 'pointer',
-    }}>
+    <label className="vce-node-checkbox">
       <input
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        style={{ accentColor: '#FF282D' }}
       />
-      {label}
+      <span>{label}</span>
     </label>
   )
 }
@@ -379,31 +247,15 @@ export function NodeSection({
   children: ReactNode
 }) {
   const [isOpen, setIsOpen] = useState(defaultOpen)
-  const { theme } = useTheme()
 
   return (
-    <div style={{ marginTop: 8 }}>
-      <div
-        onClick={() => setIsOpen(!isOpen)}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          cursor: 'pointer',
-          padding: '4px 0',
-          userSelect: 'none',
-        }}
-      >
-        <span style={{ fontSize: 9, color: theme.textMuted }}>{isOpen ? '▾' : '▸'}</span>
-        <span style={{ fontSize: 11, fontWeight: 500, color: theme.textMuted }}>{title}</span>
+    <div className="vce-node-section">
+      <div className="vce-node-section-header" onClick={() => setIsOpen(!isOpen)}>
+        <span className="vce-node-section-icon">{isOpen ? '▾' : '▸'}</span>
+        <span className="vce-node-section-title">{title}</span>
       </div>
       {isOpen && (
-        <div style={{
-          paddingLeft: 4,
-          paddingTop: 4,
-          borderLeft: `2px solid ${theme.border}`,
-          marginLeft: 4,
-        }}>
+        <div className="vce-node-section-content">
           {children}
         </div>
       )}
@@ -424,11 +276,9 @@ export function NodeTextarea({
   minRows?: number
   maxRows?: number
 }) {
-  const { theme } = useTheme()
-
-  // Calculate rows based on content (newlines + wrapping estimate)
+  // Calculate rows based on content
   const lineCount = (value || '').split('\n').length
-  const estimatedWrapLines = Math.ceil((value || '').length / 25) // rough estimate for 25 chars per line
+  const estimatedWrapLines = Math.ceil((value || '').length / 25)
   const rows = Math.min(maxRows, Math.max(minRows, lineCount, estimatedWrapLines))
 
   return (
@@ -437,38 +287,7 @@ export function NodeTextarea({
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       rows={rows}
-      style={{
-        width: '100%',
-        padding: '6px 10px',
-        background: theme.bgTertiary,
-        border: `1px solid ${theme.border}`,
-        borderRadius: 6,
-        color: theme.text,
-        fontSize: 12,
-        boxSizing: 'border-box',
-        outline: 'none',
-        resize: 'vertical',
-        fontFamily: 'inherit',
-        lineHeight: 1.4,
-      }}
+      className="vce-node-textarea"
     />
   )
-}
-
-// Re-export nodeColors for backward compatibility - this gets colors from static theme
-// Components should use useTheme() instead for dynamic theming
-export const nodeColors = {
-  input: { header: '#FECACA', body: '#FEF2F2', border: '#F87171', text: '#991B1B' },
-  condition: { header: '#BFDBFE', body: '#EFF6FF', border: '#60A5FA', text: '#1E40AF' },
-  logic: { header: '#A7F3D0', body: '#ECFDF5', border: '#34D399', text: '#065F46' },
-  action: { header: '#E9D5FF', body: '#FAF5FF', border: '#A78BFA', text: '#5B21B6' },
-  routing: { header: '#A5F3FC', body: '#ECFEFF', border: '#22D3EE', text: '#0E7490' },
-}
-
-export const portColors = {
-  bool: '#A78BFA',
-  string: '#34D399',
-  number: '#60A5FA',
-  geometry: '#22D3EE',
-  any: '#9CA3AF',
 }
