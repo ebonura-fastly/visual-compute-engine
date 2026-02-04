@@ -19,7 +19,7 @@ import {
   SelectionMode,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Flex, Text, Switch, Box, Stack, Title } from '@fastly/beacon-mantine'
+import { Flex, Text, Switch, Box, Stack, Title, Pill } from '@fastly/beacon-mantine'
 import { IconFastlyLogo } from '@fastly/beacon-icons/logos'
 
 import { ConditionNode, ActionNode, RequestNode, RateLimitNode, TransformNode, BackendNode, LoggingNode, RuleGroupNode, HeaderNode, CacheNode } from './components/nodes'
@@ -223,18 +223,18 @@ function Flow() {
                 Drag components from the sidebar onto the canvas,<br />
                 or use a template to get started quickly.
               </Text>
-              <Stack className="vce-empty-canvas-steps" gap="md">
+              <Stack gap="md">
                 {[
                   { num: 1, title: 'Add a Request Node', desc: 'Start with a Request node as your entry point. This captures incoming traffic.' },
                   { num: 2, title: 'Add Conditions', desc: 'Connect Condition nodes to inspect request fields like path, headers, or IP.' },
                   { num: 3, title: 'Define Actions', desc: 'Add Action nodes to block, allow, rate-limit, or route traffic to backends.' }
                 ].map(step => (
-                  <Flex key={step.num} className="fui-step__header" gap="sm" align="flex-start">
-                    <Text className="fui-step__number" size="sm" weight="bold">{step.num}</Text>
-                    <Box className="fui-step__info">
-                      <Text className="fui-step__title" size="sm" weight="bold">{step.title}</Text>
-                      <Text className="fui-step__description" size="xs">{step.desc}</Text>
-                    </Box>
+                  <Flex key={step.num} gap="sm" align="flex-start">
+                    <Pill variant="default">{step.num}</Pill>
+                    <Flex direction="column" gap="xs">
+                      <Text size="sm" weight="bold">{step.title}</Text>
+                      <Text size="xs" className="vce-text-muted">{step.desc}</Text>
+                    </Flex>
                   </Flex>
                 ))}
               </Stack>
