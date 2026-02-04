@@ -9,6 +9,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fastly/beacon": "^0.49.0",
+    "@fastly/beacon-icons": "^1.0.0",
+    "@fastly/beacon-tokens": "^0.15.2",
     "@types/pako": "^2.0.4",
     "@xyflow/react": "^12.10.0",
     "vce-core": "file:../core/pkg",
