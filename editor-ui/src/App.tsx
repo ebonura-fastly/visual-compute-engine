@@ -20,6 +20,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { Flex, Text, Switch } from '@fastly/beacon'
+import { IconFastlyLogo } from '@fastly/beacon-icons/logos'
 
 import { ConditionNode, ActionNode, RequestNode, RateLimitNode, TransformNode, BackendNode, LoggingNode, RuleGroupNode, HeaderNode, CacheNode } from './components/nodes'
 import { DeletableEdge } from './components/edges'
@@ -138,7 +139,10 @@ function Flow() {
     <>
       {/* Header */}
       <header className="vce-header">
-        <span className="vce-header-title">Visual Compute Engine</span>
+        <Flex alignItems="center" gap="sm">
+          <IconFastlyLogo width={24} height={24} />
+          <span className="vce-header-title">Visual Compute Engine</span>
+        </Flex>
         <Flex alignItems="center" gap="sm">
           <Text size="xs" color="muted">Light</Text>
           <Switch checked={isDark} onChange={toggle} />

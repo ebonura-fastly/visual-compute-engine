@@ -1,5 +1,6 @@
 import { Handle, Position, type NodeProps, useReactFlow } from '@xyflow/react'
 import { useCallback, useState } from 'react'
+import { NodeSelect } from './NodeBase'
 
 // Fields that return boolean values - show checkbox instead of text input
 const booleanFields = new Set([
@@ -156,15 +157,16 @@ export function RuleGroupNode({ id, data, selected }: NodeProps) {
           />
         </div>
         <div className="vce-rule-group-header-right">
-          <select
-            value={logic}
-            onChange={(e) => updateData({ logic: e.target.value as 'AND' | 'OR' })}
-            onClick={(e) => e.stopPropagation()}
-            className="vce-rule-group-logic-select"
-          >
-            <option value="AND">AND</option>
-            <option value="OR">OR</option>
-          </select>
+          <div className="vce-rule-group-logic-select" onClick={(e) => e.stopPropagation()}>
+            <NodeSelect
+              value={logic}
+              onChange={(v) => updateData({ logic: v as 'AND' | 'OR' })}
+              options={[
+                { value: 'AND', label: 'AND' },
+                { value: 'OR', label: 'OR' },
+              ]}
+            />
+          </div>
           <a
             href="https://docs.fastly.com/en/guides/compute/"
             target="_blank"
@@ -261,10 +263,9 @@ export function RuleGroupNode({ id, data, selected }: NodeProps) {
 
                 {/* Condition fields */}
                 <div className="vce-rule-group-condition-fields">
-                  <select
+                  <NodeSelect
                     value={condition.field}
-                    onChange={(e) => {
-                      const newField = e.target.value
+                    onChange={(newField) => {
                       // When switching to boolean field, set default values
                       if (booleanFields.has(newField)) {
                         updateData({
@@ -278,12 +279,8 @@ export function RuleGroupNode({ id, data, selected }: NodeProps) {
                         updateCondition(condition.id, 'field', newField)
                       }
                     }}
-                    className="vce-node-select"
-                  >
-                    {fieldOptions.map((opt) => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
+                    options={fieldOptions}
+                  />
 
                   {condition.field === 'header' && (
                     <input
@@ -322,15 +319,11 @@ export function RuleGroupNode({ id, data, selected }: NodeProps) {
                     </label>
                   ) : (
                     <>
-                      <select
+                      <NodeSelect
                         value={condition.operator}
-                        onChange={(e) => updateCondition(condition.id, 'operator', e.target.value)}
-                        className="vce-node-select"
-                      >
-                        {operatorOptions.map((opt) => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
+                        onChange={(v) => updateCondition(condition.id, 'operator', v)}
+                        options={operatorOptions}
+                      />
 
                       <input
                         type="text"

@@ -1,5 +1,6 @@
 import { Handle, Position, NodeResizer } from '@xyflow/react'
 import { useState, type ReactNode } from 'react'
+import { Select, type SelectOptionType } from '@fastly/beacon'
 
 type PortDef = {
   id: string
@@ -179,18 +180,68 @@ export function NodeSelect({
   onChange: (value: string) => void
   options: { value: string; label: string }[]
 }) {
+  const selectedOption = options.find(opt => opt.value === value) || null
+
+  // Wrapper with nodrag class + event stopping prevents React Flow from intercepting
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="vce-node-select"
+    <div
+      className="nodrag nopan"
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
     >
-      {options.map((opt) => (
-        <option key={opt.value} value={opt.value}>
-          {opt.label}
-        </option>
-      ))}
-    </select>
+      <Select
+        value={selectedOption}
+        onChange={(option) => {
+          if (option) {
+            onChange((option as SelectOptionType).value)
+          }
+        }}
+        options={options}
+        menuPortalTarget={document.body}
+        menuPosition="fixed"
+        menuShouldBlockScroll={true}
+        blurInputOnSelect={true}
+        classNamePrefix="vce-select"
+        className="vce-node-select-beacon"
+        styles={{
+          control: (base) => ({
+            ...base,
+            minHeight: '28px',
+            fontSize: '12px',
+          }),
+          valueContainer: (base) => ({
+            ...base,
+            padding: '0 6px',
+          }),
+          input: (base) => ({
+            ...base,
+            margin: 0,
+            padding: 0,
+          }),
+          indicatorsContainer: (base) => ({
+            ...base,
+            height: '28px',
+          }),
+          menu: (base) => ({
+            ...base,
+            zIndex: 9999,
+            width: 'max-content',
+            minWidth: '100%',
+            maxWidth: '300px',
+          }),
+          menuList: (base) => ({
+            ...base,
+            maxHeight: '200px',
+          }),
+          option: (base) => ({
+            ...base,
+            fontSize: '12px',
+            padding: '6px 10px',
+          }),
+        }}
+      />
+    </div>
   )
 }
 
