@@ -1,0 +1,341 @@
+/*
+ * VCE Design Tokens
+ *
+ * Based on Uniform design system (@fastly/beacon-tokens)
+ * Source: /Users/ebonura/Desktop/repos/uniform/packages/beacon-tokens
+ */
+
+:root {
+  /* ===========================================
+   * Primitive Colors - from Uniform beacon-tokens
+   * =========================================== */
+
+  /* Gray Scale */
+  --color-gray-0: #ffffff;
+  --color-gray-10: #f3f4f6;
+  --color-gray-20: #dce0e4;
+  --color-gray-30: #bac1c9;
+  --color-gray-40: #9ea8b2;
+  --color-gray-50: #818e9c;
+  --color-gray-60: #677483;
+  --color-gray-70: #515b66;
+  --color-gray-80: #3a424a;
+  --color-gray-90: #24282d;
+  --color-gray-100: #121417;
+
+  /* Blue Scale (Primary Action) */
+  --color-blue-0: #ffffff;
+  --color-blue-10: #f0f7ff;
+  --color-blue-20: #d1e8ff;
+  --color-blue-30: #9eceff;
+  --color-blue-40: #51a7ff;
+  --color-blue-50: #0580ff;
+  --color-blue-60: #0067d1;
+  --color-blue-70: #004e9e;
+  --color-blue-80: #00356b;
+  --color-blue-90: #002142;
+
+  /* Green Scale (Success) */
+  --color-green-0: #ffffff;
+  --color-green-10: #f2fcf2;
+  --color-green-20: #c1eebd;
+  --color-green-30: #8fe088;
+  --color-green-40: #5dd354;
+  --color-green-50: #39b52f;
+  --color-green-60: #2f9527;
+  --color-green-70: #25741e;
+  --color-green-80: #1a5416;
+  --color-green-90: #10330d;
+
+  /* Red Scale (Error) */
+  --color-red-0: #ffffff;
+  --color-red-10: #fef1f1;
+  --color-red-20: #fcbfbb;
+  --color-red-30: #f87f77;
+  --color-red-40: #f5483d;
+  --color-red-50: #e9190c;
+  --color-red-60: #bd140a;
+  --color-red-70: #921008;
+  --color-red-80: #660b05;
+  --color-red-90: #3a0603;
+
+  /* Yellow Scale (Warning) */
+  --color-yellow-0: #ffffff;
+  --color-yellow-10: #fff5e0;
+  --color-yellow-20: #ffe1a8;
+  --color-yellow-30: #ffce70;
+  --color-yellow-40: #ffbb38;
+  --color-yellow-50: #ffa800;
+  --color-yellow-60: #cc8600;
+  --color-yellow-70: #996500;
+  --color-yellow-80: #664300;
+  --color-yellow-90: #332200;
+
+  /* Brand */
+  --color-logo: #e9190c;
+
+  /* Data Visualization Palette - for node categories */
+  --color-data-viz-1: #008885;
+  --color-data-viz-2: #33BDA0;
+  --color-data-viz-3: #FDDFB3;
+  --color-data-viz-4: #FF9DA0;
+  --color-data-viz-5: #88DBF2;
+  --color-data-viz-6: #008A6D;
+  --color-data-viz-7: #B280D8;
+  --color-data-viz-8: #006A8D;
+  --color-data-viz-9: #DCB9F6;
+  --color-data-viz-10: #EA8446;
+  --color-data-viz-11: #A24271;
+  --color-data-viz-12: #98EDA1;
+
+  /* ===========================================
+   * Semantic Colors
+   * =========================================== */
+
+  /* Backgrounds/Surfaces */
+  --bg-primary: var(--color-gray-0);
+  --bg-secondary: var(--color-gray-10);
+  --bg-tertiary: var(--color-gray-20);
+  --bg-hover: var(--color-gray-10);
+  --bg-disabled: var(--color-gray-20);
+
+  /* Text */
+  --text-primary: var(--color-gray-80);
+  --text-primary-hover: var(--color-gray-90);
+  --text-secondary: var(--color-gray-60);
+  --text-secondary-hover: var(--color-gray-70);
+  --text-disabled: var(--color-gray-50);
+  --text-inverse: var(--color-gray-0);
+
+  /* Action (interactive elements) */
+  --color-action: var(--color-blue-60);
+  --color-action-hover: var(--color-blue-70);
+  --color-action-active: var(--color-blue-80);
+  --color-action-focus: var(--color-blue-30);
+  --color-action-surface: var(--color-blue-10);
+  --color-action-surface-hover: var(--color-blue-20);
+
+  /* Borders */
+  --border-primary: var(--color-gray-20);
+  --border-primary-hover: var(--color-gray-30);
+  --border-secondary: var(--color-gray-40);
+  --border-input: var(--color-gray-40);
+  --border-input-hover: var(--color-gray-50);
+
+  /* Status */
+  --color-success: var(--color-green-60);
+  --color-success-surface: var(--color-green-10);
+  --color-error: var(--color-red-50);
+  --color-error-surface: var(--color-red-10);
+  --color-warning: var(--color-yellow-60);
+  --color-warning-surface: var(--color-yellow-10);
+  --color-info: var(--color-blue-60);
+  --color-info-surface: var(--color-blue-10);
+
+  /* ===========================================
+   * Node Category Colors (using data-viz palette)
+   * =========================================== */
+
+  /* Input nodes - pink/coral */
+  --node-input-header: var(--color-data-viz-4);
+  --node-input-body: var(--color-gray-0);
+  --node-input-border: var(--color-gray-30);
+  --node-input-text: var(--color-gray-80);
+
+  /* Condition nodes - light cyan */
+  --node-condition-header: var(--color-data-viz-5);
+  --node-condition-body: var(--color-gray-0);
+  --node-condition-border: var(--color-gray-30);
+  --node-condition-text: var(--color-gray-80);
+
+  /* Logic nodes - light green */
+  --node-logic-header: var(--color-data-viz-12);
+  --node-logic-body: var(--color-gray-0);
+  --node-logic-border: var(--color-gray-30);
+  --node-logic-text: var(--color-gray-80);
+
+  /* Action nodes - purple */
+  --node-action-header: var(--color-data-viz-7);
+  --node-action-body: var(--color-gray-0);
+  --node-action-border: var(--color-gray-30);
+  --node-action-text: var(--color-gray-80);
+
+  /* Routing nodes - teal */
+  --node-routing-header: var(--color-data-viz-1);
+  --node-routing-body: var(--color-gray-0);
+  --node-routing-border: var(--color-gray-30);
+  --node-routing-text: var(--color-gray-0);
+
+  /* Port type colors */
+  --port-bool: var(--color-data-viz-7);
+  --port-string: var(--color-data-viz-2);
+  --port-number: var(--color-blue-50);
+  --port-geometry: var(--color-data-viz-5);
+  --port-any: var(--color-gray-50);
+
+  /* Canvas */
+  --canvas-bg: var(--color-gray-10);
+  --canvas-dots: var(--color-gray-30);
+  --canvas-minimap-mask: rgba(243, 244, 246, 0.8);
+
+  /* ===========================================
+   * Layout - Spacing Scale
+   * =========================================== */
+  --space-0: 0;
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 8px;
+  --space-4: 12px;
+  --space-5: 16px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 48px;
+  --space-10: 64px;
+
+  /* ===========================================
+   * Layout - Border Radius
+   * =========================================== */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
+  --radius-xl: 16px;
+  --radius-round: 10000px;
+
+  /* ===========================================
+   * Layout - Border Width
+   * =========================================== */
+  --border-width-sm: 1px;
+  --border-width-md: 2px;
+  --border-width-lg: 4px;
+
+  /* ===========================================
+   * Typography
+   * =========================================== */
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-family-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+
+  /* Font sizes */
+  --font-size-xs: 10px;
+  --font-size-sm: 12px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-xxl: 24px;
+  --font-size-xxxl: 32px;
+
+  /* Font weights */
+  --font-weight-regular: 400;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+
+  /* Line heights */
+  --line-height-xs: 16px;
+  --line-height-sm: 20px;
+  --line-height-md: 20px;
+  --line-height-lg: 24px;
+  --line-height-xl: 28px;
+
+  /* ===========================================
+   * Motion
+   * =========================================== */
+  --duration-efficient: 80ms;
+  --duration-practical: 130ms;
+  --duration-expressive: 210ms;
+
+  --easing-default: cubic-bezier(0.42, 0, 0.58, 1);
+
+  --transition-efficient: all var(--duration-efficient) var(--easing-default);
+  --transition-practical: all var(--duration-practical) var(--easing-default);
+  --transition-expressive: all var(--duration-expressive) var(--easing-default);
+
+  /* ===========================================
+   * Shadows
+   * =========================================== */
+  --shadow-sm: 0 1px 2px rgba(11, 13, 14, 0.25);
+  --shadow-md: 0 4px 8px rgba(11, 13, 14, 0.25);
+  --shadow-lg: 0 8px 16px rgba(11, 13, 14, 0.25);
+  --shadow-xl: 0 16px 32px rgba(11, 13, 14, 0.35);
+
+  /* ===========================================
+   * Focus
+   * =========================================== */
+  --focus-ring: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--color-action);
+}
+
+/* ===========================================
+ * Dark Theme
+ * =========================================== */
+[data-theme="dark"] {
+  /* Backgrounds */
+  --bg-primary: var(--color-gray-100);
+  --bg-secondary: var(--color-gray-90);
+  --bg-tertiary: var(--color-gray-80);
+  --bg-hover: var(--color-gray-80);
+  --bg-disabled: var(--color-gray-70);
+
+  /* Text */
+  --text-primary: var(--color-gray-10);
+  --text-primary-hover: var(--color-gray-0);
+  --text-secondary: var(--color-gray-40);
+  --text-secondary-hover: var(--color-gray-30);
+  --text-disabled: var(--color-gray-50);
+  --text-inverse: var(--color-gray-100);
+
+  /* Action */
+  --color-action: var(--color-blue-50);
+  --color-action-hover: var(--color-blue-40);
+  --color-action-active: var(--color-blue-30);
+  --color-action-focus: var(--color-blue-60);
+  --color-action-surface: var(--color-blue-90);
+  --color-action-surface-hover: var(--color-blue-80);
+
+  /* Borders */
+  --border-primary: var(--color-gray-80);
+  --border-primary-hover: var(--color-gray-70);
+  --border-secondary: var(--color-gray-60);
+  --border-input: var(--color-gray-60);
+  --border-input-hover: var(--color-gray-50);
+
+  /* Status surfaces (with opacity for dark mode) */
+  --color-success-surface: rgba(57, 181, 47, 0.2);
+  --color-error-surface: rgba(233, 25, 12, 0.2);
+  --color-warning-surface: rgba(255, 168, 0, 0.2);
+  --color-info-surface: rgba(0, 103, 209, 0.2);
+
+  /* Node colors (adjusted for dark mode) */
+  --node-input-body: var(--color-gray-90);
+  --node-input-border: var(--color-gray-70);
+  --node-input-text: var(--color-gray-10);
+
+  --node-condition-body: var(--color-gray-90);
+  --node-condition-border: var(--color-gray-70);
+  --node-condition-text: var(--color-gray-10);
+
+  --node-logic-body: var(--color-gray-90);
+  --node-logic-border: var(--color-gray-70);
+  --node-logic-text: var(--color-gray-10);
+
+  --node-action-body: var(--color-gray-90);
+  --node-action-border: var(--color-gray-70);
+  --node-action-text: var(--color-gray-10);
+
+  --node-routing-body: var(--color-gray-90);
+  --node-routing-border: var(--color-gray-70);
+  --node-routing-text: var(--color-gray-0);
+
+  /* Canvas */
+  --canvas-bg: var(--color-gray-100);
+  --canvas-dots: var(--color-gray-70);
+  --canvas-minimap-mask: rgba(18, 20, 23, 0.8);
+
+  /* Shadows (stronger for dark mode) */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 16px 32px rgba(0, 0, 0, 0.6);
+
+  /* Focus */
+  --focus-ring: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--color-action);
+}

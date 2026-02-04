@@ -1,3 +1,8 @@
+/*
+ * VCE Base Styles & Layout
+ */
+
+/* Reset */
 * {
   margin: 0;
   padding: 0;
@@ -7,15 +12,179 @@
 html, body, #root {
   width: 100%;
   height: 100%;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-.react-flow__node {
-  border-radius: 8px;
-  font-size: 12px;
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-md);
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-.react-flow__handle {
-  width: 10px;
-  height: 10px;
+/* ===========================================
+ * App Layout
+ * =========================================== */
+
+.vce-app {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--canvas-bg);
+}
+
+.vce-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-6);
+  background: var(--bg-primary);
+  border-bottom: var(--border-width-sm) solid var(--border-primary);
+  flex-shrink: 0;
+}
+
+.vce-header-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.vce-main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  background: var(--canvas-bg);
+}
+
+.vce-canvas {
+  flex: 1;
+  position: relative;
+}
+
+/* ===========================================
+ * Sidebar Layout (used in Sidebar.tsx)
+ * =========================================== */
+
+.vce-sidebar {
+  width: 280px;
+  background: var(--bg-primary);
+  border-right: var(--border-width-sm) solid var(--border-primary);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.vce-sidebar-header {
+  padding: var(--space-4);
+  border-bottom: var(--border-width-sm) solid var(--border-primary);
+}
+
+.vce-sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-4);
+}
+
+.vce-sidebar-section {
+  margin-bottom: var(--space-5);
+}
+
+.vce-sidebar-section-title {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--space-3);
+}
+
+/* ===========================================
+ * Draggable Node Items (in sidebar)
+ * =========================================== */
+
+.vce-node-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  margin-bottom: var(--space-2);
+  background: var(--bg-secondary);
+  border: var(--border-width-sm) solid var(--border-primary);
+  border-radius: var(--radius-md);
+  cursor: grab;
+  transition: var(--transition-practical);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+}
+
+.vce-node-item:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-primary-hover);
+}
+
+.vce-node-item:active {
+  cursor: grabbing;
+}
+
+.vce-node-item-icon {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-round);
+  flex-shrink: 0;
+}
+
+.vce-node-item-icon[data-category="input"] {
+  background: var(--node-input-header);
+}
+
+.vce-node-item-icon[data-category="condition"] {
+  background: var(--node-condition-header);
+}
+
+.vce-node-item-icon[data-category="logic"] {
+  background: var(--node-logic-header);
+}
+
+.vce-node-item-icon[data-category="action"] {
+  background: var(--node-action-header);
+}
+
+.vce-node-item-icon[data-category="routing"] {
+  background: var(--node-routing-header);
+}
+
+/* ===========================================
+ * React Flow Canvas Overrides
+ * =========================================== */
+
+.react-flow {
+  background: var(--canvas-bg) !important;
+}
+
+.react-flow__background {
+  background: var(--canvas-bg);
+}
+
+.react-flow__background pattern circle {
+  fill: var(--canvas-dots);
+}
+
+/* Edge styling */
+.react-flow__edge-path {
+  stroke: var(--border-secondary);
+  stroke-width: 2;
+}
+
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke: var(--color-action);
+}
+
+/* Selection box */
+.react-flow__selection {
+  background: rgba(0, 103, 209, 0.1);
+  border: 1px solid var(--color-action);
 }

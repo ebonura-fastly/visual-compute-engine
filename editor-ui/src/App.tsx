@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, useMemo } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import {
   ReactFlow,
   Controls,
@@ -23,7 +23,7 @@ import '@xyflow/react/dist/style.css'
 import { ConditionNode, ActionNode, RequestNode, RateLimitNode, TransformNode, BackendNode, LoggingNode, RuleGroupNode, HeaderNode, CacheNode } from './components/nodes'
 import { DeletableEdge } from './components/edges'
 import { Sidebar } from './components/Sidebar'
-import { ThemeContext, lightTheme, darkTheme, useTheme, type ThemeMode, fonts } from './styles/theme'
+import { useTheme } from './styles/theme'
 
 const nodeTypes: NodeTypes = {
   request: RequestNode,
@@ -78,7 +78,7 @@ function Flow() {
   const [nodes, setNodes] = useState<Node[]>([])
   const [edges, setEdges] = useState<Edge[]>([])
   const { screenToFlowPosition } = useReactFlow()
-  const { theme, mode, toggleTheme } = useTheme()
+  const { theme, isDark, toggle } = useTheme()
 
   const onNodesChange: OnNodesChange = useCallback(
     (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
@@ -136,45 +136,26 @@ function Flow() {
   return (
     <>
       {/* Header */}
-      <header style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '12px 24px',
-        background: theme.bg,
-        borderBottom: `1px solid ${theme.border}`,
-        fontFamily: fonts.sans,
-      }}>
-        <span style={{ fontSize: 16, fontWeight: 600, color: theme.text }}>
-          Visual Compute Engine
-        </span>
+      <header className="vce-header">
+        <span className="vce-header-title">Visual Compute Engine</span>
         <button
-          onClick={toggleTheme}
-          style={{
-            padding: '8px 12px',
-            background: theme.bgTertiary,
-            color: theme.textSecondary,
-            border: `1px solid ${theme.border}`,
-            borderRadius: 8,
-            cursor: 'pointer',
-            fontSize: 14,
-            fontFamily: fonts.sans,
-          }}
-          title={`Switch to ${mode === 'dark' ? 'light' : 'dark'} mode`}
+          onClick={toggle}
+          className="btn"
+          title={`Switch to ${isDark ? 'light' : 'dark'} mode`}
         >
-          {mode === 'dark' ? 'Light' : 'Dark'}
+          {isDark ? 'Light' : 'Dark'}
         </button>
       </header>
 
       {/* Main Content */}
-      <div style={{ display: 'flex', flex: 1, background: theme.canvasBg }}>
+      <div className="vce-main">
         <Sidebar
           nodes={nodes}
           edges={edges}
           onAddTemplate={handleAddTemplate}
           onLoadRules={handleLoadRules}
         />
-        <div style={{ flex: 1, position: 'relative' }} ref={reactFlowWrapper}>
+        <div className="vce-canvas" ref={reactFlowWrapper}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -187,11 +168,9 @@ function Flow() {
             edgeTypes={edgeTypes}
             defaultEdgeOptions={{
               type: 'deletable',
-              style: { stroke: theme.textMuted, strokeWidth: 2 },
             }}
             fitView
             fitViewOptions={{ maxZoom: 0.8, padding: 0.2 }}
-            style={{ background: theme.canvasBg }}
             deleteKeyCode={['Backspace', 'Delete']}
             selectionMode={SelectionMode.Partial}
             selectionOnDrag
@@ -200,8 +179,8 @@ function Flow() {
             selectionKeyCode={['Shift']}
             multiSelectionKeyCode={['Shift', 'Meta', 'Control']}
           >
-            <Background variant={BackgroundVariant.Dots} gap={24} size={1} color={theme.canvasDots} />
-            <Controls style={{ background: theme.bg, border: `1px solid ${theme.border}`, borderRadius: 8 }} />
+            <Background variant={BackgroundVariant.Dots} gap={24} size={1} />
+            <Controls />
           </ReactFlow>
         </div>
       </div>
@@ -210,26 +189,11 @@ function Flow() {
 }
 
 export default function App() {
-  const [mode, setMode] = useState<ThemeMode>('dark')
-  const theme = mode === 'dark' ? darkTheme : lightTheme
-
-  const toggleTheme = useCallback(() => {
-    setMode((m) => (m === 'dark' ? 'light' : 'dark'))
-  }, [])
-
-  const themeContextValue = useMemo(() => ({
-    mode,
-    theme,
-    toggleTheme,
-  }), [mode, theme, toggleTheme])
-
   return (
-    <ThemeContext.Provider value={themeContextValue}>
-      <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column', background: theme.canvasBg }}>
-        <ReactFlowProvider>
-          <Flow />
-        </ReactFlowProvider>
-      </div>
-    </ThemeContext.Provider>
+    <div className="vce-app">
+      <ReactFlowProvider>
+        <Flow />
+      </ReactFlowProvider>
+    </div>
   )
 }

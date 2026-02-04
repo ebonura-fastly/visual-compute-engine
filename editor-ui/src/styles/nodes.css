@@ -1,0 +1,428 @@
+/*
+ * VCE Node Styles
+ *
+ * React Flow node styling using CSS custom properties
+ * Uses data attributes for node category and state
+ */
+
+/* ===========================================
+ * Node Base
+ * =========================================== */
+
+.vce-node {
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  border-radius: var(--radius-lg);
+  border: var(--border-width-sm) solid var(--border-primary);
+  box-shadow: var(--shadow-md);
+  background: var(--node-input-body);
+  overflow: visible;
+
+  /* Node category custom properties (default to input) */
+  --node-header: var(--node-input-header);
+  --node-body: var(--node-input-body);
+  --node-border: var(--node-input-border);
+  --node-text: var(--node-input-text);
+}
+
+/* Category variants */
+.vce-node[data-category="input"] {
+  --node-header: var(--node-input-header);
+  --node-body: var(--node-input-body);
+  --node-border: var(--node-input-border);
+  --node-text: var(--node-input-text);
+}
+
+.vce-node[data-category="condition"] {
+  --node-header: var(--node-condition-header);
+  --node-body: var(--node-condition-body);
+  --node-border: var(--node-condition-border);
+  --node-text: var(--node-condition-text);
+}
+
+.vce-node[data-category="logic"] {
+  --node-header: var(--node-logic-header);
+  --node-body: var(--node-logic-body);
+  --node-border: var(--node-logic-border);
+  --node-text: var(--node-logic-text);
+}
+
+.vce-node[data-category="action"] {
+  --node-header: var(--node-action-header);
+  --node-body: var(--node-action-body);
+  --node-border: var(--node-action-border);
+  --node-text: var(--node-action-text);
+}
+
+.vce-node[data-category="routing"] {
+  --node-header: var(--node-routing-header);
+  --node-body: var(--node-routing-body);
+  --node-border: var(--node-routing-border);
+  --node-text: var(--node-routing-text);
+}
+
+/* Apply category colors */
+.vce-node {
+  background: var(--node-body);
+  border-color: var(--node-border);
+}
+
+/* Selection state */
+.vce-node[data-selected="true"] {
+  border-color: var(--color-action);
+  box-shadow: 0 0 0 1px var(--color-action), var(--shadow-md);
+}
+
+/* ===========================================
+ * Node Header
+ * =========================================== */
+
+.vce-node-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  height: 38px;
+  box-sizing: border-box;
+  background: var(--node-header);
+  border-bottom: var(--border-width-sm) solid var(--node-border);
+  cursor: pointer;
+  user-select: none;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.vce-node-header-content {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.vce-node-collapse-icon {
+  font-size: var(--font-size-xs);
+  color: var(--node-text);
+  flex-shrink: 0;
+}
+
+.vce-node-title {
+  font-weight: var(--font-weight-semibold);
+  font-size: 13px;
+  letter-spacing: 0.2px;
+  color: var(--node-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vce-node-doc-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-round);
+  background: color-mix(in srgb, var(--node-text) 20%, transparent);
+  color: var(--node-text);
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  opacity: 0.7;
+  transition: var(--transition-efficient);
+  flex-shrink: 0;
+}
+
+.vce-node-doc-link:hover {
+  opacity: 1;
+}
+
+/* ===========================================
+ * Node Body (Ports area)
+ * =========================================== */
+
+.vce-node-body {
+  position: relative;
+  padding: var(--space-3) 0;
+  background: var(--node-body);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.vce-node-body[data-collapsed="true"] {
+  display: none;
+}
+
+/* ===========================================
+ * Port Rows
+ * =========================================== */
+
+.vce-port-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 28px;
+  padding: 0 var(--space-4);
+  position: relative;
+}
+
+.vce-port-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.vce-port-label--input {
+  text-align: left;
+}
+
+.vce-port-label--output {
+  text-align: right;
+  margin-left: auto;
+}
+
+/* ===========================================
+ * Handles (Connection ports)
+ * =========================================== */
+
+.vce-handle {
+  width: 12px;
+  height: 12px;
+  border: var(--border-width-md) solid var(--node-border);
+  border-radius: var(--radius-round);
+  transition: var(--transition-efficient);
+
+  /* Port type color (default) */
+  --port-color: var(--port-any);
+  background: var(--port-color);
+}
+
+/* Port type variants */
+.vce-handle[data-port-type="bool"] {
+  --port-color: var(--port-bool);
+}
+
+.vce-handle[data-port-type="string"] {
+  --port-color: var(--port-string);
+}
+
+.vce-handle[data-port-type="number"] {
+  --port-color: var(--port-number);
+}
+
+.vce-handle[data-port-type="geometry"] {
+  --port-color: var(--port-geometry);
+}
+
+.vce-handle[data-port-type="any"] {
+  --port-color: var(--port-any);
+}
+
+/* Handle hover state */
+.vce-handle:hover {
+  transform: scale(1.2);
+  border-color: var(--color-action);
+}
+
+/* ===========================================
+ * Node Content (Custom content area)
+ * =========================================== */
+
+.vce-node-content {
+  padding: var(--space-3) var(--space-4);
+  border-top: var(--border-width-sm) solid var(--node-border);
+}
+
+/* ===========================================
+ * Node Form Elements (inside nodes)
+ * =========================================== */
+
+.vce-node-input {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-family);
+  font-size: var(--font-size-xs);
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: var(--border-width-sm) solid var(--border-input);
+  border-radius: var(--radius-sm);
+  transition: var(--transition-practical);
+}
+
+.vce-node-input:focus {
+  outline: none;
+  border-color: var(--color-action);
+}
+
+.vce-node-select {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  padding-right: var(--space-6);
+  font-family: var(--font-family);
+  font-size: var(--font-size-xs);
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: var(--border-width-sm) solid var(--border-input);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: var(--transition-practical);
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23677483' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--space-2) center;
+}
+
+.vce-node-select:focus {
+  outline: none;
+  border-color: var(--color-action);
+}
+
+.vce-node-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.vce-node-checkbox input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--color-action);
+  cursor: pointer;
+}
+
+.vce-node-checkbox-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+/* ===========================================
+ * Node Resizer (when resizable)
+ * =========================================== */
+
+.vce-node--resizable {
+  width: 100%;
+  height: 100%;
+}
+
+/* ===========================================
+ * React Flow Overrides
+ * =========================================== */
+
+/* Node wrapper */
+.react-flow__node {
+  /* Reset default React Flow styles */
+}
+
+.react-flow__node-custom {
+  /* Custom node type */
+}
+
+/* Handle positioning */
+.react-flow__handle {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-round);
+}
+
+.react-flow__handle-left {
+  left: -6px;
+}
+
+.react-flow__handle-right {
+  right: -6px;
+}
+
+/* Edge styles */
+.react-flow__edge-path {
+  stroke: var(--border-secondary);
+  stroke-width: 2;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--color-action);
+}
+
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke: var(--color-action-hover);
+}
+
+/* Controls */
+.react-flow__controls {
+  background: var(--bg-primary);
+  border: var(--border-width-sm) solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+
+.react-flow__controls-button {
+  background: var(--bg-primary);
+  border-bottom: var(--border-width-sm) solid var(--border-primary);
+  color: var(--text-secondary);
+  width: 32px;
+  height: 32px;
+  transition: var(--transition-practical);
+}
+
+.react-flow__controls-button:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom: none;
+}
+
+.react-flow__controls-button svg {
+  max-width: 14px;
+  max-height: 14px;
+  fill: currentColor;
+}
+
+/* Minimap */
+.react-flow__minimap {
+  background: var(--bg-secondary);
+  border: var(--border-width-sm) solid var(--border-primary);
+  border-radius: var(--radius-lg);
+}
+
+.react-flow__minimap-mask {
+  fill: var(--canvas-minimap-mask);
+}
+
+/* Canvas background */
+.react-flow__background {
+  background: var(--canvas-bg);
+}
+
+.react-flow__background pattern circle {
+  fill: var(--canvas-dots);
+}
+
+/* ===========================================
+ * Edge Delete Button
+ * =========================================== */
+
+.vce-edge-delete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+  border: var(--border-width-sm) solid var(--border-primary);
+  border-radius: var(--radius-round);
+  cursor: pointer;
+  transition: var(--transition-practical);
+  position: absolute;
+  transform: translate(-50%, -50%);
+}
+
+.vce-edge-delete-btn:hover {
+  background: var(--color-error);
+  border-color: var(--color-error);
+  color: var(--text-inverse);
+}
