@@ -1,8 +1,6 @@
 /*
  * VCE Node Styles
- *
- * React Flow node styling using CSS custom properties
- * Uses data attributes for node category and state
+ * React Flow node styling - can't be replaced by beacon-mantine
  */
 
 /* ===========================================
@@ -10,21 +8,20 @@
  * =========================================== */
 
 .vce-node {
+  position: relative;
   font-family: var(--font-family);
   font-size: var(--font-size-sm);
-  color: var(--text-secondary);
   border-radius: var(--radius-lg);
-  border: var(--border-width-sm) solid var(--border-primary);
+  border: 1px solid var(--border-primary);
   box-shadow: var(--shadow-md);
   background: var(--node-input-body);
   overflow: visible;
 
-  /* Node category custom properties (default to input) */
+  /* Category defaults */
   --node-header: var(--node-input-header);
   --node-header-text: var(--node-input-header-text);
   --node-body: var(--node-input-body);
   --node-border: var(--node-input-border);
-  --node-text: var(--node-input-text);
 }
 
 /* Category variants */
@@ -33,7 +30,6 @@
   --node-header-text: var(--node-input-header-text);
   --node-body: var(--node-input-body);
   --node-border: var(--node-input-border);
-  --node-text: var(--node-input-text);
 }
 
 .vce-node[data-category="condition"] {
@@ -41,7 +37,6 @@
   --node-header-text: var(--node-condition-header-text);
   --node-body: var(--node-condition-body);
   --node-border: var(--node-condition-border);
-  --node-text: var(--node-condition-text);
 }
 
 .vce-node[data-category="logic"] {
@@ -49,7 +44,6 @@
   --node-header-text: var(--node-logic-header-text);
   --node-body: var(--node-logic-body);
   --node-border: var(--node-logic-border);
-  --node-text: var(--node-logic-text);
 }
 
 .vce-node[data-category="action"] {
@@ -57,7 +51,6 @@
   --node-header-text: var(--node-action-header-text);
   --node-body: var(--node-action-body);
   --node-border: var(--node-action-border);
-  --node-text: var(--node-action-text);
 }
 
 .vce-node[data-category="routing"] {
@@ -65,16 +58,13 @@
   --node-header-text: var(--node-routing-header-text);
   --node-body: var(--node-routing-body);
   --node-border: var(--node-routing-border);
-  --node-text: var(--node-routing-text);
 }
 
-/* Apply category colors */
 .vce-node {
   background: var(--node-body);
   border-color: var(--node-border);
 }
 
-/* Selection state */
 .vce-node[data-selected="true"] {
   border-color: var(--color-action);
   box-shadow: 0 0 0 1px var(--color-action), var(--shadow-md);
@@ -85,40 +75,19 @@
  * =========================================== */
 
 .vce-node-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   padding: var(--space-3) var(--space-4);
   height: 38px;
   box-sizing: border-box;
   background: var(--node-header);
-  border-bottom: var(--border-width-sm) solid var(--node-border);
+  border-bottom: 1px solid var(--node-border);
   cursor: pointer;
   user-select: none;
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
-.vce-node-header-content {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-width: 0;
-}
-
-.vce-node-collapse-icon {
-  font-size: var(--font-size-xs);
-  color: var(--node-header-text);
-  flex-shrink: 0;
-}
-
+.vce-node-collapse-icon,
 .vce-node-title {
-  font-weight: var(--font-weight-semibold);
-  font-size: 13px;
-  letter-spacing: 0.2px;
   color: var(--node-header-text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .vce-node-doc-link {
@@ -128,15 +97,8 @@
   width: 18px;
   height: 18px;
   color: var(--node-header-text);
-  border-radius: var(--radius-round);
-  background: color-mix(in srgb, var(--node-text) 20%, transparent);
-  color: var(--node-text);
-  font-size: 11px;
-  font-weight: var(--font-weight-semibold);
-  text-decoration: none;
   opacity: 0.7;
-  transition: var(--transition-efficient);
-  flex-shrink: 0;
+  transition: opacity 0.1s;
 }
 
 .vce-node-doc-link:hover {
@@ -144,7 +106,7 @@
 }
 
 /* ===========================================
- * Node Body (Ports area)
+ * Node Body
  * =========================================== */
 
 .vce-node-body {
@@ -154,328 +116,141 @@
   border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
 
-.vce-node-body[data-collapsed="true"] {
-  display: none;
+.vce-node-content {
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--node-border);
+}
+
+.vce-node-content--with-ports {
+  border-top: none;
 }
 
 /* ===========================================
- * Port Rows
+ * Port Labels
  * =========================================== */
 
-.vce-port-row {
+.vce-port-rows {
+  padding: var(--space-2) var(--space-4);
+}
+
+.vce-port-column {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  height: 28px;
-  padding: 0 var(--space-4);
-  position: relative;
+  flex-direction: column;
+}
+
+.vce-port-column--right {
+  text-align: right;
 }
 
 .vce-port-label {
-  font-size: var(--font-size-sm);
+  height: 28px;
+  display: flex;
+  align-items: center;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
-  white-space: nowrap;
 }
 
-.vce-port-label--input {
-  text-align: left;
-}
-
-.vce-port-label--output {
-  text-align: right;
-  margin-left: auto;
+.vce-port-column--right .vce-port-label {
+  justify-content: flex-end;
 }
 
 /* ===========================================
- * Handles (Connection ports)
+ * Handles (Connection Ports)
  * =========================================== */
 
 .vce-handle {
   width: 12px;
   height: 12px;
-  border: var(--border-width-md) solid var(--node-border);
-  border-radius: var(--radius-round);
-  transition: var(--transition-efficient);
-
-  /* Port type color (default) */
+  border: 2px solid var(--node-border);
+  border-radius: 50%;
   --port-color: var(--port-any);
   background: var(--port-color);
+  transition: transform 0.1s;
 }
 
-/* Port type variants */
-.vce-handle[data-port-type="bool"] {
-  --port-color: var(--port-bool);
-}
+.vce-handle[data-port-type="bool"] { --port-color: var(--port-bool); }
+.vce-handle[data-port-type="string"] { --port-color: var(--port-string); }
+.vce-handle[data-port-type="number"] { --port-color: var(--port-number); }
 
-.vce-handle[data-port-type="string"] {
-  --port-color: var(--port-string);
-}
-
-.vce-handle[data-port-type="number"] {
-  --port-color: var(--port-number);
-}
-
-.vce-handle[data-port-type="geometry"] {
-  --port-color: var(--port-geometry);
-}
-
-.vce-handle[data-port-type="any"] {
-  --port-color: var(--port-any);
-}
-
-/* Handle hover state */
 .vce-handle:hover {
   transform: scale(1.2);
   border-color: var(--color-action);
 }
 
-/* ===========================================
- * Node Content (Custom content area)
- * =========================================== */
-
-.vce-node-content {
-  padding: var(--space-3) var(--space-4);
-  border-top: var(--border-width-sm) solid var(--node-border);
-}
-
-.vce-node-subtitle {
-  font-size: var(--font-size-xs);
-  color: var(--text-disabled);
-  text-align: center;
-  padding: var(--space-2) 0;
-}
-
-/* ===========================================
- * Node Form Elements (inside nodes)
- * =========================================== */
-
-.vce-node-input {
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  font-family: var(--font-family);
-  font-size: var(--font-size-xs);
-  color: var(--text-primary);
-  background: var(--bg-primary);
-  border: var(--border-width-sm) solid var(--border-input);
-  border-radius: var(--radius-sm);
-  transition: var(--transition-practical);
-}
-
-.vce-node-input:focus {
-  outline: none;
-  border-color: var(--color-action);
-}
-
-.vce-node-select {
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  padding-right: var(--space-6);
-  font-family: var(--font-family);
-  font-size: var(--font-size-xs);
-  color: var(--text-primary);
-  background: var(--bg-primary);
-  border: var(--border-width-sm) solid var(--border-input);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: var(--transition-practical);
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23677483' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right var(--space-2) center;
-}
-
-.vce-node-select:focus {
-  outline: none;
-  border-color: var(--color-action);
-}
-
-.vce-node-checkbox {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  cursor: pointer;
-}
-
-.vce-node-checkbox input[type="checkbox"] {
-  width: 14px;
-  height: 14px;
-  margin: 0;
-  accent-color: var(--color-action);
-  cursor: pointer;
-}
-
-.vce-node-checkbox-label {
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
-}
-
-/* ===========================================
- * Node Resizer (when resizable)
- * =========================================== */
-
-.vce-node--resizable {
-  width: 100%;
-  height: 100%;
-}
-
-/* ===========================================
- * React Flow Overrides
- * =========================================== */
-
-/* Node wrapper */
-.react-flow__node {
-  /* Reset default React Flow styles */
-}
-
-.react-flow__node-custom {
-  /* Custom node type */
-}
-
 /* Handle positioning */
-.react-flow__handle {
-  width: 12px;
-  height: 12px;
-  border-radius: var(--radius-round);
-}
-
-.react-flow__handle-left {
-  left: -6px;
-}
-
-.react-flow__handle-right {
-  right: -6px;
-}
-
-/* Edge styles */
-.react-flow__edge-path {
-  stroke: var(--border-secondary);
-  stroke-width: 2;
-}
-
-.react-flow__edge.selected .react-flow__edge-path {
-  stroke: var(--color-action);
-}
-
-.react-flow__edge:hover .react-flow__edge-path {
-  stroke: var(--color-action-hover);
-}
-
-/* Controls */
-.react-flow__controls {
-  background: var(--bg-primary);
-  border: var(--border-width-sm) solid var(--border-primary);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
-  overflow: hidden;
-}
-
-.react-flow__controls-button {
-  background: var(--bg-primary);
-  border-bottom: var(--border-width-sm) solid var(--border-primary);
-  color: var(--text-secondary);
-  width: 32px;
-  height: 32px;
-  transition: var(--transition-practical);
-}
-
-.react-flow__controls-button:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-.react-flow__controls-button:last-child {
-  border-bottom: none;
-}
-
-.react-flow__controls-button svg {
-  max-width: 14px;
-  max-height: 14px;
-  fill: currentColor;
-}
-
-/* Minimap */
-.react-flow__minimap {
-  background: var(--bg-secondary);
-  border: var(--border-width-sm) solid var(--border-primary);
-  border-radius: var(--radius-lg);
-}
-
-.react-flow__minimap-mask {
-  fill: var(--canvas-minimap-mask);
-}
-
-/* Canvas background */
-.react-flow__background {
-  background: var(--canvas-bg);
-}
-
-.react-flow__background pattern circle {
-  fill: var(--canvas-dots);
-}
+.react-flow__handle-left { left: -6px; }
+.react-flow__handle-right { right: -6px; }
 
 /* ===========================================
- * Edge Delete Button
+ * Node Form Fields
  * =========================================== */
 
-.vce-edge-delete-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-bold);
-  color: var(--text-secondary);
-  background: var(--bg-primary);
-  border: var(--border-width-sm) solid var(--border-primary);
-  border-radius: var(--radius-round);
-  cursor: pointer;
-  transition: var(--transition-practical);
-  position: absolute;
-  transform: translate(-50%, -50%);
+.vce-node-field {
+  margin-bottom: var(--space-3);
 }
 
-.vce-edge-delete-btn:hover {
-  background: var(--color-error);
-  border-color: var(--color-error);
-  color: var(--text-inverse);
+.vce-node-field:last-child {
+  margin-bottom: 0;
+}
+
+.vce-node-field-label {
+  display: block;
+  margin-bottom: var(--space-1);
+}
+
+/* Compact inputs for nodes */
+.vce-node-input-wrapper,
+.vce-node-select-wrapper {
+  width: 100%;
+}
+
+.vce-node-input-beacon input,
+.vce-node-select-beacon input {
+  min-height: 28px !important;
+  font-size: var(--font-size-xs) !important;
 }
 
 /* ===========================================
- * Rule Group Node (Special Complex Node)
+ * Node Sections (Collapsible)
+ * =========================================== */
+
+.vce-node-section {
+  margin-top: var(--space-2);
+  border-top: 1px solid var(--node-border);
+  padding-top: var(--space-2);
+}
+
+.vce-node-section:first-child {
+  margin-top: 0;
+  border-top: none;
+  padding-top: 0;
+}
+
+.vce-node-section-header {
+  cursor: pointer;
+  padding: var(--space-1) 0;
+}
+
+.vce-node-section-content {
+  margin-top: var(--space-2);
+}
+
+/* ===========================================
+ * Rule Group Node
  * =========================================== */
 
 .vce-rule-group {
   min-width: 280px;
 }
 
-.vce-rule-group-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-
 .vce-rule-group-header[data-collapsed="true"] {
   border-radius: calc(var(--radius-lg) - 1px);
-}
-
-.vce-rule-group-header-left {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.vce-rule-group-header-right {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
 }
 
 .vce-rule-group-name-input {
   background: transparent;
   border: none;
-  font-weight: var(--font-weight-semibold);
+  font-weight: 600;
   font-size: 13px;
   color: var(--node-header-text);
   outline: none;
@@ -487,42 +262,11 @@
   opacity: 0.5;
 }
 
-.vce-rule-group-logic-select {
-  /* Remove wrapper styling - let the Select control handle it */
-}
-
-/* Style the Select control in the header to blend with the colored background */
-.vce-rule-group-logic-select .vce-select__control {
-  background: rgba(255, 255, 255, 0.15);
-  border: none;
-  min-height: 26px;
-  cursor: pointer;
-}
-
-.vce-rule-group-logic-select .vce-select__control:hover {
-  background: rgba(255, 255, 255, 0.25);
-}
-
-.vce-rule-group-logic-select .vce-select__single-value {
-  color: var(--node-header-text);
-  font-weight: var(--font-weight-semibold);
-  font-size: 12px;
-}
-
-.vce-rule-group-logic-select .vce-select__indicator {
-  color: var(--node-header-text);
-  padding: 4px;
-}
-
-.vce-rule-group-logic-select .vce-select__indicator-separator {
-  display: none;
-}
-
 .vce-rule-group-ports {
   display: flex;
   justify-content: space-between;
   padding: var(--space-2) var(--space-4);
-  border-bottom: var(--border-width-sm) solid var(--node-border);
+  border-bottom: 1px solid var(--node-border);
 }
 
 .vce-rule-group-ports-left,
@@ -564,7 +308,7 @@
 
 .vce-rule-group-condition {
   background: var(--bg-tertiary);
-  border: var(--border-width-sm) solid var(--border-primary);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
   padding: var(--space-3);
   padding-top: var(--space-4);
@@ -585,29 +329,6 @@
   z-index: 1;
 }
 
-.vce-rule-group-condition-remove {
-  position: absolute;
-  top: var(--space-2);
-  right: var(--space-2);
-  width: 20px;
-  height: 20px;
-  border: none;
-  background: transparent;
-  color: var(--text-disabled);
-  cursor: pointer;
-  padding: 0;
-  border-radius: var(--radius-sm);
-  transition: var(--transition-efficient);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.vce-rule-group-condition-remove:hover {
-  color: var(--color-error);
-  background: var(--bg-hover);
-}
-
 .vce-rule-group-condition-fields {
   display: flex;
   gap: var(--space-2);
@@ -615,7 +336,6 @@
   flex-wrap: wrap;
 }
 
-/* Field containers with labels */
 .vce-rule-group-field {
   display: flex;
   flex-direction: column;
@@ -628,50 +348,11 @@
   letter-spacing: 0.3px;
 }
 
-.vce-rule-group-field--field {
-  min-width: 100px;
-  flex: 0 0 auto;
-}
-
-.vce-rule-group-field--operator {
-  min-width: 90px;
-  flex: 0 0 auto;
-}
-
-.vce-rule-group-field--value {
-  flex: 1;
-  min-width: 100px;
-}
-
-.vce-rule-group-field--header {
-  width: 80px;
-  flex: 0 0 auto;
-}
-
-.vce-rule-group-field--bool {
-  flex: 0 0 auto;
-}
-
-/* Boolean toggle styling */
-.vce-rule-group-bool-toggle {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  height: 28px;
-  padding: 0 var(--space-2);
-  background: var(--bg-primary);
-  border: var(--border-width-sm) solid var(--border-input);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: var(--font-size-xs);
-}
-
-.vce-rule-group-bool-toggle input[type="checkbox"] {
-  width: 14px;
-  height: 14px;
-  margin: 0;
-  accent-color: var(--color-action);
-}
+.vce-rule-group-field--field { min-width: 100px; flex: 0 0 auto; }
+.vce-rule-group-field--operator { min-width: 90px; flex: 0 0 auto; }
+.vce-rule-group-field--value { flex: 1; min-width: 100px; }
+.vce-rule-group-field--header { width: 80px; flex: 0 0 auto; }
+.vce-rule-group-field--bool { flex: 0 0 auto; }
 
 .vce-rule-group-add-btn {
   margin-top: var(--space-3);
@@ -679,161 +360,46 @@
 }
 
 /* ===========================================
- * Beacon Component Overrides (Compact Sizing)
+ * React Flow Controls & Minimap
  * =========================================== */
 
-/* TextInput - compact size for nodes */
-.vce-node-input-wrapper {
-  width: 100%;
+.react-flow__controls {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
 }
 
-.vce-node-input-beacon {
-  width: 100%;
-}
-
-.vce-node-input-beacon input {
-  min-height: 28px !important;
-  padding: var(--space-2) var(--space-3) !important;
-  font-size: var(--font-size-xs) !important;
-}
-
-/* Switch - smaller scale for nodes */
-.vce-node-checkbox {
-  margin-top: var(--space-1);
-}
-
-.vce-node-checkbox .beacon-switch {
-  transform: scale(0.85);
-  transform-origin: left center;
-}
-
-/* Port labels - ensure proper height for Handle alignment */
-.vce-port-rows {
-  padding: var(--space-2) var(--space-4);
-}
-
-.vce-port-column {
-  display: flex;
-  flex-direction: column;
-}
-
-.vce-port-column--right {
-  text-align: right;
-}
-
-.vce-port-label {
-  height: 28px;
-  display: flex;
-  align-items: center;
-  line-height: 28px;
-}
-
-.vce-port-column--right .vce-port-label {
-  justify-content: flex-end;
-}
-
-/* NodeField spacing */
-.vce-node-field {
-  margin-bottom: var(--space-3);
-}
-
-.vce-node-field:last-child {
-  margin-bottom: 0;
-}
-
-.vce-node-field-label {
-  display: block;
-  margin-bottom: var(--space-1);
-}
-
-/* NodeSection styling */
-.vce-node-section {
-  margin-top: var(--space-2);
-  border-top: var(--border-width-sm) solid var(--node-border);
-  padding-top: var(--space-2);
-}
-
-.vce-node-section:first-child {
-  margin-top: 0;
-  border-top: none;
-  padding-top: 0;
-}
-
-.vce-node-section-header {
-  cursor: pointer;
-  padding: var(--space-1) 0;
-}
-
-.vce-node-section-icon {
-  opacity: 0.6;
-}
-
-.vce-node-section-title {
+.react-flow__controls-button {
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-primary);
   color: var(--text-secondary);
+  width: 32px;
+  height: 32px;
 }
 
-.vce-node-section-content {
-  margin-top: var(--space-2);
-}
-
-/* Beacon Text color inheritance for node headers */
-.vce-node-header .beacon-text {
-  color: var(--node-header-text);
-}
-
-/* Beacon Box needs position relative for Handle positioning */
-.vce-node {
-  position: relative;
-}
-
-/* ===========================================
- * Select Dropdown Dark Mode Styles
- * (react-select with classNamePrefix="vce-select")
- * =========================================== */
-
-[data-theme="dark"] .vce-select__control {
-  background: var(--bg-secondary);
-  border-color: var(--border-input);
-}
-
-[data-theme="dark"] .vce-select__control:hover {
-  border-color: var(--border-input-hover);
-}
-
-[data-theme="dark"] .vce-select__single-value {
+.react-flow__controls-button:hover {
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
-[data-theme="dark"] .vce-select__indicator {
-  color: var(--text-secondary);
+.react-flow__controls-button:last-child {
+  border-bottom: none;
 }
 
-[data-theme="dark"] .vce-select__menu {
+.react-flow__controls-button svg {
+  max-width: 14px;
+  max-height: 14px;
+  fill: currentColor;
+}
+
+.react-flow__minimap {
   background: var(--bg-secondary);
   border: 1px solid var(--border-primary);
-  box-shadow: var(--shadow-lg);
+  border-radius: var(--radius-lg);
 }
 
-[data-theme="dark"] .vce-select__option {
-  background: transparent;
-  color: var(--text-primary);
-}
-
-[data-theme="dark"] .vce-select__option:hover,
-[data-theme="dark"] .vce-select__option--is-focused {
-  background: var(--bg-tertiary);
-}
-
-[data-theme="dark"] .vce-select__option--is-selected {
-  background: var(--color-action);
-  color: var(--text-inverse);
-}
-
-[data-theme="dark"] .vce-select__input-container,
-[data-theme="dark"] .vce-select__input {
-  color: var(--text-primary) !important;
-}
-
-[data-theme="dark"] .vce-select__placeholder {
-  color: var(--text-disabled);
+.react-flow__minimap-mask {
+  fill: var(--canvas-minimap-mask);
 }
