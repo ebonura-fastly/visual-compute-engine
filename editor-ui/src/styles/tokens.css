@@ -122,15 +122,30 @@
   --border-input: var(--color-gray-40);
   --border-input-hover: var(--color-gray-50);
 
-  /* Status */
-  --color-success: var(--color-green-60);
+  /* Status - aligned with Uniform admin theme */
+  --color-success: var(--color-green-70);
+  --color-success-hover: var(--color-green-80);
   --color-success-surface: var(--color-green-10);
-  --color-error: var(--color-red-50);
+  --color-success-surface-hover: var(--color-green-20);
+  --color-success-border: var(--color-green-70);
+
+  --color-error: var(--color-red-60);
+  --color-error-hover: var(--color-red-70);
   --color-error-surface: var(--color-red-10);
-  --color-warning: var(--color-yellow-60);
+  --color-error-surface-hover: var(--color-red-20);
+  --color-error-border: var(--color-red-60);
+
+  --color-warning: var(--color-yellow-70);
+  --color-warning-hover: var(--color-yellow-80);
   --color-warning-surface: var(--color-yellow-10);
+  --color-warning-surface-hover: var(--color-yellow-20);
+  --color-warning-border: var(--color-yellow-70);
+
   --color-info: var(--color-blue-60);
+  --color-info-hover: var(--color-blue-70);
   --color-info-surface: var(--color-blue-10);
+  --color-info-surface-hover: var(--color-blue-20);
+  --color-info-border: var(--color-blue-60);
 
   /* ===========================================
    * Node Category Colors (using data-viz palette)
@@ -265,7 +280,7 @@
 }
 
 /* ===========================================
- * Dark Theme
+ * Dark Theme - aligned with Uniform admin theme
  * =========================================== */
 [data-theme="dark"] {
   /* Backgrounds */
@@ -273,11 +288,11 @@
   --bg-secondary: var(--color-gray-90);
   --bg-tertiary: var(--color-gray-80);
   --bg-hover: var(--color-gray-80);
-  --bg-disabled: var(--color-gray-70);
+  --bg-disabled: var(--color-gray-80);
 
-  /* Text */
-  --text-primary: var(--color-gray-10);
-  --text-primary-hover: var(--color-gray-0);
+  /* Text - Uniform uses gray-0 for primary text in dark mode */
+  --text-primary: var(--color-gray-0);
+  --text-primary-hover: var(--color-gray-10);
   --text-secondary: var(--color-gray-40);
   --text-secondary-hover: var(--color-gray-30);
   --text-disabled: var(--color-gray-50);
@@ -298,11 +313,30 @@
   --border-input: var(--color-gray-60);
   --border-input-hover: var(--color-gray-50);
 
-  /* Status surfaces (with opacity for dark mode) */
-  --color-success-surface: rgba(57, 181, 47, 0.2);
-  --color-error-surface: rgba(233, 25, 12, 0.2);
-  --color-warning-surface: rgba(255, 168, 0, 0.2);
-  --color-info-surface: rgba(0, 103, 209, 0.2);
+  /* Status - Uniform dark mode semantic colors */
+  --color-success: var(--color-green-50);
+  --color-success-hover: var(--color-green-40);
+  --color-success-surface: var(--color-green-90);
+  --color-success-surface-hover: var(--color-green-80);
+  --color-success-border: var(--color-green-50);
+
+  --color-error: var(--color-red-40);
+  --color-error-hover: var(--color-red-30);
+  --color-error-surface: var(--color-red-90);
+  --color-error-surface-hover: var(--color-red-80);
+  --color-error-border: var(--color-red-50);
+
+  --color-warning: var(--color-yellow-40);
+  --color-warning-hover: var(--color-yellow-30);
+  --color-warning-surface: var(--color-yellow-90);
+  --color-warning-surface-hover: var(--color-yellow-80);
+  --color-warning-border: var(--color-yellow-50);
+
+  --color-info: var(--color-blue-40);
+  --color-info-hover: var(--color-blue-30);
+  --color-info-surface: var(--color-blue-90);
+  --color-info-surface-hover: var(--color-blue-80);
+  --color-info-border: var(--color-blue-40);
 
   /* Node colors (adjusted for dark mode) */
   --node-input-body: var(--color-gray-90);
