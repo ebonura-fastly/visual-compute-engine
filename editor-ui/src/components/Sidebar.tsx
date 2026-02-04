@@ -2067,7 +2067,6 @@ function FastlyTab({
                   )}
                 </>
               )}
-            </div>
           </div>
           </>
         )
