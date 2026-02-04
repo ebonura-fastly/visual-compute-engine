@@ -427,13 +427,24 @@ body {
   justify-content: center;
 }
 
-/* Filter Popover */
+/* Filter Popover - ensure it renders above sidebar */
 .vce-filter-popover {
   min-width: 200px;
   background: var(--bg-primary);
   border: 1px solid var(--border-primary);
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Beacon PopOver portal - render above sidebar
+   Portal containers are appended to body with emotion-generated classes */
+body > div[class*="css-"] {
+  z-index: 9999 !important;
+}
+
+/* Ensure the popover content has proper background in dark mode */
+.vce-filter-popover {
+  background: var(--bg-primary) !important;
 }
 
 .vce-filter-header {

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ReactFlow,
   Controls,
@@ -133,6 +133,30 @@ function Flow() {
   const handleLoadRules = useCallback((newNodes: Node[], newEdges: Edge[]) => {
     setNodes(newNodes)
     setEdges(newEdges)
+  }, [])
+
+  // Ctrl/Cmd+A to select all nodes
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Check for Ctrl+A (Windows/Linux) or Cmd+A (Mac)
+      if ((event.ctrlKey || event.metaKey) && event.key === 'a') {
+        // Only handle if focus is on the React Flow canvas (not in input fields)
+        const activeElement = document.activeElement
+        const isInputFocused = activeElement instanceof HTMLInputElement ||
+          activeElement instanceof HTMLTextAreaElement ||
+          activeElement instanceof HTMLSelectElement ||
+          activeElement?.getAttribute('contenteditable') === 'true'
+
+        if (!isInputFocused) {
+          event.preventDefault()
+          setNodes((nds) => nds.map((node) => ({ ...node, selected: true })))
+          setEdges((eds) => eds.map((edge) => ({ ...edge, selected: true })))
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
   }, [])
 
   return (

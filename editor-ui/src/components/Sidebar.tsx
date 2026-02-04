@@ -317,11 +317,11 @@ function TemplatesTab({
 
         <PopOver
           active={filterOpen}
-          attach="bottom-end"
+          attach="bottom-start"
           portal
           onClose={() => setFilterOpen(false)}
           content={
-            <Box className="vce-filter-popover" padding="sm">
+            <Box className="vce-filter-popover" padding="md">
               <div className="vce-filter-header">
                 <Text size="sm" style={{ fontWeight: 600 }}>Filter by Category</Text>
                 {activeFilterCount > 0 && (
