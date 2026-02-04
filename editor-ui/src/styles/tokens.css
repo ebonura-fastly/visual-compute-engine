@@ -1,411 +1,156 @@
 /*
  * VCE Design Tokens
  *
- * Based on Uniform design system (@fastly/beacon-tokens)
- * Source: /Users/ebonura/Desktop/repos/uniform/packages/beacon-tokens
+ * This file defines VCE-specific CSS variables that extend beacon-tokens.
+ * Primitive colors and semantic tokens come from @fastly/beacon-tokens.
+ * We only define VCE-specific variables here (nodes, ports, canvas).
  */
 
 :root {
   /* ===========================================
-   * Primitive Colors - from Uniform beacon-tokens
-   * =========================================== */
-
-  /* Gray Scale */
-  --color-gray-0: #ffffff;
-  --color-gray-10: #f3f4f6;
-  --color-gray-20: #dce0e4;
-  --color-gray-30: #bac1c9;
-  --color-gray-40: #9ea8b2;
-  --color-gray-50: #818e9c;
-  --color-gray-60: #677483;
-  --color-gray-70: #515b66;
-  --color-gray-80: #3a424a;
-  --color-gray-90: #24282d;
-  --color-gray-100: #121417;
-
-  /* Blue Scale (Primary Action) */
-  --color-blue-0: #ffffff;
-  --color-blue-10: #f0f7ff;
-  --color-blue-20: #d1e8ff;
-  --color-blue-30: #9eceff;
-  --color-blue-40: #51a7ff;
-  --color-blue-50: #0580ff;
-  --color-blue-60: #0067d1;
-  --color-blue-70: #004e9e;
-  --color-blue-80: #00356b;
-  --color-blue-90: #002142;
-
-  /* Green Scale (Success) */
-  --color-green-0: #ffffff;
-  --color-green-10: #f2fcf2;
-  --color-green-20: #c1eebd;
-  --color-green-30: #8fe088;
-  --color-green-40: #5dd354;
-  --color-green-50: #39b52f;
-  --color-green-60: #2f9527;
-  --color-green-70: #25741e;
-  --color-green-80: #1a5416;
-  --color-green-90: #10330d;
-
-  /* Red Scale (Error) */
-  --color-red-0: #ffffff;
-  --color-red-10: #fef1f1;
-  --color-red-20: #fcbfbb;
-  --color-red-30: #f87f77;
-  --color-red-40: #f5483d;
-  --color-red-50: #e9190c;
-  --color-red-60: #bd140a;
-  --color-red-70: #921008;
-  --color-red-80: #660b05;
-  --color-red-90: #3a0603;
-
-  /* Yellow Scale (Warning) */
-  --color-yellow-0: #ffffff;
-  --color-yellow-10: #fff5e0;
-  --color-yellow-20: #ffe1a8;
-  --color-yellow-30: #ffce70;
-  --color-yellow-40: #ffbb38;
-  --color-yellow-50: #ffa800;
-  --color-yellow-60: #cc8600;
-  --color-yellow-70: #996500;
-  --color-yellow-80: #664300;
-  --color-yellow-90: #332200;
-
-  /* Brand */
-  --color-logo: #e9190c;
-
-  /* Data Visualization Palette - for node categories */
-  --color-data-viz-1: #008885;
-  --color-data-viz-2: #33BDA0;
-  --color-data-viz-3: #FDDFB3;
-  --color-data-viz-4: #FF9DA0;
-  --color-data-viz-5: #88DBF2;
-  --color-data-viz-6: #008A6D;
-  --color-data-viz-7: #B280D8;
-  --color-data-viz-8: #006A8D;
-  --color-data-viz-9: #DCB9F6;
-  --color-data-viz-10: #EA8446;
-  --color-data-viz-11: #A24271;
-  --color-data-viz-12: #98EDA1;
-
-  /* ===========================================
-   * Semantic Colors
-   * =========================================== */
-
-  /* Backgrounds/Surfaces */
-  --bg-primary: var(--color-gray-0);
-  --bg-secondary: var(--color-gray-10);
-  --bg-tertiary: var(--color-gray-20);
-  --bg-hover: var(--color-gray-10);
-  --bg-disabled: var(--color-gray-20);
-
-  /* Text */
-  --text-primary: var(--color-gray-80);
-  --text-primary-hover: var(--color-gray-90);
-  --text-secondary: var(--color-gray-60);
-  --text-secondary-hover: var(--color-gray-70);
-  --text-disabled: var(--color-gray-50);
-  --text-inverse: var(--color-gray-0);
-
-  /* Action (interactive elements) */
-  --color-action: var(--color-blue-60);
-  --color-action-hover: var(--color-blue-70);
-  --color-action-active: var(--color-blue-80);
-  --color-action-focus: var(--color-blue-30);
-  --color-action-surface: var(--color-blue-10);
-  --color-action-surface-hover: var(--color-blue-20);
-
-  /* Borders */
-  --border-primary: var(--color-gray-20);
-  --border-primary-hover: var(--color-gray-30);
-  --border-secondary: var(--color-gray-40);
-  --border-input: var(--color-gray-40);
-  --border-input-hover: var(--color-gray-50);
-
-  /* Status - aligned with Uniform admin theme */
-  --color-success: var(--color-green-70);
-  --color-success-hover: var(--color-green-80);
-  --color-success-surface: var(--color-green-10);
-  --color-success-surface-hover: var(--color-green-20);
-  --color-success-border: var(--color-green-70);
-
-  --color-error: var(--color-red-60);
-  --color-error-hover: var(--color-red-70);
-  --color-error-surface: var(--color-red-10);
-  --color-error-surface-hover: var(--color-red-20);
-  --color-error-border: var(--color-red-60);
-
-  --color-warning: var(--color-yellow-70);
-  --color-warning-hover: var(--color-yellow-80);
-  --color-warning-surface: var(--color-yellow-10);
-  --color-warning-surface-hover: var(--color-yellow-20);
-  --color-warning-border: var(--color-yellow-70);
-
-  --color-info: var(--color-blue-60);
-  --color-info-hover: var(--color-blue-70);
-  --color-info-surface: var(--color-blue-10);
-  --color-info-surface-hover: var(--color-blue-20);
-  --color-info-border: var(--color-blue-60);
-
-  /* ===========================================
-   * Node Category Colors
-   * Using saturated colors that support white text
-   * (following Beacon's --COLOR--*--surface--tertiary pattern)
+   * Node Category Colors - Light Mode
+   * Custom colors for VCE node types
    * =========================================== */
 
   /* Input nodes - coral red (entry points) */
   --node-input-header: #c75050;
-  --node-input-header-text: var(--color-gray-0);
+  --node-input-header-text: #ffffff;
   --node-input-surface: #fef1f1;
   --node-input-surface-text: #a33a3a;
-  --node-input-body: var(--color-gray-0);
-  --node-input-border: var(--color-gray-30);
-  --node-input-text: var(--color-gray-80);
+  --node-input-body: var(--COLOR--surface--primary);
+  --node-input-border: var(--COLOR--border--primary);
+  --node-input-text: var(--COLOR--text--primary);
 
   /* Condition nodes - teal cyan (decision points) */
   --node-condition-header: #0088a3;
-  --node-condition-header-text: var(--color-gray-0);
+  --node-condition-header-text: #ffffff;
   --node-condition-surface: #e6f7fa;
   --node-condition-surface-text: #006d83;
-  --node-condition-body: var(--color-gray-0);
-  --node-condition-border: var(--color-gray-30);
-  --node-condition-text: var(--color-gray-80);
+  --node-condition-body: var(--COLOR--surface--primary);
+  --node-condition-border: var(--COLOR--border--primary);
+  --node-condition-text: var(--COLOR--text--primary);
 
   /* Logic nodes - forest green (logical operations) */
   --node-logic-header: #2d8a3e;
-  --node-logic-header-text: var(--color-gray-0);
+  --node-logic-header-text: #ffffff;
   --node-logic-surface: #f0faf2;
   --node-logic-surface-text: #1f6a2d;
-  --node-logic-body: var(--color-gray-0);
-  --node-logic-border: var(--color-gray-30);
-  --node-logic-text: var(--color-gray-80);
+  --node-logic-body: var(--COLOR--surface--primary);
+  --node-logic-border: var(--COLOR--border--primary);
+  --node-logic-text: var(--COLOR--text--primary);
 
   /* Action nodes - purple (responses/blocks) */
   --node-action-header: #7c4daf;
-  --node-action-header-text: var(--color-gray-0);
+  --node-action-header-text: #ffffff;
   --node-action-surface: #f5f0fa;
   --node-action-surface-text: #5c3a82;
-  --node-action-body: var(--color-gray-0);
-  --node-action-border: var(--color-gray-30);
-  --node-action-text: var(--color-gray-80);
+  --node-action-body: var(--COLOR--surface--primary);
+  --node-action-border: var(--COLOR--border--primary);
+  --node-action-text: var(--COLOR--text--primary);
 
   /* Routing nodes - deep teal (backend routing) */
   --node-routing-header: #007872;
-  --node-routing-header-text: var(--color-gray-0);
+  --node-routing-header-text: #ffffff;
   --node-routing-surface: #e6f5f4;
   --node-routing-surface-text: #005c57;
-  --node-routing-body: var(--color-gray-0);
-  --node-routing-border: var(--color-gray-30);
-  --node-routing-text: var(--color-gray-80);
+  --node-routing-body: var(--COLOR--surface--primary);
+  --node-routing-border: var(--COLOR--border--primary);
+  --node-routing-text: var(--COLOR--text--primary);
 
-  /* Port type colors */
-  --port-bool: var(--color-data-viz-7);
-  --port-string: var(--color-data-viz-2);
-  --port-number: var(--color-blue-50);
-  --port-geometry: var(--color-data-viz-5);
-  --port-any: var(--color-gray-50);
+  /* ===========================================
+   * Port Type Colors
+   * Data visualization colors from beacon-tokens
+   * =========================================== */
+  --port-bool: var(--COLOR--data-viz--seven);
+  --port-string: var(--COLOR--data-viz--two);
+  --port-number: #0580ff; /* blue-50 equivalent */
+  --port-geometry: var(--COLOR--data-viz--five);
+  --port-any: #818e9c; /* gray-50 equivalent */
 
-  /* Canvas */
-  --canvas-bg: var(--color-gray-10);
-  --canvas-dots: var(--color-gray-30);
+  /* ===========================================
+   * Canvas Colors
+   * =========================================== */
+  --canvas-bg: var(--COLOR--surface--secondary);
+  --canvas-dots: var(--COLOR--border--primary--hover);
   --canvas-minimap-mask: rgba(243, 244, 246, 0.8);
 
   /* ===========================================
-   * Layout - Spacing Scale
+   * VCE-Specific Shadows
    * =========================================== */
-  --space-0: 0;
-  --space-1: 2px;
-  --space-2: 4px;
-  --space-3: 8px;
-  --space-4: 12px;
-  --space-5: 16px;
-  --space-6: 24px;
-  --space-7: 32px;
-  --space-8: 40px;
-  --space-9: 48px;
-  --space-10: 64px;
+  --vce-shadow-sm: 0 1px 2px rgba(11, 13, 14, 0.25);
+  --vce-shadow-md: 0 4px 8px rgba(11, 13, 14, 0.25);
+  --vce-shadow-lg: 0 8px 16px rgba(11, 13, 14, 0.25);
+  --vce-shadow-xl: 0 16px 32px rgba(11, 13, 14, 0.35);
 
   /* ===========================================
-   * Layout - Border Radius
+   * VCE Focus Ring
    * =========================================== */
-  --radius-sm: 2px;
-  --radius-md: 4px;
-  --radius-lg: 8px;
-  --radius-xl: 16px;
-  --radius-round: 10000px;
+  --vce-focus-ring: 0 0 0 2px var(--COLOR--surface--primary), 0 0 0 4px var(--COLOR--action--border);
 
   /* ===========================================
-   * Layout - Border Width
+   * VCE Motion Tokens
    * =========================================== */
-  --border-width-sm: 1px;
-  --border-width-md: 2px;
-  --border-width-lg: 4px;
-
-  /* ===========================================
-   * Typography
-   * =========================================== */
-  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  --font-family-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
-
-  /* Font sizes */
-  --font-size-xs: 10px;
-  --font-size-sm: 12px;
-  --font-size-md: 14px;
-  --font-size-lg: 16px;
-  --font-size-xl: 18px;
-  --font-size-xxl: 24px;
-  --font-size-xxxl: 32px;
-
-  /* Font weights */
-  --font-weight-regular: 400;
-  --font-weight-semibold: 600;
-  --font-weight-bold: 700;
-  --font-weight-extrabold: 800;
-
-  /* Line heights */
-  --line-height-xs: 16px;
-  --line-height-sm: 20px;
-  --line-height-md: 20px;
-  --line-height-lg: 24px;
-  --line-height-xl: 28px;
-
-  /* ===========================================
-   * Motion
-   * =========================================== */
-  --duration-efficient: 80ms;
-  --duration-practical: 130ms;
-  --duration-expressive: 210ms;
-
-  --easing-default: cubic-bezier(0.42, 0, 0.58, 1);
-
-  --transition-efficient: all var(--duration-efficient) var(--easing-default);
-  --transition-practical: all var(--duration-practical) var(--easing-default);
-  --transition-expressive: all var(--duration-expressive) var(--easing-default);
-
-  /* ===========================================
-   * Shadows
-   * =========================================== */
-  --shadow-sm: 0 1px 2px rgba(11, 13, 14, 0.25);
-  --shadow-md: 0 4px 8px rgba(11, 13, 14, 0.25);
-  --shadow-lg: 0 8px 16px rgba(11, 13, 14, 0.25);
-  --shadow-xl: 0 16px 32px rgba(11, 13, 14, 0.35);
-
-  /* ===========================================
-   * Focus
-   * =========================================== */
-  --focus-ring: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--color-action);
+  --vce-duration-efficient: 80ms;
+  --vce-duration-practical: 130ms;
+  --vce-duration-expressive: 210ms;
+  --vce-easing-default: cubic-bezier(0.42, 0, 0.58, 1);
 }
 
 /* ===========================================
- * Dark Theme - aligned with Uniform (beacon-mantine)
- * Uses body[data-prefers-color-scheme="dark"] to match useColorScheme hook
+ * Dark Mode Overrides
+ * Uses beacon-mantine's color scheme selector
  * =========================================== */
 body[data-prefers-color-scheme="dark"] {
-  /* Backgrounds */
-  --bg-primary: var(--color-gray-100);
-  --bg-secondary: var(--color-gray-90);
-  --bg-tertiary: var(--color-gray-80);
-  --bg-hover: var(--color-gray-80);
-  --bg-disabled: var(--color-gray-80);
-
-  /* Text - Uniform uses gray-0 for primary text in dark mode */
-  --text-primary: var(--color-gray-0);
-  --text-primary-hover: var(--color-gray-10);
-  --text-secondary: var(--color-gray-40);
-  --text-secondary-hover: var(--color-gray-30);
-  --text-disabled: var(--color-gray-50);
-  --text-inverse: var(--color-gray-100);
-
-  /* Action */
-  --color-action: var(--color-blue-50);
-  --color-action-hover: var(--color-blue-40);
-  --color-action-active: var(--color-blue-30);
-  --color-action-focus: var(--color-blue-60);
-  --color-action-surface: var(--color-blue-90);
-  --color-action-surface-hover: var(--color-blue-80);
-
-  /* Borders */
-  --border-primary: var(--color-gray-80);
-  --border-primary-hover: var(--color-gray-70);
-  --border-secondary: var(--color-gray-60);
-  --border-input: var(--color-gray-60);
-  --border-input-hover: var(--color-gray-50);
-
-  /* Status - Uniform dark mode semantic colors */
-  --color-success: var(--color-green-50);
-  --color-success-hover: var(--color-green-40);
-  --color-success-surface: var(--color-green-90);
-  --color-success-surface-hover: var(--color-green-80);
-  --color-success-border: var(--color-green-50);
-
-  --color-error: var(--color-red-40);
-  --color-error-hover: var(--color-red-30);
-  --color-error-surface: var(--color-red-90);
-  --color-error-surface-hover: var(--color-red-80);
-  --color-error-border: var(--color-red-50);
-
-  --color-warning: var(--color-yellow-40);
-  --color-warning-hover: var(--color-yellow-30);
-  --color-warning-surface: var(--color-yellow-90);
-  --color-warning-surface-hover: var(--color-yellow-80);
-  --color-warning-border: var(--color-yellow-50);
-
-  --color-info: var(--color-blue-40);
-  --color-info-hover: var(--color-blue-30);
-  --color-info-surface: var(--color-blue-90);
-  --color-info-surface-hover: var(--color-blue-80);
-  --color-info-border: var(--color-blue-40);
-
   /* Node colors (adjusted for dark mode)
    * Headers keep category colors, use white text for contrast
    * Surface colors are darker tints for badges
    */
-  --node-input-header-text: var(--color-gray-0);
+  --node-input-header-text: #ffffff;
   --node-input-surface: #3d2020;
   --node-input-surface-text: #f5a8a8;
-  --node-input-body: var(--color-gray-90);
-  --node-input-border: var(--color-gray-70);
-  --node-input-text: var(--color-gray-10);
+  --node-input-body: var(--COLOR--surface--secondary);
+  --node-input-border: var(--COLOR--border--primary--hover);
+  --node-input-text: var(--COLOR--text--primary);
 
-  --node-condition-header-text: var(--color-gray-0);
+  --node-condition-header-text: #ffffff;
   --node-condition-surface: #1a3a40;
   --node-condition-surface-text: #7fd4e6;
-  --node-condition-body: var(--color-gray-90);
-  --node-condition-border: var(--color-gray-70);
-  --node-condition-text: var(--color-gray-10);
+  --node-condition-body: var(--COLOR--surface--secondary);
+  --node-condition-border: var(--COLOR--border--primary--hover);
+  --node-condition-text: var(--COLOR--text--primary);
 
-  --node-logic-header-text: var(--color-gray-0);
+  --node-logic-header-text: #ffffff;
   --node-logic-surface: #1a3320;
   --node-logic-surface-text: #8fd4a0;
-  --node-logic-body: var(--color-gray-90);
-  --node-logic-border: var(--color-gray-70);
-  --node-logic-text: var(--color-gray-10);
+  --node-logic-body: var(--COLOR--surface--secondary);
+  --node-logic-border: var(--COLOR--border--primary--hover);
+  --node-logic-text: var(--COLOR--text--primary);
 
-  --node-action-header-text: var(--color-gray-0);
+  --node-action-header-text: #ffffff;
   --node-action-surface: #2d2040;
   --node-action-surface-text: #c4a8e8;
-  --node-action-body: var(--color-gray-90);
-  --node-action-border: var(--color-gray-70);
-  --node-action-text: var(--color-gray-10);
+  --node-action-body: var(--COLOR--surface--secondary);
+  --node-action-border: var(--COLOR--border--primary--hover);
+  --node-action-text: var(--COLOR--text--primary);
 
-  --node-routing-header-text: var(--color-gray-0);
+  --node-routing-header-text: #ffffff;
   --node-routing-surface: #1a3533;
   --node-routing-surface-text: #7fd4d0;
-  --node-routing-body: var(--color-gray-90);
-  --node-routing-border: var(--color-gray-70);
-  --node-routing-text: var(--color-gray-0);
+  --node-routing-body: var(--COLOR--surface--secondary);
+  --node-routing-border: var(--COLOR--border--primary--hover);
+  --node-routing-text: var(--COLOR--text--primary);
 
   /* Canvas */
-  --canvas-bg: var(--color-gray-100);
-  --canvas-dots: var(--color-gray-70);
+  --canvas-bg: var(--COLOR--surface--primary);
+  --canvas-dots: var(--COLOR--border--secondary);
   --canvas-minimap-mask: rgba(18, 20, 23, 0.8);
 
   /* Shadows (stronger for dark mode) */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.5);
-  --shadow-xl: 0 16px 32px rgba(0, 0, 0, 0.6);
+  --vce-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --vce-shadow-md: 0 4px 8px rgba(0, 0, 0, 0.4);
+  --vce-shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.5);
+  --vce-shadow-xl: 0 16px 32px rgba(0, 0, 0, 0.6);
 
   /* Focus */
-  --focus-ring: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--color-action);
+  --vce-focus-ring: 0 0 0 2px var(--COLOR--surface--primary), 0 0 0 4px var(--COLOR--action--border);
 }

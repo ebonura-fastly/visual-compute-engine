@@ -2,11 +2,17 @@
  * VCE Minimal Styles
  * Only layout + React Flow overrides
  * All component styling comes from beacon-mantine
+ * Uses beacon-tokens CSS variables
  */
 
 /* ===========================================
  * App Layout
  * =========================================== */
+
+/* TopNav height token - matches Uniform */
+:root {
+  --SIZE--TopNav--height: 68px;
+}
 
 .vce-app {
   width: 100vw;
@@ -20,6 +26,7 @@
   display: flex;
   flex: 1;
   min-height: 0;
+  margin-top: var(--SIZE--TopNav--height); /* Account for fixed header */
 }
 
 .vce-canvas {
@@ -28,13 +35,13 @@
 }
 
 /* ===========================================
- * Sidebar Layout
+ * Sidebar Layout - Uniform styling
  * =========================================== */
 
 .vce-sidebar {
   width: 280px;
-  background: var(--bg-primary);
-  border-right: 1px solid var(--border-primary);
+  background: var(--COLOR--surface--primary);
+  border-right: 1px solid var(--COLOR--border--primary);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -42,6 +49,7 @@
 
 .vce-sidebar-tabs-container {
   flex-shrink: 0;
+  border-bottom: 1px solid var(--COLOR--border--primary);
 }
 
 .vce-sidebar-content {
@@ -49,7 +57,7 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  padding: var(--space-3);
+  padding: var(--LAYOUT--spacing--4);
 }
 
 /* Components Tab */
@@ -58,30 +66,30 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  gap: var(--space-3);
+  gap: var(--LAYOUT--spacing--2);
 }
 
-/* Draggable node items */
+/* Draggable node items - Uniform styling */
 .vce-node-item {
-  padding: var(--space-3);
-  padding-left: calc(var(--space-3) + 3px);
-  background: var(--bg-primary);
-  border: 1px solid var(--border-primary);
+  padding: var(--LAYOUT--spacing--3) var(--LAYOUT--spacing--4);
+  padding-left: calc(var(--LAYOUT--spacing--4) + 3px);
+  background: var(--COLOR--surface--primary);
+  border: 1px solid var(--COLOR--border--primary);
   border-left: 3px solid var(--node-input-header);
-  border-radius: 6px;
+  border-radius: 4px;
   cursor: grab;
-  transition: all 0.15s ease;
+  transition: all 130ms ease-in-out;
 }
 
 .vce-node-item:hover {
-  background: var(--bg-secondary);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  background: var(--COLOR--surface--secondary);
+  border-color: var(--COLOR--border--primary--hover);
 }
 
 .vce-node-item:active {
   cursor: grabbing;
-  opacity: 0.7;
+  background: var(--COLOR--action--surface--selected);
+  border-color: var(--COLOR--action--border);
 }
 
 /* Node item category colors */
@@ -91,30 +99,34 @@
 .vce-node-item[data-category="action"] { border-left-color: var(--node-action-header); }
 .vce-node-item[data-category="routing"] { border-left-color: var(--node-routing-header); }
 
-/* Template cards */
+/* Template cards - Uniform styling */
 .vce-template-card {
-  padding: var(--space-3);
-  background: var(--bg-primary);
-  border: 1px solid var(--border-primary);
-  border-radius: 6px;
+  padding: var(--LAYOUT--spacing--3) var(--LAYOUT--spacing--4);
+  background: var(--COLOR--surface--primary);
+  border: 1px solid var(--COLOR--border--primary);
+  border-radius: 4px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 130ms ease-in-out;
 }
 
 .vce-template-card:hover {
-  background: var(--bg-secondary);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  background: var(--COLOR--surface--secondary);
+  border-color: var(--COLOR--border--primary--hover);
+}
+
+.vce-template-card:active {
+  background: var(--COLOR--action--surface--selected);
+  border-color: var(--COLOR--action--border);
 }
 
 /* Fastly Tab */
 .vce-fastly-content {
-  padding: var(--space-3);
+  padding: var(--LAYOUT--spacing--4);
   display: flex;
   flex-direction: column;
   height: 100%;
   overflow: auto;
-  gap: var(--space-3);
+  gap: var(--LAYOUT--spacing--3);
 }
 
 /* ===========================================
@@ -130,13 +142,13 @@
 }
 
 .react-flow__edge-path {
-  stroke: var(--border-secondary);
+  stroke: var(--COLOR--border--secondary);
   stroke-width: 2;
 }
 
 .react-flow__edge.selected .react-flow__edge-path,
 .react-flow__edge:hover .react-flow__edge-path {
-  stroke: var(--color-action);
+  stroke: var(--COLOR--action--border);
 }
 
 /* ===========================================
@@ -145,35 +157,35 @@
 
 .vce-panel-toggle {
   position: absolute;
-  bottom: var(--space-3);
+  bottom: var(--LAYOUT--spacing--3);
   z-index: 10;
 }
 
 .vce-panel-toggle--test {
-  left: var(--space-3);
+  left: var(--LAYOUT--spacing--3);
 }
 
 .vce-panel-toggle--deploy {
-  right: var(--space-3);
+  right: var(--LAYOUT--spacing--3);
 }
 
 .vce-panel {
   position: absolute;
-  bottom: var(--space-3);
+  bottom: var(--LAYOUT--spacing--3);
   width: 350px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-primary);
-  border-radius: 8px;
-  box-shadow: var(--shadow-lg);
+  background: var(--COLOR--surface--primary);
+  border: 1px solid var(--COLOR--border--primary);
+  border-radius: var(--LAYOUT--border-radius--lg);
+  box-shadow: var(--vce-shadow-lg);
   z-index: 10;
 }
 
 .vce-panel--test {
-  left: var(--space-3);
+  left: var(--LAYOUT--spacing--3);
 }
 
 .vce-panel--deploy {
-  right: var(--space-3);
+  right: var(--LAYOUT--spacing--3);
   width: 380px;
   max-height: calc(100vh - 80px);
   overflow: auto;
@@ -189,7 +201,7 @@
   left: 50%;
   transform: translate(-50%, -50%);
   text-align: center;
-  padding: var(--space-8);
+  padding: var(--LAYOUT--spacing--8);
   max-width: 480px;
   pointer-events: none;
   z-index: 5;
@@ -200,13 +212,13 @@
  * =========================================== */
 
 .vce-edge-delete-btn {
-  background: var(--bg-secondary) !important;
-  border: 1px solid var(--border-primary) !important;
+  background: var(--COLOR--surface--secondary) !important;
+  border: 1px solid var(--COLOR--border--primary) !important;
 }
 
 .vce-edge-delete-btn:hover {
-  background: var(--color-error) !important;
-  border-color: var(--color-error) !important;
+  background: var(--COLOR--error--surface--tertiary) !important;
+  border-color: var(--COLOR--error--border) !important;
   color: white !important;
 }
 
@@ -215,5 +227,5 @@
  * =========================================== */
 
 .vce-text-muted {
-  color: var(--text-disabled);
+  color: var(--COLOR--text--disabled);
 }

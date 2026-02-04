@@ -19,13 +19,12 @@ import {
   SelectionMode,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Flex, Text, Switch, Box, Stack, Title, Pill } from '@fastly/beacon-mantine'
-import { IconFastlyLogo } from '@fastly/beacon-icons/logos'
+import { Box, Stack, Title, Text, Flex, Pill } from '@fastly/beacon-mantine'
 
 import { ConditionNode, ActionNode, RequestNode, RateLimitNode, TransformNode, BackendNode, LoggingNode, RuleGroupNode, HeaderNode, CacheNode } from './components/nodes'
 import { DeletableEdge } from './components/edges'
 import { Sidebar } from './components/Sidebar'
-import { useTheme } from './styles/theme'
+import { VCEHeader } from './components/VCEHeader'
 
 const nodeTypes: NodeTypes = {
   request: RequestNode,
@@ -80,7 +79,6 @@ function Flow() {
   const [nodes, setNodes] = useState<Node[]>([])
   const [edges, setEdges] = useState<Edge[]>([])
   const { screenToFlowPosition } = useReactFlow()
-  const { isDark, toggle } = useTheme()
 
   const onNodesChange: OnNodesChange = useCallback(
     (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
@@ -161,18 +159,7 @@ function Flow() {
 
   return (
     <>
-      {/* Header */}
-      <header className="vce-header">
-        <Flex align="center" gap="sm">
-          <IconFastlyLogo width={24} height={24} />
-          <Text size="sm" weight="bold" className="vce-header-title">Visual Compute Engine</Text>
-        </Flex>
-        <Flex align="center" gap="sm">
-          <Text size="xs">Light</Text>
-          <Switch checked={isDark} onChange={() => toggle()} size="sm" />
-          <Text size="xs">Dark</Text>
-        </Flex>
-      </header>
+      <VCEHeader />
 
       {/* Main Content */}
       <div className="vce-main">
