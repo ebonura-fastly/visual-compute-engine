@@ -13,7 +13,11 @@ import {
   Popover,
   Checkbox,
   Stack,
+  Tabs,
+  ActionIcon,
+  Badge,
 } from '@fastly/beacon-mantine'
+import { IconClose, IconSearch, IconFilter } from '@fastly/beacon-icons'
 import { allTemplates, instantiateTemplate, type RuleTemplate } from '../templates'
 
 type SidebarProps = {
@@ -159,22 +163,18 @@ export function Sidebar({ nodes, edges, onAddTemplate, onLoadRules }: SidebarPro
 
   return (
     <aside className="vce-sidebar">
-      {/* Tab Bar */}
-      <div className="vce-sidebar-tabs">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            className="vce-sidebar-tab"
-            data-active={activeTab === tab.id}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <Tabs value={activeTab} onChange={(v) => setActiveTab(v as Tab)} className="vce-sidebar-tabs-container">
+        <Tabs.List className="vce-sidebar-tabs">
+          {tabs.map((tab) => (
+            <Tabs.Tab key={tab.id} value={tab.id} className="vce-sidebar-tab">
+              {tab.label}
+            </Tabs.Tab>
+          ))}
+        </Tabs.List>
+      </Tabs>
 
       {/* Tab Content */}
-      <div className="vce-sidebar-content">
+      <Box className="vce-sidebar-content">
         {activeTab === 'components' && (
           <ComponentsTab
             nodeTypes={nodeTypes}
@@ -202,7 +202,7 @@ export function Sidebar({ nodes, edges, onAddTemplate, onLoadRules }: SidebarPro
             setLocalModeState={setLocalModeState}
           />
         )}
-      </div>
+      </Box>
     </aside>
   )
 }
@@ -226,26 +226,26 @@ function ComponentsTab({
 }) {
   return (
     <Box className="vce-components-tab">
-      <div className="vce-node-list">
+      <Stack className="vce-node-list" gap="xs">
         {nodeTypes.map(({ type, label, category, description }) => (
-          <div
+          <Box
             key={type}
             draggable
             onDragStart={(e) => onDragStart(e, type)}
             className="vce-node-item"
             data-category={category}
           >
-            <div className="vce-node-item-header">
-              <span className="vce-node-item-title">{label}</span>
-              <span className="vce-node-item-category">{category}</span>
-            </div>
-            <span className="vce-node-item-description">{description}</span>
-          </div>
+            <Flex className="vce-node-item-header" justify="space-between" align="center">
+              <Text size="sm" weight="bold" className="vce-node-item-title">{label}</Text>
+              <Badge size="xs" variant="light" className="vce-node-item-category">{category}</Badge>
+            </Flex>
+            <Text size="xs" className="vce-node-item-description vce-text-muted">{description}</Text>
+          </Box>
         ))}
-      </div>
-      <div className="vce-sidebar-hint">
+      </Stack>
+      <Text size="xs" className="vce-sidebar-hint vce-text-muted">
         Drag components onto the canvas
-      </div>
+      </Text>
     </Box>
   )
 }
@@ -289,31 +289,28 @@ function TemplatesTab({
   return (
     <Box className="vce-templates-tab">
       {/* Search with Filter Icon */}
-      <div className="vce-search-filter-row">
-        <div className="vce-search-wrapper">
-          <svg className="vce-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.35-4.35" />
-          </svg>
-          <input
-            type="text"
-            className="vce-search-input"
-            placeholder="Search templates..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          {searchQuery && (
-            <button
-              className="vce-search-clear"
-              onClick={() => setSearchQuery('')}
-              aria-label="Clear search"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 6 6 18M6 6l12 12" />
-              </svg>
-            </button>
-          )}
-        </div>
+      <Flex className="vce-search-filter-row" gap="xs" align="center">
+        <TextInput
+          className="vce-search-input"
+          placeholder="Search templates..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          size="sm"
+          leftSection={<IconSearch width={14} height={14} />}
+          rightSection={
+            searchQuery ? (
+              <ActionIcon
+                variant="subtle"
+                size="xs"
+                onClick={() => setSearchQuery('')}
+                aria-label="Clear search"
+              >
+                <IconClose width={12} height={12} />
+              </ActionIcon>
+            ) : null
+          }
+          style={{ flex: 1 }}
+        />
 
         <Popover
           opened={filterOpen}
@@ -323,20 +320,26 @@ function TemplatesTab({
           shadow="md"
         >
           <Popover.Target>
-            <button
+            <ActionIcon
               ref={filterButtonRef}
-              className="vce-filter-button"
-              data-active={filterOpen || activeFilterCount > 0}
+              variant={filterOpen || activeFilterCount > 0 ? 'filled' : 'outline'}
               onClick={() => setFilterOpen(!filterOpen)}
               aria-label="Filter templates"
+              className="vce-filter-button"
+              style={{ position: 'relative' }}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-              </svg>
+              <IconFilter width={14} height={14} />
               {activeFilterCount > 0 && (
-                <span className="vce-filter-badge">{activeFilterCount}</span>
+                <Badge
+                  size="xs"
+                  variant="filled"
+                  className="vce-filter-badge"
+                  style={{ position: 'absolute', top: -4, right: -4 }}
+                >
+                  {activeFilterCount}
+                </Badge>
               )}
-            </button>
+            </ActionIcon>
           </Popover.Target>
           <Popover.Dropdown>
             <Flex className="vce-filter-header" justify="space-between" align="center" style={{ marginBottom: '12px' }}>
@@ -360,61 +363,61 @@ function TemplatesTab({
             </Stack>
           </Popover.Dropdown>
         </Popover>
-      </div>
+      </Flex>
 
       {/* Active Filters Display */}
       {activeFilterCount > 0 && (
-        <div className="vce-active-filters">
+        <Flex className="vce-active-filters" gap="xs" wrap="wrap">
           {Array.from(selectedCategories).map((key) => (
-            <span key={key} className="vce-active-filter-tag">
+            <Pill
+              key={key}
+              variant="default"
+              withRemoveButton
+              onRemove={() => toggleCategory(key)}
+              className="vce-active-filter-tag"
+            >
               {categoryLabels[key]}
-              <button onClick={() => toggleCategory(key)} aria-label={`Remove ${categoryLabels[key]} filter`}>
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                  <path d="M18 6 6 18M6 6l12 12" />
-                </svg>
-              </button>
-            </span>
+            </Pill>
           ))}
-        </div>
+        </Flex>
       )}
 
       {/* Templates List */}
-      <div className="vce-templates-list">
+      <Stack className="vce-templates-list" gap="xs">
         {filteredTemplates.map((template) => (
-          <div
+          <Box
             key={template.id}
             className="vce-template-card"
             onClick={() => onAddTemplate(template)}
           >
-            <div className="vce-template-header">
-              <span className="vce-template-name">{template.name}</span>
-              <span className="vce-template-category">{categoryLabels[template.category] || template.category}</span>
-            </div>
-            <span className="vce-template-description">{template.description}</span>
+            <Flex className="vce-template-header" justify="space-between" align="center">
+              <Text size="sm" weight="bold" className="vce-template-name">{template.name}</Text>
+              <Badge size="xs" variant="light" className="vce-template-category">
+                {categoryLabels[template.category] || template.category}
+              </Badge>
+            </Flex>
+            <Text size="xs" className="vce-template-description vce-text-muted">{template.description}</Text>
             {template.tags.length > 0 && (
-              <div className="vce-template-tags">
+              <Flex className="vce-template-tags" gap="xs" style={{ marginTop: '8px' }}>
                 {template.tags.slice(0, 3).map((tag) => (
-                  <span key={tag} className="vce-template-tag">{tag}</span>
+                  <Badge key={tag} size="xs" variant="outline" className="vce-template-tag">{tag}</Badge>
                 ))}
-              </div>
+              </Flex>
             )}
-          </div>
+          </Box>
         ))}
         {filteredTemplates.length === 0 && (
-          <div className="vce-templates-empty">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
+          <Stack className="vce-templates-empty" align="center" gap="sm">
+            <IconSearch width={24} height={24} className="vce-text-muted" />
             <Text size="sm" className="vce-text-muted">No templates found</Text>
             {(searchQuery || activeFilterCount > 0) && (
-              <button className="vce-templates-reset" onClick={clearFilters}>
+              <Button variant="subtle" size="compact-sm" onClick={clearFilters}>
                 Clear filters
-              </button>
+              </Button>
             )}
-          </div>
+          </Stack>
         )}
-      </div>
+      </Stack>
     </Box>
   )
 }
