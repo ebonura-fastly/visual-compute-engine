@@ -592,9 +592,9 @@
 }
 
 .alert--local {
-  background: #2d1b4e;
-  border-color: #7c3aed;
-  color: #a78bfa;
+  background: color-mix(in srgb, var(--color-data-viz-7) 15%, var(--bg-primary));
+  border-color: var(--color-data-viz-7);
+  color: var(--color-data-viz-9);
 }
 
 /* ===========================================
@@ -780,28 +780,28 @@
 .mb-4 { margin-bottom: var(--space-4); }
 
 /* ===========================================
- * Local Dev Mode Button (Purple)
+ * Local Dev Mode Button (Uniform data-viz purple)
  * =========================================== */
 
 .btn[data-variant="local"] {
-  background: #7c3aed;
-  border-color: #7c3aed;
-  color: #FFFFFF;
+  background: var(--color-data-viz-7);
+  border-color: var(--color-data-viz-7);
+  color: var(--color-gray-100);
 }
 
 .btn[data-variant="local"]:hover:not(:disabled) {
-  background: #6d28d9;
-  border-color: #6d28d9;
+  background: #9a60c4;
+  border-color: #9a60c4;
 }
 
 .btn[data-variant="local-outline"] {
-  background: #2d1b4e;
-  border-color: #7c3aed;
-  color: #a78bfa;
+  background: color-mix(in srgb, var(--color-data-viz-7) 15%, var(--bg-primary));
+  border-color: var(--color-data-viz-7);
+  color: var(--color-data-viz-9);
 }
 
 .btn[data-variant="local-outline"]:hover:not(:disabled) {
-  background: #3d2b5e;
+  background: color-mix(in srgb, var(--color-data-viz-7) 25%, var(--bg-primary));
 }
 
 /* ===========================================
