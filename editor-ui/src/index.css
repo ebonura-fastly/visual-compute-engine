@@ -50,7 +50,6 @@
 .vce-sidebar-tabs-container {
   flex-shrink: 0;
   border-bottom: 1px solid var(--COLOR--border--primary);
-  padding-top: var(--LAYOUT--spacing--3);
 }
 
 .vce-sidebar-tabs {
@@ -61,7 +60,7 @@
 .vce-sidebar-tab {
   flex: 1;
   justify-content: center;
-  padding: var(--LAYOUT--spacing--2) 0 var(--LAYOUT--spacing--5) 0 !important;
+  padding: var(--LAYOUT--spacing--4) 0 !important;
 }
 
 .vce-sidebar-content {
