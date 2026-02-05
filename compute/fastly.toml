@@ -24,10 +24,6 @@ use_ssl = true
 format = "json"
 file = "security-rules.json"
 
-[local_server.config_stores.vce_shared_secret]
-format = "inline-toml"
-contents.compute_auth_key = "development-secret-key-123"
-
 [local_server.backends]
 [local_server.backends.protected_origin]
 url = "https://httpbingo.org"

@@ -39,6 +39,9 @@ export type BackendNodeData = {
   tcpKeepaliveTime?: number      // seconds
   tcpKeepaliveInterval?: number  // seconds
   tcpKeepaliveProbes?: number
+
+  // Edge Auth - HMAC signature added to requests for origin verification
+  edgeAuthSecret?: string        // shared secret for Edge-Auth header
 }
 
 const tlsVersionOptions = [
@@ -299,6 +302,17 @@ export function BackendNode({ id, data, selected }: NodeProps) {
             </NodeField>
           </>
         )}
+      </NodeSection>
+
+      {/* Edge Auth Section */}
+      <NodeSection title="Origin Verification">
+        <NodeField label="HMAC Secret" hint="Adds Edge-Auth header: timestamp,pop,signature. Origin can verify requests came from Fastly edge.">
+          <NodeInput
+            value={nodeData.edgeAuthSecret || ''}
+            onChange={(v) => updateData('edgeAuthSecret', v)}
+            placeholder="(disabled)"
+          />
+        </NodeField>
       </NodeSection>
     </NodeBase>
   )

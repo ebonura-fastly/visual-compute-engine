@@ -158,6 +158,10 @@ pub struct BackendNodeData {
     pub tcp_keepalive_interval: Option<u64>,
     #[serde(rename = "tcpKeepaliveProbes")]
     pub tcp_keepalive_probes: Option<u32>,
+
+    // Edge Auth - HMAC signature for origin verification
+    #[serde(rename = "edgeAuthSecret")]
+    pub edge_auth_secret: Option<String>,
 }
 
 /// Node data for rateLimit nodes.
@@ -174,22 +178,6 @@ pub struct RateLimitNodeData {
     /// Header name when keyBy is "header"
     #[serde(rename = "headerName")]
     pub header_name: Option<String>,
-}
-
-/// Node data for listLookup nodes.
-#[allow(dead_code)]
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct ListLookupNodeData {
-    #[serde(rename = "listType")]
-    pub list_type: String,
-    pub field: String,
-}
-
-/// Node data for logic nodes.
-#[allow(dead_code)]
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct LogicNodeData {
-    pub operation: String,
 }
 
 /// Node data for header nodes.

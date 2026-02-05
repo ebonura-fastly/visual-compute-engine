@@ -6,9 +6,20 @@
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use flate2::read::GzDecoder;
+use serde::Deserialize;
 use std::io::Read;
 
 use super::types::GraphPayload;
+
+/// Combined payload stored in config store.
+/// Key is just the service ID, value is this JSON structure.
+#[derive(Debug, Deserialize)]
+pub struct VcePayload {
+    pub version: String,
+    #[serde(rename = "deployedAt")]
+    pub deployed_at: String,
+    pub rules_packed: String,
+}
 
 /// Errors that can occur during graph loading.
 #[derive(Debug, thiserror::Error)]
@@ -27,6 +38,9 @@ pub enum LoadError {
 
     #[error("Invalid graph format: missing nodes or edges")]
     InvalidFormat,
+
+    #[error("Empty rules_packed in payload")]
+    EmptyRules,
 }
 
 /// Decompresses and parses graph payload from Config Store.
@@ -64,16 +78,28 @@ pub fn decompress_graph(packed: &str) -> Result<GraphPayload, LoadError> {
 
 /// Loads graph from Config Store.
 ///
-/// Expects a "rules_packed" key containing the compressed graph payload.
+/// Key format: just the `service_id`
+/// Value format: JSON with { version, deployedAt, rules_packed }
 pub fn load_graph_from_store(
     store: &fastly::ConfigStore,
+    service_id: &str,
 ) -> Result<GraphPayload, LoadError> {
-    let packed = store
-        .get("rules_packed")
-        .ok_or_else(|| LoadError::KeyNotFound("rules_packed".to_string()))?;
+    // Key is just the service ID
+    let payload_json = store
+        .get(service_id)
+        .ok_or_else(|| LoadError::KeyNotFound(service_id.to_string()))?;
 
-    println!("Loading graph from config store...");
-    decompress_graph(&packed)
+    println!("Loading graph for service {}...", service_id);
+
+    // Parse the VcePayload JSON
+    let payload: VcePayload = serde_json::from_str(&payload_json)?;
+    println!("Payload version: {}, deployed: {}", payload.version, payload.deployed_at);
+
+    if payload.rules_packed.is_empty() {
+        return Err(LoadError::EmptyRules);
+    }
+
+    decompress_graph(&payload.rules_packed)
 }
 
 #[cfg(test)]

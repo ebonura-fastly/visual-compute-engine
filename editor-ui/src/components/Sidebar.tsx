@@ -20,9 +20,10 @@ import {
   Anchor,
   Title,
   Divider,
-  Skeleton,
+  Tooltip,
+  Loader,
 } from '@fastly/beacon-mantine'
-import { IconClose, IconSearch, IconFilter, IconLink, IconUnlink, IconCode, IconSwap, IconSync, IconCopy, IconUpload, IconAttentionFilled, IconCheckCircleFilled } from '@fastly/beacon-icons'
+import { IconClose, IconSearch, IconFilter, IconLink, IconUnlink, IconCode, IconSwap, IconSync, IconCopy, IconUpload, IconAttentionFilled, IconCheckCircleFilled, IconDownload } from '@fastly/beacon-icons'
 import { allTemplates, instantiateTemplate, type RuleTemplate } from '../templates'
 
 type SidebarProps = {
@@ -127,6 +128,7 @@ export function Sidebar({ nodes, edges, canonicalGraph, onAddTemplate, onLoadRul
     configStores: [] as ConfigStore[],
     selectedService: stored.selectedService,
     selectedConfigStore: stored.selectedConfigStore,
+    sharedStoreId: null,
     engineVersion: null,
     engineVersionLoading: false,
   })
@@ -449,7 +451,7 @@ function TemplatesTab({
 }
 
 // Fastly Tab - extracted from FastlyPanel
-import { compressRules, decompressRules, convertComputeRulesToGraph, validateGraph, type PackedRules } from '../utils/ruleConverter'
+import { compressRules, decompressRules, validateGraph } from '../utils/ruleConverter'
 import { buildVcePackage } from '../lib/fastlyPackage'
 
 type FastlyService = {
@@ -476,17 +478,17 @@ type ConfigStore = {
   hasVceManifest?: boolean
 }
 
-type VceManifest = {
-  version: string
-  engine: string
-  deployedAt: string
-  serviceId: string
+// Combined payload stored under single key: {serviceId}
+type VcePayload = {
+  version: string       // Engine version at deploy time
+  deployedAt: string    // ISO timestamp
+  rules_packed: string  // Compressed graph data
 }
 
-const VCE_MANIFEST_KEY = 'vce_manifest'
-const VCE_ENGINE_VERSION = '1.1.5'
+const VCE_ENGINE_VERSION = '1.1.7'
 const FASTLY_API_BASE = 'https://api.fastly.com'
 const STORAGE_KEY = 'vce-fastly'
+const VCE_SHARED_STORE_NAME = 'vce-shared-rules'
 
 interface EdgeCheckResult {
   totalPops: number
@@ -603,92 +605,6 @@ async function getServiceConfigStoreLink(
   }
 }
 
-interface ConfigStoreStatus {
-  status: 'not_linked' | 'linked_no_manifest' | 'linked_outdated' | 'linked_ok' | 'error'
-  storeId?: string
-  storeName?: string
-  manifestVersion?: string
-  currentVersion: string
-  message: string
-}
-
-async function getConfigStoreStatus(
-  serviceId: string,
-  version: number,
-  configStores: ConfigStore[],
-  apiToken: string,
-  fastlyFetch: (endpoint: string, options?: RequestInit) => Promise<unknown>
-): Promise<ConfigStoreStatus> {
-  const currentVersion = VCE_ENGINE_VERSION
-
-  try {
-    const link = await getServiceConfigStoreLink(serviceId, version, fastlyFetch)
-    if (!link) {
-      return {
-        status: 'not_linked',
-        currentVersion,
-        message: 'No Config Store linked to this service'
-      }
-    }
-
-    const store = configStores.find(s => s.id === link.resourceId)
-    const storeName = store?.name || link.resourceId
-
-    try {
-      const response = await fetch(
-        `${FASTLY_API_BASE}/resources/stores/config/${link.resourceId}/item/${VCE_MANIFEST_KEY}`,
-        { headers: { 'Fastly-Key': apiToken } }
-      )
-
-      if (!response.ok) {
-        return {
-          status: 'linked_no_manifest',
-          storeId: link.resourceId,
-          storeName,
-          currentVersion,
-          message: `Config Store "${storeName}" linked but missing VCE manifest`
-        }
-      }
-
-      const manifest = await response.json() as VceManifest
-
-      if (manifest.version !== currentVersion) {
-        return {
-          status: 'linked_outdated',
-          storeId: link.resourceId,
-          storeName,
-          manifestVersion: manifest.version,
-          currentVersion,
-          message: `Config Store "${storeName}" has VCE v${manifest.version} (v${currentVersion} available)`
-        }
-      }
-
-      return {
-        status: 'linked_ok',
-        storeId: link.resourceId,
-        storeName,
-        manifestVersion: manifest.version,
-        currentVersion,
-        message: `Config Store "${storeName}" linked with VCE v${manifest.version}`
-      }
-    } catch {
-      return {
-        status: 'linked_no_manifest',
-        storeId: link.resourceId,
-        storeName,
-        currentVersion,
-        message: `Config Store "${storeName}" linked but manifest not readable`
-      }
-    }
-  } catch (err) {
-    return {
-      status: 'error',
-      currentVersion,
-      message: `Error checking config store: ${err instanceof Error ? err.message : 'Unknown error'}`
-    }
-  }
-}
-
 async function computeRulesHash(rulesPacked: string): Promise<string> {
   const encoder = new TextEncoder()
   const data = encoder.encode(rulesPacked)
@@ -720,6 +636,7 @@ type FastlyState = {
   configStores: ConfigStore[]
   selectedService: string
   selectedConfigStore: string
+  sharedStoreId: string | null  // ID of vce-shared-rules store, null if doesn't exist
   engineVersion: EngineVersion
   engineVersionLoading: boolean
 }
@@ -757,7 +674,7 @@ function FastlyTab({
   isLocalRoute?: boolean
   onNavigate?: (path: string) => void
 }) {
-  const { apiToken, isConnected, services, configStores, selectedService, selectedConfigStore, engineVersion, engineVersionLoading } = fastlyState
+  const { apiToken, isConnected, services, configStores, selectedService, selectedConfigStore, sharedStoreId, engineVersion, engineVersionLoading } = fastlyState
   const { localMode, localServerAvailable, localComputeRunning, localEngineVersion, hasLoadedRules } = localModeState
 
   const updateLocalModeState = (updates: Partial<LocalModeState>) => {
@@ -779,17 +696,9 @@ function FastlyTab({
   const [createProgress, setCreateProgress] = useState<string | null>(null)
   const [engineUpdateProgress, setEngineUpdateProgress] = useState<string | null>(null)
   const [deployStatus, setDeployStatus] = useState<DeployStatus>('idle')
-  const [_deployProgress, setDeployProgress] = useState<string | null>(null)
-
-  const [storePreview, setStorePreview] = useState<{
-    storeId: string
-    items: Array<{ key: string; value: string; truncated: boolean }>
-    loading: boolean
-    error: string | null
-  } | null>(null)
-
-  const [configStoreStatus, setConfigStoreStatus] = useState<ConfigStoreStatus | null>(null)
-  const [configStoreStatusLoading, setConfigStoreStatusLoading] = useState(false)
+  const [deployProgress, setDeployProgress] = useState<string | null>(null)
+  const [resourceLinkInfo, setResourceLinkInfo] = useState<{ storeId: string; storeName: string } | null>(null)
+  const [fixingLink, setFixingLink] = useState(false)
 
   // Track deployed rules hash to detect modifications
   const [deployedRulesHash, setDeployedRulesHash] = useState<string | null>(null)
@@ -846,6 +755,40 @@ function FastlyTab({
       }
     }
   }, [routeServiceId, isConnected, services, selectedService])
+
+  // Refresh resource link info when service changes
+  useEffect(() => {
+    const refreshLinkInfo = async () => {
+      if (!selectedService || !isConnected || !apiToken) {
+        setResourceLinkInfo(null)
+        return
+      }
+
+      try {
+        // Get active version for the service
+        const versions = await fastlyFetch(`/service/${selectedService}/version`)
+        const activeVersion = versions.find((v: { active: boolean }) => v.active)?.number
+        if (!activeVersion) {
+          setResourceLinkInfo(null)
+          return
+        }
+
+        // Find the security_rules link
+        const actualLink = await getServiceConfigStoreLink(selectedService, activeVersion, fastlyFetch)
+        if (actualLink) {
+          const linkedStoreName = configStores.find(s => s.id === actualLink.resourceId)?.name || actualLink.resourceId
+          setResourceLinkInfo({ storeId: actualLink.resourceId, storeName: linkedStoreName })
+        } else {
+          setResourceLinkInfo(null)
+        }
+      } catch (err) {
+        console.log('[LinkInfo] Failed to refresh:', err)
+        setResourceLinkInfo(null)
+      }
+    }
+
+    refreshLinkInfo()
+  }, [selectedService, isConnected, apiToken, configStores])
 
   // Navigate when service selection changes (user-initiated)
   const navigateToService = useCallback((serviceId: string) => {
@@ -1031,63 +974,37 @@ function FastlyTab({
 
     try {
       const domain = generateDomainName(serviceName)
-      const response = await fetch(`https://${domain}/_version`, {
+      const url = `https://${domain}/_version`
+      console.log('[Version] Fetching from:', url)
+
+      const response = await fetch(url, {
         method: 'GET',
         headers: { 'Accept': 'application/json' },
       })
 
+      console.log('[Version] Response status:', response.status)
+
       if (response.ok) {
         const data = await response.json()
+        console.log('[Version] Response data:', data)
         if (data.engine && data.version) {
+          console.log('[Version] Engine detected:', data.engine, data.version)
           setEngineVersion(data)
         } else {
+          console.log('[Version] Missing engine or version in response')
           setEngineVersion(null)
         }
       } else {
+        console.log('[Version] Non-OK response:', response.status, response.statusText)
         setEngineVersion(null)
       }
     } catch (err) {
-      console.log('[Version] Failed to fetch engine version:', err)
+      console.error('[Version] Failed to fetch engine version:', err)
       setEngineVersion(null)
     } finally {
       setEngineVersionLoading(false)
     }
   }, [])
-
-  const fetchStorePreview = useCallback(async (storeId: string) => {
-    if (storePreview?.storeId === storeId && !storePreview.error) {
-      setStorePreview(null)
-      return
-    }
-
-    setStorePreview({ storeId, items: [], loading: true, error: null })
-
-    try {
-      const response = await fetch(`${FASTLY_API_BASE}/resources/stores/config/${storeId}/items?limit=100`, {
-        headers: { 'Fastly-Key': apiToken, 'Accept': 'application/json' },
-      })
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch items: ${response.status}`)
-      }
-
-      const data = await response.json()
-      const items = (data.data || []).map((item: { item_key: string; item_value?: string }) => ({
-        key: item.item_key,
-        value: item.item_value?.substring(0, 200) || '[no value]',
-        truncated: (item.item_value?.length || 0) > 200,
-      }))
-
-      setStorePreview({ storeId, items, loading: false, error: null })
-    } catch (err) {
-      setStorePreview({
-        storeId,
-        items: [],
-        loading: false,
-        error: err instanceof Error ? err.message : 'Failed to fetch',
-      })
-    }
-  }, [apiToken, storePreview])
 
   const handleUpdateEngine = async () => {
     const service = services.find(s => s.id === selectedService)
@@ -1167,7 +1084,7 @@ function FastlyTab({
 
       const domain = generateDomainName(service.name)
       const serviceUrl = `https://${domain}/_version`
-      const maxAttempts = 30
+      const maxAttempts = 60
       const pollInterval = 2000
 
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -1258,49 +1175,35 @@ function FastlyTab({
         name: s.name || s.attributes?.name || s.id,
       }))
 
-      const storesWithManifest: ConfigStore[] = []
-      for (const store of stores) {
+      // Find the shared VCE config store by name
+      const sharedStore = stores.find(s => s.name === VCE_SHARED_STORE_NAME)
+      let foundSharedStoreId: string | null = null
+
+      // Only check the shared store for service manifests
+      if (sharedStore) {
+        foundSharedStoreId = sharedStore.id
         try {
-          const itemsResponse = await fetch(`${FASTLY_API_BASE}/resources/stores/config/${store.id}/items?limit=100`, {
+          const itemsResponse = await fetch(`${FASTLY_API_BASE}/resources/stores/config/${sharedStore.id}/items?limit=100`, {
             headers: { 'Fastly-Key': apiToken, 'Accept': 'application/json' },
           })
 
-          if (!itemsResponse.ok) {
-            storesWithManifest.push(store)
-            continue
-          }
+          if (itemsResponse.ok) {
+            const itemsData = await itemsResponse.json()
+            const items = itemsData?.data || itemsData || []
 
-          const itemsData = await itemsResponse.json()
-          const items = itemsData?.data || itemsData || []
-          const hasManifestItem = items.some((item: any) => item.key === VCE_MANIFEST_KEY || item.item_key === VCE_MANIFEST_KEY)
-
-          if (!hasManifestItem) {
-            storesWithManifest.push(store)
-            continue
-          }
-
-          const response = await fetch(`${FASTLY_API_BASE}/resources/stores/config/${store.id}/item/${VCE_MANIFEST_KEY}`, {
-            headers: { 'Fastly-Key': apiToken, 'Accept': 'application/json' },
-          })
-
-          if (response.ok) {
-            const manifestData = await response.json()
-            if (manifestData?.value || manifestData?.item_value) {
-              const manifest: VceManifest = JSON.parse(manifestData.value || manifestData.item_value)
-              storesWithManifest.push({ ...store, hasVceManifest: true })
-              const serviceIdx = computeServices.findIndex(s => s.id === manifest.serviceId)
+            // Check for service ID keys (new format: key is just the service ID)
+            for (const item of items) {
+              const key = item.key || item.item_key || ''
+              // Key is the service ID directly
+              const serviceIdx = computeServices.findIndex(s => s.id === key)
               if (serviceIdx !== -1) {
                 computeServices[serviceIdx].isVceEnabled = true
-                computeServices[serviceIdx].linkedConfigStore = store.id
+                computeServices[serviceIdx].linkedConfigStore = sharedStore.id
               }
-            } else {
-              storesWithManifest.push(store)
             }
-          } else {
-            storesWithManifest.push(store)
           }
-        } catch {
-          storesWithManifest.push(store)
+        } catch (err) {
+          console.log('[ConfigStore] Error reading shared store:', err)
         }
       }
 
@@ -1310,6 +1213,7 @@ function FastlyTab({
         return a.name.localeCompare(b.name)
       })
 
+      // Mark services with VCE naming convention
       for (const service of computeServices) {
         if (!service.isVceEnabled && service.name.toLowerCase().startsWith('vce-')) {
           service.isVceEnabled = true
@@ -1318,8 +1222,9 @@ function FastlyTab({
 
       const vceServices = computeServices.filter(s => s.isVceEnabled)
       let serviceToSelect = selectedService
-      let storeToSelect = selectedConfigStore
+      let storeToSelect = ''
 
+      // Select service and store
       const previousService = computeServices.find(s => s.id === selectedService && s.isVceEnabled)
       if (previousService) {
         storeToSelect = previousService.linkedConfigStore || ''
@@ -1328,22 +1233,49 @@ function FastlyTab({
         storeToSelect = vceServices[0].linkedConfigStore || ''
       }
 
+      // If shared store exists, use it; otherwise storeToSelect stays empty
+      if (!storeToSelect && foundSharedStoreId) {
+        storeToSelect = foundSharedStoreId
+      }
+
       updateFastlyState({
         services: computeServices,
-        configStores: storesWithManifest,
+        configStores: stores,
         isConnected: true,
         selectedService: serviceToSelect,
         selectedConfigStore: storeToSelect,
+        sharedStoreId: foundSharedStoreId,
       })
       setStatus('Connected to Fastly')
       saveSettings({ apiToken, selectedService: serviceToSelect, selectedConfigStore: storeToSelect })
 
-      if (storeToSelect && onLoadRules) {
-        const serviceName = computeServices.find(s => s.id === serviceToSelect)?.name || ''
-        await loadRulesFromStore(storeToSelect, serviceName)
-        if (serviceName) {
-          fetchEngineVersion(serviceName)
+      // Always fetch engine version if we have a selected service
+      const serviceName = computeServices.find(s => s.id === serviceToSelect)?.name || ''
+      const serviceVersion = computeServices.find(s => s.id === serviceToSelect)?.version || 1
+      if (serviceName) {
+        console.log('[Connect] Fetching engine version for:', serviceName)
+        fetchEngineVersion(serviceName)
+
+        // Check actual resource link and store it for display
+        const actualLink = await getServiceConfigStoreLink(serviceToSelect, serviceVersion, fastlyFetch)
+        if (actualLink) {
+          const linkedStoreName = stores.find(s => s.id === actualLink.resourceId)?.name || actualLink.resourceId
+          setResourceLinkInfo({ storeId: actualLink.resourceId, storeName: linkedStoreName })
+          console.log(`[Connect] Service "${serviceName}" security_rules link points to: ${linkedStoreName} (${actualLink.resourceId})`)
+          if (actualLink.resourceId !== foundSharedStoreId) {
+            console.warn(`[Connect] WARNING: Link mismatch! Expected ${VCE_SHARED_STORE_NAME} but linked to ${linkedStoreName}`)
+          }
+        } else {
+          setResourceLinkInfo(null)
+          console.log(`[Connect] Service "${serviceName}" has no security_rules resource link`)
         }
+      } else {
+        console.log('[Connect] No service name found for:', serviceToSelect)
+      }
+
+      // Load rules from store if available
+      if (storeToSelect && onLoadRules) {
+        await loadRulesFromStore(storeToSelect, serviceToSelect, serviceName)
       }
 
       // Navigate to the selected service
@@ -1358,11 +1290,12 @@ function FastlyTab({
     }
   }
 
-  const loadRulesFromStore = async (storeId: string, serviceName: string) => {
+  const loadRulesFromStore = async (storeId: string, serviceId: string, serviceName: string) => {
     if (!onLoadRules) return
 
     try {
-      const url = `${FASTLY_API_BASE}/resources/stores/config/${storeId}/item/rules_packed`
+      // Key is just the service ID, value is VcePayload JSON
+      const url = `${FASTLY_API_BASE}/resources/stores/config/${storeId}/item/${encodeURIComponent(serviceId)}`
       console.log('[Load] Fetching from:', url)
       const response = await fetch(url, {
         headers: { 'Fastly-Key': apiToken, 'Accept': 'application/json' },
@@ -1370,31 +1303,21 @@ function FastlyTab({
       console.log('[Load] Response status:', response.status)
 
       if (response.ok) {
-        const rulesData = await response.json()
-        const compressedRules = rulesData?.value || rulesData?.item_value
+        const itemData = await response.json()
+        const itemValue = itemData?.value || itemData?.item_value
+        // Parse the VcePayload JSON
+        const payload: VcePayload = itemValue ? JSON.parse(itemValue) : null
+        const compressedRules = payload?.rules_packed
         if (compressedRules) {
           const decompressed = await decompressRules(compressedRules)
           const graphData = JSON.parse(decompressed)
 
           if (graphData.nodes && graphData.edges) {
-            console.log('[Load] Using new graph format - nodes:', graphData.nodes.length, 'edges:', graphData.edges.length)
+            console.log('[Load] Loaded graph - nodes:', graphData.nodes.length, 'edges:', graphData.edges.length)
             onLoadRules(graphData.nodes, graphData.edges)
             setStatus(`Loaded ${graphData.nodes.length} nodes from ${serviceName}`)
             // Flag to capture deployed hash from React state after render
             setShouldCaptureDeployedHash(true)
-          } else if (graphData.r && graphData.d) {
-            console.log('[Load] Using old packed rules format')
-            const { nodes: loadedNodes, edges: loadedEdges } = convertComputeRulesToGraph(graphData as PackedRules)
-            if (loadedNodes.length > 0) {
-              onLoadRules(loadedNodes, loadedEdges)
-              setStatus(`Loaded ${loadedNodes.length} nodes from ${serviceName}`)
-              // Flag to capture deployed hash from React state after render
-              setShouldCaptureDeployedHash(true)
-            } else {
-              onLoadRules([], [])
-              setStatus(`Selected ${serviceName} (no rules deployed yet)`)
-              setDeployedRulesHash(null)
-            }
           } else {
             onLoadRules([], [])
             setStatus(`Selected ${serviceName} (no rules deployed yet)`)
@@ -1426,6 +1349,7 @@ function FastlyTab({
       configStores: [],
       selectedService: '',
       selectedConfigStore: '',
+      sharedStoreId: null,
     })
     setStatus(null)
     saveSettings({ apiToken: '', selectedService: '', selectedConfigStore: '' })
@@ -1435,37 +1359,6 @@ function FastlyTab({
     }
     // Navigate to home
     navigateToHome()
-  }
-
-  const fetchConfigStoreStatus = async (serviceId: string) => {
-    const service = services.find(s => s.id === serviceId)
-    if (!service) {
-      setConfigStoreStatus(null)
-      return
-    }
-
-    setConfigStoreStatusLoading(true)
-    try {
-      const serviceData = await fastlyFetch(`/service/${serviceId}/details`)
-      const latestVersion = serviceData.versions?.[serviceData.versions.length - 1]?.number || 1
-
-      const status = await getConfigStoreStatus(
-        serviceId,
-        latestVersion,
-        configStores,
-        apiToken,
-        fastlyFetch
-      )
-      setConfigStoreStatus(status)
-    } catch (err) {
-      setConfigStoreStatus({
-        status: 'error',
-        currentVersion: VCE_ENGINE_VERSION,
-        message: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`
-      })
-    } finally {
-      setConfigStoreStatusLoading(false)
-    }
   }
 
   const handleServiceChange = async (serviceId: string) => {
@@ -1483,19 +1376,16 @@ function FastlyTab({
     navigateToService(serviceId)
 
     if (service?.name) {
+      console.log('[ServiceChange] Fetching engine version for:', service.name)
       fetchEngineVersion(service.name)
-    }
-
-    if (service && !service.linkedConfigStore) {
-      fetchConfigStoreStatus(serviceId)
     } else {
-      setConfigStoreStatus(null)
+      console.log('[ServiceChange] No service name found for:', serviceId)
     }
 
     if (linkedStore) {
       setLoading(true)
       setStatus('Loading rules from Config Store...')
-      await loadRulesFromStore(linkedStore, service?.name || '')
+      await loadRulesFromStore(linkedStore, serviceId, service?.name || '')
       setLoading(false)
     } else if (service && !service.isVceEnabled) {
       if (onLoadRules) {
@@ -1511,12 +1401,8 @@ function FastlyTab({
   }
 
   const handleRefreshService = async () => {
-    const service = services.find(s => s.id === selectedService)
-    if (!service) return
-
-    setStatus('Checking engine status...')
-    await fetchEngineVersion(service.name)
-    setStatus(`Engine status refreshed`)
+    // Full refresh: services list, config stores, and engine version
+    await handleConnect()
   }
 
   const handleSetupConfigStore = async () => {
@@ -1546,28 +1432,32 @@ function FastlyTab({
         versionToUse = clonedVersion.number
       }
 
-      const configStoreName = `${service.name}-rules`
+      // Use shared config store for all services
       const { id: configStoreId, created: storeCreated } = await findOrCreateConfigStore(
-        configStoreName,
+        VCE_SHARED_STORE_NAME,
         configStores,
         fastlyFetch
       )
-      setCreateProgress(storeCreated ? 'Linking Config Store to service...' : 'Using existing Config Store...')
+
+      setCreateProgress(storeCreated ? 'Linking shared Config Store to service...' : 'Using shared Config Store...')
 
       const existingLink = await getServiceConfigStoreLink(service.id, versionToUse, fastlyFetch)
-      if (!existingLink || existingLink.resourceId !== configStoreId) {
-        try {
-          await fastlyFetch(`/service/${service.id}/version/${versionToUse}/resource`, {
-            method: 'POST',
-            body: JSON.stringify({ resource_id: configStoreId, name: 'security_rules' }),
-          })
-        } catch (err) {
-          if (err instanceof Error && err.message.includes('409')) {
-            console.log('[ConfigStore] Store already linked, continuing...')
-          } else {
-            throw err
-          }
-        }
+      if (!existingLink) {
+        // No existing link - create one
+        await fastlyFetch(`/service/${service.id}/version/${versionToUse}/resource`, {
+          method: 'POST',
+          body: JSON.stringify({ resource_id: configStoreId, name: 'security_rules' }),
+        })
+      } else if (existingLink.resourceId !== configStoreId) {
+        // Existing link points to wrong store - delete and recreate
+        console.log('[ConfigStore] Updating resource link from old store to shared store...')
+        await fastlyFetch(`/service/${service.id}/version/${versionToUse}/resource/${existingLink.linkName}`, {
+          method: 'DELETE',
+        })
+        await fastlyFetch(`/service/${service.id}/version/${versionToUse}/resource`, {
+          method: 'POST',
+          body: JSON.stringify({ resource_id: configStoreId, name: 'security_rules' }),
+        })
       } else {
         console.log('[ConfigStore] Store already linked to service, skipping link step')
       }
@@ -1575,39 +1465,37 @@ function FastlyTab({
       setCreateProgress('Activating service version...')
       await fastlyFetch(`/service/${service.id}/version/${versionToUse}/activate`, { method: 'PUT' })
 
-      setCreateProgress('Creating VCE manifest...')
-      const manifest: VceManifest = {
+      setCreateProgress('Creating VCE payload entry...')
+      const payload: VcePayload = {
         version: VCE_ENGINE_VERSION,
-        engine: 'visual-compute-engine',
         deployedAt: new Date().toISOString(),
-        serviceId: service.id,
+        rules_packed: '',  // Empty until rules are deployed
       }
-      const manifestFormData = new URLSearchParams()
-      manifestFormData.append('item_value', JSON.stringify(manifest))
+      const payloadFormData = new URLSearchParams()
+      payloadFormData.append('item_value', JSON.stringify(payload))
 
-      await fetch(`${FASTLY_API_BASE}/resources/stores/config/${configStoreId}/item/${VCE_MANIFEST_KEY}`, {
+      // Key is just the service ID
+      await fetch(`${FASTLY_API_BASE}/resources/stores/config/${configStoreId}/item/${encodeURIComponent(service.id)}`, {
         method: 'PUT',
         headers: { 'Fastly-Key': apiToken, 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: manifestFormData.toString(),
+        body: payloadFormData.toString(),
       })
 
-      const newConfigStore: ConfigStore = {
-        id: configStoreId,
-        name: configStoreName,
-        hasVceManifest: true,
-      }
+      // Update state with the new/existing shared store
+      const updatedConfigStores = storeCreated
+        ? [{ id: configStoreId, name: VCE_SHARED_STORE_NAME, hasVceManifest: true }, ...configStores]
+        : configStores.map(s => s.id === configStoreId ? { ...s, hasVceManifest: true } : s)
 
       updateFastlyState({
         services: services.map(s =>
           s.id === service.id ? { ...s, isVceEnabled: true, linkedConfigStore: configStoreId } : s
         ),
-        configStores: [newConfigStore, ...configStores],
+        configStores: updatedConfigStores,
         selectedConfigStore: configStoreId,
+        sharedStoreId: configStoreId,
       })
       saveSettings({ apiToken, selectedService: service.id, selectedConfigStore: configStoreId })
       setStatus(`Config Store linked to "${service.name}"!`)
-
-      setConfigStoreStatus(null)
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to setup Config Store')
@@ -1636,25 +1524,30 @@ function FastlyTab({
       const serviceVersion = serviceData.versions?.[0]?.number || 1
       setCreateProgress('Setting up Config Store...')
 
-      const configStoreName = `${createForm.serviceName}-rules`
+      // Use shared config store for all services
       const { id: configStoreId, created: storeCreated } = await findOrCreateConfigStore(
-        configStoreName,
+        VCE_SHARED_STORE_NAME,
         configStores,
         fastlyFetch
       )
-      setCreateProgress(storeCreated ? 'Linking Config Store to service...' : 'Using existing Config Store...')
 
-      try {
+      setCreateProgress(storeCreated ? 'Linking shared Config Store to service...' : 'Using shared Config Store...')
+
+      const existingLink = await getServiceConfigStoreLink(serviceId, serviceVersion, fastlyFetch)
+      if (!existingLink) {
         await fastlyFetch(`/service/${serviceId}/version/${serviceVersion}/resource`, {
           method: 'POST',
           body: JSON.stringify({ resource_id: configStoreId, name: 'security_rules' }),
         })
-      } catch (err) {
-        if (err instanceof Error && err.message.includes('409')) {
-          console.log('[ConfigStore] Store already linked, continuing...')
-        } else {
-          throw err
-        }
+      } else if (existingLink.resourceId !== configStoreId) {
+        console.log('[ConfigStore] Updating resource link from old store to shared store...')
+        await fastlyFetch(`/service/${serviceId}/version/${serviceVersion}/resource/${existingLink.linkName}`, {
+          method: 'DELETE',
+        })
+        await fastlyFetch(`/service/${serviceId}/version/${serviceVersion}/resource`, {
+          method: 'POST',
+          body: JSON.stringify({ resource_id: configStoreId, name: 'security_rules' }),
+        })
       }
       setCreateProgress('Adding domain...')
 
@@ -1684,25 +1577,25 @@ function FastlyTab({
       setCreateProgress('Activating service version...')
 
       await fastlyFetch(`/service/${serviceId}/version/${serviceVersion}/activate`, { method: 'PUT' })
-      setCreateProgress('Deploying VCE manifest...')
+      setCreateProgress('Deploying VCE payload...')
 
-      const manifest: VceManifest = {
+      const payload: VcePayload = {
         version: VCE_ENGINE_VERSION,
-        engine: 'visual-compute-engine',
         deployedAt: new Date().toISOString(),
-        serviceId: serviceId,
+        rules_packed: '',  // Empty until rules are deployed
       }
-      const manifestFormData = new URLSearchParams()
-      manifestFormData.append('item_value', JSON.stringify(manifest))
+      const payloadFormData = new URLSearchParams()
+      payloadFormData.append('item_value', JSON.stringify(payload))
 
-      await fetch(`${FASTLY_API_BASE}/resources/stores/config/${configStoreId}/item/${VCE_MANIFEST_KEY}`, {
+      // Key is just the service ID
+      await fetch(`${FASTLY_API_BASE}/resources/stores/config/${configStoreId}/item/${encodeURIComponent(serviceId)}`, {
         method: 'PUT',
         headers: { 'Fastly-Key': apiToken, 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: manifestFormData.toString(),
+        body: payloadFormData.toString(),
       }).then(async (res) => {
         if (!res.ok) {
           const text = await res.text()
-          throw new Error(`Manifest creation failed: ${res.status} - ${text}`)
+          throw new Error(`Payload creation failed: ${res.status} - ${text}`)
         }
         return res.json()
       })
@@ -1715,17 +1608,18 @@ function FastlyTab({
         isVceEnabled: true,
         linkedConfigStore: configStoreId,
       }
-      const newConfigStore: ConfigStore = {
-        id: configStoreId,
-        name: configStoreName,
-        hasVceManifest: true,
-      }
+
+      // Update state with the new/existing shared store
+      const updatedConfigStores = storeCreated
+        ? [{ id: configStoreId, name: VCE_SHARED_STORE_NAME, hasVceManifest: true }, ...configStores]
+        : configStores.map(s => s.id === configStoreId ? { ...s, hasVceManifest: true } : s)
 
       updateFastlyState({
         services: [newService, ...services],
-        configStores: [newConfigStore, ...configStores],
+        configStores: updatedConfigStores,
         selectedService: serviceId,
         selectedConfigStore: configStoreId,
+        sharedStoreId: configStoreId,
       })
       saveSettings({ apiToken, selectedService: serviceId, selectedConfigStore: configStoreId })
       setShowCreateForm(false)
@@ -1739,9 +1633,101 @@ function FastlyTab({
     }
   }
 
+  // Fix the resource link when it's pointing to the wrong store or missing
+  const handleFixResourceLink = async () => {
+    if (!selectedService || !sharedStoreId) {
+      setError('Cannot fix link: shared store does not exist')
+      return
+    }
+
+    setFixingLink(true)
+    setError(null)
+
+    try {
+      const service = services.find(s => s.id === selectedService)
+      if (!service) throw new Error('Service not found')
+
+      // Get service versions
+      const versions = await fastlyFetch(`/service/${service.id}/version`)
+      const activeVersion = versions.find((v: { active: boolean }) => v.active)?.number
+      const latestVersion = versions[versions.length - 1]?.number
+
+      if (!activeVersion && !latestVersion) {
+        throw new Error('No service versions found')
+      }
+
+      let versionToUse = activeVersion || latestVersion
+      const versionData = await fastlyFetch(`/service/${service.id}/version/${versionToUse}`)
+
+      // Clone if needed
+      if (versionData.active || versionData.locked) {
+        const clonedVersion = await fastlyFetch(`/service/${service.id}/version/${versionToUse}/clone`, {
+          method: 'PUT',
+        })
+        versionToUse = clonedVersion.number
+      }
+
+      // Ensure the correct link exists - use create-first approach with retry
+      const createLink = async () => {
+        await fastlyFetch(`/service/${service.id}/version/${versionToUse}/resource`, {
+          method: 'POST',
+          body: JSON.stringify({ resource_id: sharedStoreId, name: 'security_rules' }),
+        })
+      }
+
+      try {
+        // Try to create the link
+        await createLink()
+        console.log('[FixLink] Created new link to shared store')
+      } catch (createErr) {
+        // 409 means link already exists - need to check and possibly replace it
+        console.log('[FixLink] Create failed (likely 409), checking existing link...')
+
+        const currentLink = await getServiceConfigStoreLink(service.id, versionToUse, fastlyFetch)
+        if (currentLink?.resourceId === sharedStoreId) {
+          // Link already points to correct store, we're good
+          console.log('[FixLink] Existing link already points to correct store')
+        } else if (currentLink) {
+          // Link exists but points to wrong store - need to delete and recreate
+          console.log('[FixLink] Existing link points to wrong store, deleting...')
+
+          // Get all resource links to find the exact link ID
+          const allLinks = await fastlyFetch(`/service/${service.id}/version/${versionToUse}/resource`)
+          const linkToDelete = allLinks.find((l: { name: string }) => l.name === 'security_rules')
+
+          if (linkToDelete?.id) {
+            // Delete by numeric ID
+            await fastlyFetch(`/service/${service.id}/version/${versionToUse}/resource/${linkToDelete.id}`, {
+              method: 'DELETE',
+            })
+            console.log('[FixLink] Deleted old link, creating new one...')
+            await createLink()
+          } else {
+            throw new Error('Could not find link ID to delete')
+          }
+        } else {
+          // No link exists but create still failed - something else is wrong
+          throw createErr
+        }
+      }
+
+      // Activate the version
+      await fastlyFetch(`/service/${service.id}/version/${versionToUse}/activate`, { method: 'PUT' })
+
+      // Update local state
+      setResourceLinkInfo({ storeId: sharedStoreId, storeName: VCE_SHARED_STORE_NAME })
+      setStatus('Resource link fixed successfully!')
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fix resource link')
+    } finally {
+      setFixingLink(false)
+    }
+  }
+
   const handleDeployRules = async () => {
-    if (!selectedConfigStore) {
-      setError('Please select a Config Store')
+    if (!sharedStoreId) {
+      setError('Config store not found. Click refresh to reconnect.')
       return
     }
     if (!selectedService) {
@@ -1758,7 +1744,7 @@ function FastlyTab({
     setLoading(true)
     setError(null)
     setDeployStatus('deploying')
-    setDeployProgress(null)
+    setDeployProgress('Compressing rules...')
 
     try {
       // Use canonical graph (no React Flow internal fields) for deployment
@@ -1767,59 +1753,50 @@ function FastlyTab({
       const compressed = await compressRules(JSON.stringify(canonicalGraph))
       console.log('[Deploy] Compressed length:', compressed.length)
 
+      setDeployProgress('Computing verification hash...')
       const expectedHash = await computeRulesHash(compressed)
       console.log('[Deploy] Expected rules hash:', expectedHash)
 
-      const manifest: VceManifest = {
+      setDeployProgress('Uploading to Config Store...')
+      // Combined payload: manifest fields + rules
+      const payload: VcePayload = {
         version: VCE_ENGINE_VERSION,
-        engine: 'visual-compute-engine',
         deployedAt: new Date().toISOString(),
-        serviceId: selectedService,
+        rules_packed: compressed,
       }
 
-      const rulesFormData = new URLSearchParams()
-      rulesFormData.append('item_value', compressed)
-      const manifestFormData = new URLSearchParams()
-      manifestFormData.append('item_value', JSON.stringify(manifest))
+      const payloadFormData = new URLSearchParams()
+      payloadFormData.append('item_value', JSON.stringify(payload))
 
-      const rulesResponse = await fetch(`${FASTLY_API_BASE}/resources/stores/config/${selectedConfigStore}/item/rules_packed`, {
+      // Key is just the service ID
+      const response = await fetch(`${FASTLY_API_BASE}/resources/stores/config/${sharedStoreId}/item/${encodeURIComponent(selectedService)}`, {
         method: 'PUT',
         headers: { 'Fastly-Key': apiToken, 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: rulesFormData.toString(),
+        body: payloadFormData.toString(),
       })
-      if (!rulesResponse.ok) {
-        const errorText = await rulesResponse.text()
-        throw new Error(`Failed to save rules: ${rulesResponse.status} - ${errorText}`)
-      }
-
-      const manifestResponse = await fetch(`${FASTLY_API_BASE}/resources/stores/config/${selectedConfigStore}/item/${VCE_MANIFEST_KEY}`, {
-        method: 'PUT',
-        headers: { 'Fastly-Key': apiToken, 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: manifestFormData.toString(),
-      })
-      if (!manifestResponse.ok) {
-        const errorText = await manifestResponse.text()
-        throw new Error(`Failed to save manifest: ${manifestResponse.status} - ${errorText}`)
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Failed to save payload: ${response.status} - ${errorText}`)
       }
 
       updateFastlyState({
         services: services.map(s =>
-          s.id === selectedService ? { ...s, isVceEnabled: true, linkedConfigStore: selectedConfigStore } : s
+          s.id === selectedService ? { ...s, isVceEnabled: true, linkedConfigStore: sharedStoreId } : s
         ),
         configStores: configStores.map(s =>
-          s.id === selectedConfigStore ? { ...s, hasVceManifest: true } : s
+          s.id === sharedStoreId ? { ...s, hasVceManifest: true } : s
         ),
       })
 
-      const storeName = configStores.find(s => s.id === selectedConfigStore)?.name
+      const storeName = configStores.find(s => s.id === sharedStoreId)?.name
       const serviceName = services.find(s => s.id === selectedService)?.name
       console.log('[Deploy] Config Store updated, starting verification...')
       setStatus(`Deployed to ${storeName}, verifying...`)
       setDeployStatus('verifying')
-      setDeployProgress('Starting verification...')
+      setDeployProgress('Waiting for edge propagation...')
 
       const domain = generateDomainName(serviceName || '')
-      const maxAttempts = 30
+      const maxAttempts = 60
       const pollInterval = 2000
       const verifyStartTime = Date.now()
 
@@ -1849,15 +1826,15 @@ function FastlyTab({
               return
             } else {
               const oldHash = versionData.rules_hash?.slice(0, 8) || 'none'
-              setDeployProgress(`Waiting for Config Store to propagate... (${attempt}/${maxAttempts}) - edge still has old rules`)
+              setDeployProgress(`Verifying (${attempt}/${maxAttempts})...`)
               console.log(`[Deploy] Still propagating: edge has ${oldHash}, waiting for ${expectedHash.slice(0, 8)}`)
             }
           } else {
-            setDeployProgress(`Waiting for edge... (${attempt}/${maxAttempts}) - HTTP ${versionResponse.status}`)
+            setDeployProgress(`Verifying (${attempt}/${maxAttempts})...`)
+            console.log(`[Deploy] HTTP ${versionResponse.status}`)
           }
         } catch (pollErr) {
-          const errMsg = pollErr instanceof Error ? pollErr.message : 'Unknown error'
-          setDeployProgress(`Waiting for edge... (${attempt}/${maxAttempts}) - ${errMsg}`)
+          setDeployProgress(`Verifying (${attempt}/${maxAttempts})...`)
           console.log('[Deploy] Poll error:', pollErr)
         }
 
@@ -1905,7 +1882,7 @@ function FastlyTab({
         {/* Local Server Card */}
         <Box mb="md">
           <Card withBorder radius="md" padding={0}>
-            <Card.Section style={{ padding: '8px 12px', background: 'var(--COLOR--surface--secondary)' }}>
+            <Card.Section style={{ padding: '4px 12px', background: 'var(--COLOR--surface--secondary)' }}>
               <Flex justify="space-between" align="center">
                 <Title order={5}>Local Server</Title>
                 <ActionIcon variant="subtle" onClick={handleRefreshLocal} disabled={loading}>
@@ -1959,7 +1936,7 @@ function FastlyTab({
         {/* Deploy Rules Card */}
         <Box mb="md">
           <Card withBorder radius="md" padding={0}>
-            <Card.Section style={{ padding: '8px 12px', background: 'var(--COLOR--surface--secondary)' }}>
+            <Card.Section style={{ padding: '4px 12px', background: 'var(--COLOR--surface--secondary)' }}>
               <Flex align="center" gap="sm">
                 <Box>
                   <Title order={5}>Save Rules</Title>
@@ -1991,7 +1968,7 @@ function FastlyTab({
         {localComputeRunning && (
           <Box mb="md">
             <Card withBorder radius="md" padding={0}>
-              <Card.Section style={{ padding: '8px 12px', background: 'var(--COLOR--surface--secondary)' }}>
+              <Card.Section style={{ padding: '4px 12px', background: 'var(--COLOR--surface--secondary)' }}>
                 <Title order={5}>Test URLs</Title>
               </Card.Section>
 
@@ -2097,9 +2074,9 @@ function FastlyTab({
       {showCreateForm ? (
         <Box mb="md">
           <Card withBorder radius="md" padding={0}>
-            <Card.Section style={{ padding: '8px 12px', background: 'var(--COLOR--surface--secondary)' }}>
+            <Card.Section style={{ padding: '4px 12px', background: 'var(--COLOR--surface--secondary)' }}>
               <Flex justify="space-between" align="center">
-                <Title order={5}>New VCE Service</Title>
+                <Title order={5}>New Compute Service</Title>
                 <ActionIcon variant="subtle" onClick={() => setShowCreateForm(false)}>
                   <IconClose width={16} height={16} />
                 </ActionIcon>
@@ -2138,14 +2115,14 @@ function FastlyTab({
       ) : (
         <Box mb="md">
           <Button variant="outline" onClick={() => setShowCreateForm(true)} style={{ width: '100%', border: '1px dashed var(--COLOR--border--primary)' }}>
-            + Create New VCE Service
+            + Create New Compute Service
           </Button>
         </Box>
       )}
 
       {/* Service Selection */}
       <Box mb="md">
-        <Text size="sm" style={{ fontWeight: 500, marginBottom: '4px' }}>VCE Service</Text>
+        <Text size="sm" style={{ fontWeight: 500, marginBottom: '4px' }}>Compute Service</Text>
 
         {services.length === 0 ? (
           <Box p="sm" style={{ border: '1px solid var(--COLOR--border--primary)', borderRadius: '6px' }}>
@@ -2153,28 +2130,53 @@ function FastlyTab({
           </Box>
         ) : (
           <Select
-            data={services.map(s => ({
-              value: s.id,
-              label: s.isVceEnabled ? s.name : `${s.name} (not configured)`,
-            }))}
+            data={[
+              // Configured services first (sorted by name)
+              ...services
+                .filter(s => s.isVceEnabled)
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map(s => ({ value: s.id, label: s.name })),
+              // Then non-configured services (sorted by name, marked with ⚠)
+              ...services
+                .filter(s => !s.isVceEnabled)
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map(s => ({ value: s.id, label: `⚠ ${s.name}` })),
+            ]}
             value={selectedService || undefined}
             onChange={(value) => value && handleServiceChange(value)}
             placeholder="Select a Compute service..."
           />
         )}
+
+        {/* Warning only when deploying will make destructive changes */}
+        {selectedService && (
+          // Show warning if engine needs deploying OR config store link needs changing
+          (engineVersion?.version !== VCE_ENGINE_VERSION || resourceLinkInfo?.storeName !== VCE_SHARED_STORE_NAME)
+        ) && (
+          <Alert variant="caution" icon={<IconAttentionFilled width={16} height={16} />} style={{ marginTop: 8 }}>
+            <Text size="xs">
+              <strong>Warning:</strong> Deploying will{' '}
+              {engineVersion?.version !== VCE_ENGINE_VERSION && 'replace this service\'s WASM binary'}
+              {engineVersion?.version !== VCE_ENGINE_VERSION && resourceLinkInfo?.storeName !== VCE_SHARED_STORE_NAME && ' and '}
+              {resourceLinkInfo?.storeName !== VCE_SHARED_STORE_NAME && 'change the config store link'}
+              .
+            </Text>
+          </Alert>
+        )}
       </Box>
 
-      {/* Service Info */}
+      {/* Service Info - Consolidated view */}
       {selectedService && (() => {
         const service = services.find(s => s.id === selectedService)
         if (!service) return null
         const serviceUrl = `https://${generateDomainName(service.name)}`
+        const validation = validateGraph(nodes, edges)
+        const canDeploy = validation.valid && sharedStoreId && selectedService
+
         return (
-          <>
-          {/* Service Info Card */}
           <Box mb="md">
             <Card withBorder radius="md" padding={0}>
-              <Card.Section style={{ padding: '8px 12px', background: 'var(--COLOR--surface--secondary)' }}>
+              <Card.Section style={{ padding: '4px 12px', background: 'var(--COLOR--surface--secondary)' }}>
                 <Flex justify="space-between" align="center">
                   <Title order={5}>Service Info</Title>
                   <ActionIcon variant="subtle" onClick={handleRefreshService} loading={engineVersionLoading}>
@@ -2183,347 +2185,183 @@ function FastlyTab({
                 </Flex>
               </Card.Section>
 
-              <Stack gap="xs" style={{ padding: '12px' }}>
-                <Box>
-                  <Text size="xs" className="vce-text-muted" style={{ marginBottom: 2 }}>Service ID</Text>
+              <Stack gap="sm" style={{ padding: '12px' }}>
+                {/* Service ID */}
+                <Flex align="center" justify="space-between">
+                  <Text size="xs" className="vce-text-muted">Service ID</Text>
                   <Flex align="center" gap="xs">
-                    <Text size="sm" style={{ fontFamily: 'var(--TYPOGRAPHY--type--font-family--monospace)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{service.id}</Text>
+                    <Text size="xs" style={{ fontFamily: 'monospace' }}>{service.id}</Text>
                     <ActionIcon variant="subtle" size="xs" onClick={() => navigator.clipboard.writeText(service.id)}>
-                      <IconCopy width={14} height={14} />
+                      <IconCopy width={12} height={12} />
                     </ActionIcon>
                   </Flex>
-                </Box>
-
-                <Box>
-                  <Text size="xs" className="vce-text-muted" style={{ marginBottom: 2 }}>Test URL</Text>
-                  <Flex align="center" gap="xs">
-                    <Anchor href={serviceUrl} target="_blank" size="sm">
-                      {service.name}.edgecompute.app
-                    </Anchor>
-                    <ActionIcon variant="subtle" size="xs" onClick={() => navigator.clipboard.writeText(serviceUrl)}>
-                      <IconCopy width={14} height={14} />
-                    </ActionIcon>
-                  </Flex>
-                </Box>
-
-                {status && status.includes('Loaded') && (
-                  <Text size="xs" className="vce-text-muted" style={{ marginTop: 4 }}>
-                    {status}
-                  </Text>
-                )}
-              </Stack>
-            </Card>
-          </Box>
-
-          <Divider style={{ margin: '16px 0' }} />
-
-          {/* Step 1: Engine */}
-          <Box mb="md">
-            <Card withBorder radius="md" padding={0}>
-              <Card.Section style={{ padding: '8px 12px', background: 'var(--COLOR--surface--secondary)' }}>
-                <Flex align="center" gap="sm">
-                  <Pill variant={engineVersion?.version === VCE_ENGINE_VERSION ? 'success' : 'default'}>1</Pill>
-                  <Box>
-                    <Title order={5}>Engine</Title>
-                    <Text size="xs" className="vce-text-muted">WASM binary on edge servers</Text>
-                  </Box>
                 </Flex>
-              </Card.Section>
 
-              <Box style={{ padding: '12px' }}>
-              {engineUpdateProgress ? (
-                <Stack gap="xs">
-                  <Text size="xs" style={{ fontFamily: 'monospace' }}>{engineUpdateProgress}</Text>
-                  {engineUpdateProgress.includes('POPs') && (() => {
-                    const match = engineUpdateProgress.match(/(\d+)\/(\d+) POPs \((\d+)%\)/)
-                    if (match) {
-                      const percent = parseInt(match[3], 10)
-                      return (
-                        <Box style={{ height: '4px', background: 'var(--COLOR--border--primary)', borderRadius: '2px', overflow: 'hidden' }}>
-                          <Box style={{ height: '100%', width: `${percent}%`, background: percent >= 95 ? 'var(--COLOR--success--surface--tertiary)' : 'var(--COLOR--action--surface)', transition: 'width 0.3s' }} />
-                        </Box>
-                      )
-                    }
-                    return null
-                  })()}
-                </Stack>
-              ) : engineVersionLoading ? (
-                <Stack gap="sm">
-                  <Skeleton height={44} radius="md" />
-                  <Skeleton height={36} radius="md" />
-                </Stack>
-              ) : engineVersion ? (
-                <Stack gap="sm">
-                  <Flex align="center" justify="space-between">
-                    <Text size="sm">{engineVersion.engine} v{engineVersion.version}</Text>
-                    {engineVersion.engine !== 'Visual Compute Engine' ? (
-                      <Pill variant="error">Unknown</Pill>
-                    ) : engineVersion.version === VCE_ENGINE_VERSION ? (
-                      <Pill variant="success">Up to date</Pill>
-                    ) : (
-                      <Pill variant="caution">Update available</Pill>
-                    )}
-                  </Flex>
-                  {(engineVersion.engine !== 'Visual Compute Engine' || engineVersion.version !== VCE_ENGINE_VERSION) ? (
-                    <>
-                      <Text size="xs" className="vce-text-muted">Updates typically take ~30-60s to propagate.</Text>
-                      <Button variant="filled" leftSection={<IconUpload width={16} height={16} />} onClick={handleUpdateEngine} loading={loading} fullWidth>
-                        Update Engine to v{VCE_ENGINE_VERSION}
+                {/* Test URL */}
+                <Flex align="center" justify="space-between">
+                  <Text size="xs" className="vce-text-muted">Test URL</Text>
+                  <Anchor href={serviceUrl} target="_blank" size="xs">
+                    {service.name}.edgecompute.app
+                  </Anchor>
+                </Flex>
+
+                <Divider />
+
+                {/* Config Store */}
+                <Flex align="center" justify="space-between">
+                  <Text size="xs" className="vce-text-muted">Config Store</Text>
+                  {resourceLinkInfo?.storeName === VCE_SHARED_STORE_NAME ? (
+                    <Flex align="center" gap={4}>
+                      <IconCheckCircleFilled width={14} height={14} style={{ color: 'var(--COLOR--success--text)' }} />
+                      <Text size="xs" style={{ fontFamily: 'monospace' }}>{VCE_SHARED_STORE_NAME}</Text>
+                    </Flex>
+                  ) : !sharedStoreId ? (
+                    <Button size="compact-sm" variant="light" onClick={handleSetupConfigStore} loading={!!createProgress}>
+                      Create Store
+                    </Button>
+                  ) : resourceLinkInfo ? (
+                    <Flex align="center" gap={4}>
+                      <IconAttentionFilled width={14} height={14} style={{ color: 'var(--COLOR--error--text)' }} />
+                      <Button size="compact-sm" variant="light" color="red" onClick={handleFixResourceLink} loading={fixingLink}>
+                        Fix Link
                       </Button>
-                    </>
+                    </Flex>
                   ) : (
-                    <Button variant="outline" size="sm" leftSection={<IconSync width={14} height={14} />} onClick={handleUpdateEngine} loading={loading}>
-                      Force Re-deploy Engine
+                    <Flex align="center" gap={4}>
+                      <IconAttentionFilled width={14} height={14} style={{ color: 'var(--COLOR--caution--text)' }} />
+                      <Button size="compact-sm" variant="light" color="yellow" onClick={handleFixResourceLink} loading={fixingLink}>
+                        Connect
+                      </Button>
+                    </Flex>
+                  )}
+                </Flex>
+
+                {/* Engine Version */}
+                <Flex align="center" justify="space-between">
+                  <Text size="xs" className="vce-text-muted">Engine</Text>
+                  {engineVersionLoading ? (
+                    <Loader size="xs" />
+                  ) : engineUpdateProgress ? (
+                    <Text size="xs" style={{ fontFamily: 'monospace' }}>{engineUpdateProgress}</Text>
+                  ) : engineVersion?.version === VCE_ENGINE_VERSION ? (
+                    <Flex align="center" gap={4}>
+                      <IconCheckCircleFilled width={14} height={14} style={{ color: 'var(--COLOR--success--text)' }} />
+                      <Text size="xs">v{VCE_ENGINE_VERSION}</Text>
+                    </Flex>
+                  ) : engineVersion ? (
+                    <Flex align="center" gap={4}>
+                      <IconAttentionFilled width={14} height={14} style={{ color: 'var(--COLOR--caution--text)' }} />
+                      <Button size="compact-sm" variant="light" color="orange" onClick={handleUpdateEngine}>
+                        Update to v{VCE_ENGINE_VERSION}
+                      </Button>
+                    </Flex>
+                  ) : (
+                    <Button size="compact-sm" variant="light" onClick={handleUpdateEngine}>
+                      Deploy Engine
                     </Button>
                   )}
-                </Stack>
-              ) : (
-                <Stack gap="sm">
-                  <Flex align="center" justify="space-between">
-                    <Text size="sm" style={{ color: 'var(--COLOR--error--text)' }}>Not detected</Text>
-                    <Pill variant="error">Not deployed</Pill>
-                  </Flex>
-                  <Text size="xs" className="vce-text-muted" style={{ fontStyle: 'italic' }}>
-                    {selectedConfigStore ? 'Deployment typically takes ~30-60s to propagate.' : 'Deploy the engine first, then setup Config Store.'}
-                  </Text>
-                  <Button variant="filled" leftSection={<IconUpload width={16} height={16} />} onClick={handleUpdateEngine} loading={loading} fullWidth>
-                    Deploy Engine v{VCE_ENGINE_VERSION}
-                  </Button>
-                </Stack>
-              )}
-              </Box>
-            </Card>
-          </Box>
-          </>
-        )
-      })()}
-
-      {/* Step 2: Config Store */}
-      {selectedService && selectedConfigStore && (
-        <Box mb="md">
-          <Card withBorder radius="md" padding={0}>
-            <Card.Section style={{ padding: '8px 12px', background: 'var(--COLOR--surface--secondary)' }}>
-              <Flex align="center" gap="sm">
-                <Pill variant="success">2</Pill>
-                <Box>
-                  <Title order={5}>Config Store</Title>
-                  <Text size="xs" className="vce-text-muted">Edge key-value store for rules</Text>
-                </Box>
-              </Flex>
-            </Card.Section>
-
-            <Box style={{ padding: '12px' }}>
-            <Flex align="center" justify="space-between">
-              <Text size="sm" style={{ fontFamily: 'monospace' }}>
-                {configStores.find(s => s.id === selectedConfigStore)?.name || selectedConfigStore}
-              </Text>
-              <Button variant="outline" size="sm" onClick={() => fetchStorePreview(selectedConfigStore)}>
-                {storePreview?.storeId === selectedConfigStore ? 'Hide' : 'View'}
-              </Button>
-            </Flex>
-
-            {/* Config Store Preview */}
-            {storePreview?.storeId === selectedConfigStore && (
-              <Box mt="sm">
-                <Card withBorder padding="sm" radius="sm" style={{ maxHeight: '200px', overflow: 'auto' }}>
-                  {storePreview.loading && (
-                    <Stack gap="xs">
-                      <Skeleton height={12} width="40%" radius="sm" />
-                      <Skeleton height={10} radius="sm" />
-                      <Skeleton height={12} width="35%" radius="sm" style={{ marginTop: 8 }} />
-                      <Skeleton height={10} radius="sm" />
-                    </Stack>
-                  )}
-                  {storePreview.error && (
-                    <Text size="sm" style={{ color: 'var(--COLOR--error--text)' }}>{storePreview.error}</Text>
-                  )}
-                  {!storePreview.loading && !storePreview.error && storePreview.items.length === 0 && (
-                    <Text size="sm" className="vce-text-muted" style={{ textAlign: 'center' }}>Empty store</Text>
-                  )}
-                  {storePreview.items.map((item, idx) => (
-                    <Box key={idx} style={{ paddingBottom: '8px', marginBottom: '8px', borderBottom: idx < storePreview.items.length - 1 ? '1px solid var(--COLOR--border--primary)' : 'none' }}>
-                      <Text size="xs" style={{ fontWeight: 600 }}>{item.key}</Text>
-                      <Text size="xs" className="vce-text-muted" style={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                        {item.value}{item.truncated && '...'}
-                      </Text>
-                    </Box>
-                  ))}
-                </Card>
-              </Box>
-            )}
-            </Box>
-          </Card>
-        </Box>
-      )}
-
-      {/* Enable VCE button for non-configured services */}
-      {selectedService && !selectedConfigStore && (() => {
-        const service = services.find(s => s.id === selectedService)
-        if (!service || service.linkedConfigStore) return null
-
-        const getStatusPill = () => {
-          if (configStoreStatusLoading) return <Pill variant="default">Checking...</Pill>
-          if (!configStoreStatus) return <Pill variant="default">Not checked</Pill>
-          switch (configStoreStatus.status) {
-            case 'linked_ok':
-              return <Pill variant="success">Ready</Pill>
-            case 'linked_outdated':
-              return <Pill variant="caution">Update available</Pill>
-            case 'linked_no_manifest':
-              return <Pill variant="caution">Needs init</Pill>
-            case 'not_linked':
-              return <Pill variant="default">Not linked</Pill>
-            case 'error':
-              return <Pill variant="error">Error</Pill>
-            default:
-              return <Pill variant="default">-</Pill>
-          }
-        }
-
-        return (
-          <Box mb="md">
-            <Card withBorder radius="md" padding={0}>
-              <Card.Section style={{ padding: '8px 12px', background: 'var(--COLOR--surface--secondary)' }}>
-                <Flex align="center" gap="sm">
-                  <Pill variant="default">2</Pill>
-                  <Box>
-                    <Title order={5}>Config Store</Title>
-                    <Text size="xs" className="vce-text-muted">Setup required</Text>
-                  </Box>
                 </Flex>
-              </Card.Section>
 
-              <Box style={{ padding: '12px' }}>
-              {/* Status display */}
-              <Stack gap="sm">
-                <Flex justify="space-between" align="center">
-                  <Flex align="center" gap="xs" style={{ flex: 1 }}>
-                    {getStatusPill()}
-                    <Text size="xs" className="vce-text-muted" style={{ flex: 1 }}>
-                      {configStoreStatusLoading ? 'Checking...' :
-                       configStoreStatus ? configStoreStatus.message :
-                       'Click Refresh to check status'}
+                {/* Rules Info */}
+                <Flex align="center" justify="space-between">
+                  <Text size="xs" className="vce-text-muted">Rules</Text>
+                  <Flex align="center" gap="xs">
+                    {engineVersion && (engineVersion.nodes_count ?? 0) > 0 ? (
+                      <>
+                        <Text size="xs">{engineVersion.nodes_count} nodes · {engineVersion.edges_count} edges</Text>
+                        <Text size="xs" className="vce-text-muted">({engineVersion.rules_hash?.slice(0, 8)})</Text>
+                      </>
+                    ) : (
+                      <Text size="xs" className="vce-text-muted">No rules deployed</Text>
+                    )}
+                    <Tooltip label="Export graph.json" position="left">
+                      <ActionIcon variant="subtle" size="xs" disabled={!validation.valid} onClick={() => {
+                        if (!validation.valid) return
+                        const graphPayload = { nodes, edges }
+                        const blob = new Blob([JSON.stringify(graphPayload, null, 2)], { type: 'application/json' })
+                        const url = URL.createObjectURL(blob)
+                        const a = document.createElement('a')
+                        a.href = url
+                        a.download = 'graph.json'
+                        document.body.appendChild(a)
+                        a.click()
+                        document.body.removeChild(a)
+                        URL.revokeObjectURL(url)
+                      }}>
+                        <IconDownload width={12} height={12} />
+                      </ActionIcon>
+                    </Tooltip>
+                  </Flex>
+                </Flex>
+
+                <Divider />
+
+                {/* Validation Errors */}
+                {!validation.valid && (
+                  <Box style={{ padding: '8px', borderRadius: '6px', background: 'var(--COLOR--error--surface--secondary)' }}>
+                    <Text size="xs" style={{ color: 'var(--COLOR--error--text)', fontWeight: 500, marginBottom: '4px' }}>
+                      Fix to deploy:
                     </Text>
+                    {validation.errors.slice(0, 3).map((err, i) => (
+                      <Text key={i} size="xs" style={{ color: 'var(--COLOR--error--text)' }}>• {err}</Text>
+                    ))}
+                    {validation.errors.length > 3 && (
+                      <Text size="xs" style={{ color: 'var(--COLOR--error--text)' }}>• +{validation.errors.length - 3} more</Text>
+                    )}
+                  </Box>
+                )}
+
+                {/* Graph Stats (current canvas) */}
+                <Flex align="center" justify="space-between">
+                  <Text size="xs" className="vce-text-muted">Canvas</Text>
+                  <Flex align="center" gap="xs">
+                    <Text size="xs">{nodes.length} nodes · {edges.length} edges</Text>
+                    {isGraphInSync ? (
+                      <Badge size="xs" color="green" variant="light">synced</Badge>
+                    ) : isGraphModified ? (
+                      <Badge size="xs" color="orange" variant="light">modified</Badge>
+                    ) : null}
                   </Flex>
-                  {!configStoreStatusLoading && (
-                    <ActionIcon variant="subtle" onClick={() => fetchConfigStoreStatus(selectedService)}>
-                      <IconSync width={16} height={16} />
-                    </ActionIcon>
-                  )}
                 </Flex>
-                {configStoreStatus?.status === 'linked_outdated' && (
-                  <Text size="xs" style={{ color: 'var(--COLOR--caution--text)' }}>
-                    Update available: v{configStoreStatus.manifestVersion} → v{configStoreStatus.currentVersion}
-                  </Text>
-                )}
 
-                {createProgress && (
-                  <Text size="xs" style={{ fontFamily: 'monospace' }}>{createProgress}</Text>
-                )}
-
-                <Button variant="filled" leftSection={<IconUpload width={16} height={16} />} onClick={handleSetupConfigStore} loading={loading} fullWidth>
-                  {configStoreStatus?.status === 'linked_ok' ? 'Re-deploy VCE Engine' :
-                   configStoreStatus?.status === 'linked_outdated' ? 'Update VCE Engine' :
-                   configStoreStatus?.status === 'linked_no_manifest' ? 'Initialize Config Store' :
-                   'Setup Config Store'}
+                {/* Deploy Button */}
+                <Button
+                  variant="filled"
+                  color={
+                    deployStatus === 'verified' ? 'green' :
+                    deployStatus === 'error' ? 'red' :
+                    deployStatus === 'timeout' ? 'orange' :
+                    !validation.valid ? 'gray' :
+                    isGraphInSync ? 'green' :
+                    isGraphModified ? 'orange' : undefined
+                  }
+                  onClick={handleDeployRules}
+                  disabled={!canDeploy || deployStatus === 'deploying' || deployStatus === 'verifying'}
+                  fullWidth
+                >
+                  {(deployStatus === 'deploying' || deployStatus === 'verifying') ? (
+                    <Flex align="center" gap="xs" justify="center">
+                      <Loader size="xs" color="white" />
+                      <Text size="xs" style={{ color: 'white', whiteSpace: 'nowrap' }}>{deployProgress || 'Deploying...'}</Text>
+                    </Flex>
+                  ) : deployStatus === 'verified' ? 'Deployed ✓' :
+                   deployStatus === 'timeout' ? 'Deployed (propagating...)' :
+                   deployStatus === 'error' ? 'Deploy Failed' :
+                   !validation.valid ? 'Fix Issues to Deploy' :
+                   isGraphInSync ? 'Deployed ✓' :
+                   'Deploy Rules'}
                 </Button>
               </Stack>
-              </Box>
             </Card>
           </Box>
         )
       })()}
 
-      {/* Step 3: Deploy Rules */}
-      <Box style={{ marginBottom: '16px' }}>
-        <Card withBorder radius="md" padding={0}>
-          <Card.Section style={{ padding: '8px 12px', background: 'var(--COLOR--surface--secondary)' }}>
-            <Flex align="center" gap="sm">
-              <Pill variant={isGraphInSync ? 'success' : isGraphModified ? 'caution' : 'default'}>3</Pill>
-              <Box>
-                <Title order={5}>Deploy Rules</Title>
-                <Text size="xs" className="vce-text-muted">
-                  {isGraphInSync ? 'In sync with service' : isGraphModified ? 'Changes pending deploy' : 'Push graph to edge (~30-40s)'}
-                </Text>
-              </Box>
-            </Flex>
-          </Card.Section>
-
-          <Box style={{ padding: '12px' }}>
-          <Stack gap="sm">
-            <Flex gap="md">
-              <Text size="sm"><Text span weight="bold">{nodes.length}</Text> <Text span className="vce-text-muted">nodes</Text></Text>
-              <Text size="sm"><Text span weight="bold">{edges.length}</Text> <Text span className="vce-text-muted">edges</Text></Text>
-            </Flex>
-
-            <Button
-              variant="filled"
-              onClick={handleDeployRules}
-              disabled={!selectedConfigStore || !selectedService}
-              loading={deployStatus === 'deploying' || deployStatus === 'verifying'}
-              fullWidth
-            >
-              {deployStatus === 'deploying' ? 'Deploying...' :
-               deployStatus === 'verifying' ? 'Verifying...' :
-               'Deploy Rules'}
-            </Button>
-
-            {/* Deployment Status */}
-            {deployStatus !== 'idle' && (
-              <Pill
-                variant={
-                  deployStatus === 'verified' ? 'success' :
-                  deployStatus === 'timeout' ? 'caution' :
-                  deployStatus === 'error' ? 'error' : 'default'
-                }
-              >
-                {deployStatus === 'deploying' ? 'Pushing to Config Store...' :
-                 deployStatus === 'verifying' ? 'Verifying deployment...' :
-                 deployStatus === 'verified' ? 'Deployment verified' :
-                 deployStatus === 'timeout' ? 'Verification timed out' :
-                 deployStatus === 'error' ? 'Deployment failed' : ''}
-              </Pill>
-            )}
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={async () => {
-              const validation = validateGraph(nodes, edges)
-              if (!validation.valid) {
-                setError(`Validation failed:\n- ${validation.errors.join('\n- ')}`)
-                return
-              }
-
-              const graphPayload = { nodes, edges }
-              const fileContent = JSON.stringify(graphPayload, null, 2)
-
-              const blob = new Blob([fileContent], { type: 'application/json' })
-              const url = URL.createObjectURL(blob)
-              const a = document.createElement('a')
-              a.href = url
-              a.download = 'graph.json'
-              document.body.appendChild(a)
-              a.click()
-              document.body.removeChild(a)
-              URL.revokeObjectURL(url)
-
-              setStatus('Exported graph.json')
-            }}
-            disabled={loading}
-          >
-            Export JSON (for local dev)
-          </Button>
-          </Stack>
-          </Box>
-        </Card>
-      </Box>
-
-      {/* Status/Error Messages */}
+      {/* Status/Error Messages - only show non-deployment messages */}
       {error && (
         <Alert variant="error" icon={<IconAttentionFilled width={16} height={16} />}>{error}</Alert>
       )}
-      {status && !error && !status.includes('Loaded') && (
+      {status && !error && !status.includes('Loaded') && !status.includes('Deployed') && !status.includes('verifying') && (
         <Alert variant="success" icon={<IconCheckCircleFilled width={16} height={16} />}>{status}</Alert>
       )}
     </Box>
