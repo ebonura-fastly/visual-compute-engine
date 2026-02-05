@@ -43,17 +43,19 @@ export function DeletableEdge({
             position: 'absolute',
             transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
             pointerEvents: 'all',
+            padding: 4,
           }}
           className="nodrag nopan"
         >
           <ActionIcon
             onClick={onEdgeClick}
             variant="filled"
-            size="xs"
+            size="sm"
+            radius="sm"
             className="vce-edge-delete-btn"
             title="Delete connection"
           >
-            <IconClose width={10} height={10} />
+            <IconClose width={12} height={12} />
           </ActionIcon>
         </Box>
       </EdgeLabelRenderer>

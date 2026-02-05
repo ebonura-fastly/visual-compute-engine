@@ -238,14 +238,24 @@
  * =========================================== */
 
 .vce-edge-delete-btn {
-  background: var(--COLOR--surface--secondary) !important;
-  border: 1px solid var(--COLOR--border--primary) !important;
+  background: var(--COLOR--surface--primary) !important;
+  border: 1px solid var(--COLOR--border--secondary) !important;
+  box-shadow: var(--SHADOW--shadow--2) !important;
+  color: var(--COLOR--text--secondary) !important;
+  opacity: 0.8;
+  transition: background 130ms ease-in-out, border-color 130ms ease-in-out, color 130ms ease-in-out, opacity 130ms ease-in-out, box-shadow 130ms ease-in-out !important;
+  transform: none !important;
 }
 
-.vce-edge-delete-btn:hover {
+.vce-edge-delete-btn:hover,
+.vce-edge-delete-btn:focus,
+.vce-edge-delete-btn:active {
   background: var(--COLOR--error--surface--tertiary) !important;
   border-color: var(--COLOR--error--border) !important;
-  color: white !important;
+  color: var(--COLOR--error--text--primary) !important;
+  opacity: 1;
+  box-shadow: var(--SHADOW--shadow--3) !important;
+  transform: none !important;
 }
 
 /* ===========================================

@@ -1857,7 +1857,7 @@ function FastlyTab({
               </Flex>
             </Card.Section>
 
-            <Box style={{ padding: '16px' }}>
+            <Box style={{ padding: '12px' }}>
               <Flex justify="space-between" align="center" style={{ marginBottom: '12px' }}>
                 <Anchor
                   href="http://127.0.0.1:7676/"
@@ -1911,7 +1911,7 @@ function FastlyTab({
               </Flex>
             </Card.Section>
 
-            <Box style={{ padding: '16px' }}>
+            <Box style={{ padding: '12px' }}>
               <Flex gap="md" style={{ marginBottom: '12px' }}>
                 <Text size="sm"><Text span weight="bold">{nodes.length}</Text> <Text span className="vce-text-muted">nodes</Text></Text>
                 <Text size="sm"><Text span weight="bold">{edges.length}</Text> <Text span className="vce-text-muted">edges</Text></Text>
@@ -1938,7 +1938,7 @@ function FastlyTab({
                 <Title order={5}>Test URLs</Title>
               </Card.Section>
 
-              <Box style={{ padding: '16px' }}>
+              <Box style={{ padding: '12px' }}>
                 <Stack gap="xs">
                   <Flex justify="space-between" align="center">
                     <Anchor href="http://127.0.0.1:7676/_version" target="_blank" size="xs">
@@ -2049,7 +2049,7 @@ function FastlyTab({
               </Flex>
             </Card.Section>
 
-            <Box style={{ padding: '16px' }}>
+            <Box style={{ padding: '12px' }}>
               <Box mb="sm">
                 <TextInput
                   label="Service Name"
@@ -2126,24 +2126,24 @@ function FastlyTab({
                 </Flex>
               </Card.Section>
 
-              <Stack gap="sm" style={{ padding: '16px' }}>
+              <Stack gap="xs" style={{ padding: '12px' }}>
                 <Box>
-                  <Text size="xs" className="vce-text-muted" style={{ marginBottom: '4px' }}>Service ID</Text>
+                  <Text size="xs" className="vce-text-muted" style={{ marginBottom: 2 }}>Service ID</Text>
                   <Flex align="center" gap="xs">
-                    <Text size="xs" style={{ fontFamily: 'monospace', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{service.id}</Text>
-                    <ActionIcon variant="subtle" onClick={() => navigator.clipboard.writeText(service.id)}>
+                    <Text size="sm" style={{ fontFamily: 'var(--TYPOGRAPHY--type--font-family--monospace)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{service.id}</Text>
+                    <ActionIcon variant="subtle" size="xs" onClick={() => navigator.clipboard.writeText(service.id)}>
                       <IconCopy width={14} height={14} />
                     </ActionIcon>
                   </Flex>
                 </Box>
 
                 <Box>
-                  <Text size="xs" className="vce-text-muted" style={{ marginBottom: '4px' }}>Test URL</Text>
+                  <Text size="xs" className="vce-text-muted" style={{ marginBottom: 2 }}>Test URL</Text>
                   <Flex align="center" gap="xs">
-                    <Anchor href={serviceUrl} target="_blank" size="xs">
+                    <Anchor href={serviceUrl} target="_blank" size="sm">
                       {service.name}.edgecompute.app
                     </Anchor>
-                    <ActionIcon variant="subtle" onClick={() => navigator.clipboard.writeText(serviceUrl)}>
+                    <ActionIcon variant="subtle" size="xs" onClick={() => navigator.clipboard.writeText(serviceUrl)}>
                       <IconCopy width={14} height={14} />
                     </ActionIcon>
                   </Flex>
@@ -2167,7 +2167,7 @@ function FastlyTab({
                 </Flex>
               </Card.Section>
 
-              <Box style={{ padding: '16px' }}>
+              <Box style={{ padding: '12px' }}>
               {engineUpdateProgress ? (
                 <Stack gap="xs">
                   <Text size="xs" style={{ fontFamily: 'monospace' }}>{engineUpdateProgress}</Text>
@@ -2249,7 +2249,7 @@ function FastlyTab({
               </Flex>
             </Card.Section>
 
-            <Box style={{ padding: '16px' }}>
+            <Box style={{ padding: '12px' }}>
             <Flex align="center" justify="space-between">
               <Text size="sm" style={{ fontFamily: 'monospace' }}>
                 {configStores.find(s => s.id === selectedConfigStore)?.name || selectedConfigStore}
@@ -2330,7 +2330,7 @@ function FastlyTab({
                 </Flex>
               </Card.Section>
 
-              <Box style={{ padding: '16px' }}>
+              <Box style={{ padding: '12px' }}>
               {/* Status display */}
               <Stack gap="sm">
                 <Flex justify="space-between" align="center">
@@ -2384,7 +2384,7 @@ function FastlyTab({
             </Flex>
           </Card.Section>
 
-          <Box style={{ padding: '16px' }}>
+          <Box style={{ padding: '12px' }}>
           <Stack gap="sm">
             <Flex gap="md">
               <Text size="sm"><Text span weight="bold">{nodes.length}</Text> <Text span className="vce-text-muted">nodes</Text></Text>

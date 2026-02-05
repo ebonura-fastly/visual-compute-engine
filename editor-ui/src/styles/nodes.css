@@ -165,7 +165,7 @@
   border-radius: 50%;
   --port-color: var(--port-any);
   background: var(--port-color);
-  transition: transform 0.1s;
+  transition: border-color 0.1s, box-shadow 0.1s;
 }
 
 .vce-handle[data-port-type="bool"] { --port-color: var(--port-bool); }
@@ -173,8 +173,8 @@
 .vce-handle[data-port-type="number"] { --port-color: var(--port-number); }
 
 .vce-handle:hover {
-  transform: scale(1.2);
   border-color: var(--COLOR--action--border);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
 }
 
 /* Handle positioning */
