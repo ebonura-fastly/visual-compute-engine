@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import type { Node, Edge } from '@xyflow/react'
 import {
   Button,
@@ -29,6 +29,9 @@ type SidebarProps = {
   edges: Edge[]
   onAddTemplate: (nodes: Node[], edges: Edge[]) => void
   onLoadRules?: (nodes: Node[], edges: Edge[]) => void
+  routeServiceId?: string
+  isLocalRoute?: boolean
+  onNavigate?: (path: string) => void
 }
 
 type Tab = 'components' | 'templates' | 'fastly'
@@ -106,7 +109,7 @@ const categoryLabels: Record<string, string> = {
   routing: 'Routing',
 }
 
-export function Sidebar({ nodes, edges, onAddTemplate, onLoadRules }: SidebarProps) {
+export function Sidebar({ nodes, edges, onAddTemplate, onLoadRules, routeServiceId, isLocalRoute, onNavigate }: SidebarProps) {
   const [activeTab, setActiveTab] = useState<Tab>('fastly')
 
   // Templates state
@@ -128,7 +131,7 @@ export function Sidebar({ nodes, edges, onAddTemplate, onLoadRules }: SidebarPro
 
   // Local development mode state - lifted up to persist across tab switches
   const [localModeState, setLocalModeState] = useState({
-    localMode: false,
+    localMode: isLocalRoute || false,
     localServerAvailable: false,
     localComputeRunning: false,
     localEngineVersion: null as { engine: string; version: string; format: string } | null,
@@ -214,6 +217,9 @@ export function Sidebar({ nodes, edges, onAddTemplate, onLoadRules }: SidebarPro
             setFastlyState={setFastlyState}
             localModeState={localModeState}
             setLocalModeState={setLocalModeState}
+            routeServiceId={routeServiceId}
+            isLocalRoute={isLocalRoute}
+            onNavigate={onNavigate}
           />
         )}
       </Box>
@@ -728,6 +734,9 @@ function FastlyTab({
   setFastlyState,
   localModeState,
   setLocalModeState,
+  routeServiceId,
+  isLocalRoute,
+  onNavigate,
 }: {
   nodes: Node[]
   edges: Edge[]
@@ -736,6 +745,9 @@ function FastlyTab({
   setFastlyState: React.Dispatch<React.SetStateAction<FastlyState>>
   localModeState: LocalModeState
   setLocalModeState: React.Dispatch<React.SetStateAction<LocalModeState>>
+  routeServiceId?: string
+  isLocalRoute?: boolean
+  onNavigate?: (path: string) => void
 }) {
   const { apiToken, isConnected, services, configStores, selectedService, selectedConfigStore, engineVersion, engineVersionLoading } = fastlyState
   const { localMode, localServerAvailable, localComputeRunning, localEngineVersion, hasLoadedRules } = localModeState
@@ -770,6 +782,45 @@ function FastlyTab({
 
   const [configStoreStatus, setConfigStoreStatus] = useState<ConfigStoreStatus | null>(null)
   const [configStoreStatusLoading, setConfigStoreStatusLoading] = useState(false)
+
+  // Sync URL with local mode - navigate to /local when entering local mode
+  useEffect(() => {
+    if (isLocalRoute && !localMode && localServerAvailable) {
+      // URL is /local but we're not in local mode - trigger local mode check
+      // This will be handled by the checkLocalEnvironment effect
+    }
+  }, [isLocalRoute, localMode, localServerAvailable])
+
+  // Sync URL with selected service - when route has serviceId, select that service
+  useEffect(() => {
+    if (routeServiceId && isConnected && services.length > 0) {
+      const serviceExists = services.some(s => s.id === routeServiceId)
+      if (serviceExists && selectedService !== routeServiceId) {
+        updateFastlyState({ selectedService: routeServiceId })
+      }
+    }
+  }, [routeServiceId, isConnected, services, selectedService])
+
+  // Navigate when service selection changes (user-initiated)
+  const navigateToService = useCallback((serviceId: string) => {
+    if (onNavigate && serviceId) {
+      onNavigate(`/${serviceId}`)
+    }
+  }, [onNavigate])
+
+  // Navigate to local mode
+  const navigateToLocal = useCallback(() => {
+    if (onNavigate) {
+      onNavigate('/local')
+    }
+  }, [onNavigate])
+
+  // Navigate to home (disconnected)
+  const navigateToHome = useCallback(() => {
+    if (onNavigate) {
+      onNavigate('/')
+    }
+  }, [onNavigate])
 
   const LOCAL_API_URL = 'http://localhost:3001/local-api'
 
@@ -820,6 +871,7 @@ function FastlyTab({
 
         updateLocalModeState({ localMode: true })
         setStatus('Local development mode active')
+        navigateToLocal()
         return true
       }
     } catch {
@@ -827,7 +879,7 @@ function FastlyTab({
       setError('Local API server not found. Run "make local" to start the full local environment (UI + API + Compute).')
     }
     return false
-  }, [onLoadRules, hasLoadedRules, updateLocalModeState])
+  }, [onLoadRules, hasLoadedRules, updateLocalModeState, navigateToLocal])
 
   const handleDeployLocal = async () => {
     const validation = validateGraph(nodes, edges)
@@ -1247,6 +1299,11 @@ function FastlyTab({
           fetchEngineVersion(serviceName)
         }
       }
+
+      // Navigate to the selected service
+      if (serviceToSelect) {
+        navigateToService(serviceToSelect)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Connection failed')
       updateFastlyState({ isConnected: false })
@@ -1321,6 +1378,8 @@ function FastlyTab({
     if (onLoadRules) {
       onLoadRules([], [])
     }
+    // Navigate to home
+    navigateToHome()
   }
 
   const fetchConfigStoreStatus = async (serviceId: string) => {
@@ -1364,6 +1423,9 @@ function FastlyTab({
       selectedConfigStore: linkedStore,
     })
     saveSettings({ apiToken, selectedService: serviceId, selectedConfigStore: linkedStore })
+
+    // Navigate to the service URL
+    navigateToService(serviceId)
 
     if (service?.name) {
       fetchEngineVersion(service.name)
@@ -1774,7 +1836,10 @@ function FastlyTab({
             variant="outline"
             size="sm"
             leftSection={<IconSwap width={14} height={14} />}
-            onClick={() => updateLocalModeState({ localMode: false, localServerAvailable: false })}
+            onClick={() => {
+              updateLocalModeState({ localMode: false, localServerAvailable: false })
+              navigateToHome()
+            }}
           >
             Switch to Fastly
           </Button>
@@ -1783,7 +1848,7 @@ function FastlyTab({
         {/* Local Server Card */}
         <Box mb="md">
           <Card withBorder radius="md" padding={0}>
-            <Card.Section style={{ padding: '12px 16px', background: 'var(--COLOR--surface--secondary)' }}>
+            <Card.Section style={{ padding: '8px 12px', background: 'var(--COLOR--surface--secondary)' }}>
               <Flex justify="space-between" align="center">
                 <Title order={5}>Local Server</Title>
                 <ActionIcon variant="subtle" onClick={handleRefreshLocal} disabled={loading}>
@@ -1808,10 +1873,9 @@ function FastlyTab({
               </Flex>
 
               {localComputeRunning && localEngineVersion && (
-                <Box style={{ padding: '12px', background: 'var(--COLOR--surface--tertiary)', borderRadius: 'var(--LAYOUT--border-radius--md)', marginBottom: '12px' }}>
-                  <Text size="xs" className="vce-text-muted">Engine</Text>
-                  <Text size="sm">{localEngineVersion.engine} v{localEngineVersion.version}</Text>
-                </Box>
+                <Text size="sm" style={{ marginBottom: '12px' }}>
+                  <Text span className="vce-text-muted">Engine:</Text> {localEngineVersion.engine} v{localEngineVersion.version}
+                </Text>
               )}
 
               {localComputeRunning && (
@@ -1838,7 +1902,7 @@ function FastlyTab({
         {/* Deploy Rules Card */}
         <Box mb="md">
           <Card withBorder radius="md" padding={0}>
-            <Card.Section style={{ padding: '12px 16px', background: 'var(--COLOR--surface--secondary)' }}>
+            <Card.Section style={{ padding: '8px 12px', background: 'var(--COLOR--surface--secondary)' }}>
               <Flex align="center" gap="sm">
                 <Box>
                   <Title order={5}>Save Rules</Title>
@@ -1849,14 +1913,8 @@ function FastlyTab({
 
             <Box style={{ padding: '16px' }}>
               <Flex gap="md" style={{ marginBottom: '12px' }}>
-                <Box style={{ flex: 1, textAlign: 'center', padding: '12px', background: 'var(--COLOR--surface--tertiary)', borderRadius: 'var(--LAYOUT--border-radius--md)' }}>
-                  <Text size="xs" className="vce-text-muted">Nodes</Text>
-                  <Text size="lg" style={{ fontWeight: 600 }}>{nodes.length}</Text>
-                </Box>
-                <Box style={{ flex: 1, textAlign: 'center', padding: '12px', background: 'var(--COLOR--surface--tertiary)', borderRadius: 'var(--LAYOUT--border-radius--md)' }}>
-                  <Text size="xs" className="vce-text-muted">Edges</Text>
-                  <Text size="lg" style={{ fontWeight: 600 }}>{edges.length}</Text>
-                </Box>
+                <Text size="sm"><Text span weight="bold">{nodes.length}</Text> <Text span className="vce-text-muted">nodes</Text></Text>
+                <Text size="sm"><Text span weight="bold">{edges.length}</Text> <Text span className="vce-text-muted">edges</Text></Text>
               </Flex>
 
               <Button variant="filled" leftSection={<IconUpload width={16} height={16} />} onClick={handleDeployLocal} disabled={loading} fullWidth>
@@ -1876,7 +1934,7 @@ function FastlyTab({
         {localComputeRunning && (
           <Box mb="md">
             <Card withBorder radius="md" padding={0}>
-              <Card.Section style={{ padding: '12px 16px', background: 'var(--COLOR--surface--secondary)' }}>
+              <Card.Section style={{ padding: '8px 12px', background: 'var(--COLOR--surface--secondary)' }}>
                 <Title order={5}>Test URLs</Title>
               </Card.Section>
 
@@ -1982,7 +2040,7 @@ function FastlyTab({
       {showCreateForm ? (
         <Box mb="md">
           <Card withBorder radius="md" padding={0}>
-            <Card.Section style={{ padding: '12px 16px', background: 'var(--COLOR--surface--secondary)' }}>
+            <Card.Section style={{ padding: '8px 12px', background: 'var(--COLOR--surface--secondary)' }}>
               <Flex justify="space-between" align="center">
                 <Title order={5}>New VCE Service</Title>
                 <ActionIcon variant="subtle" onClick={() => setShowCreateForm(false)}>
@@ -2002,9 +2060,7 @@ function FastlyTab({
               </Box>
 
               {createProgress && (
-                <Box style={{ padding: '12px', background: 'var(--COLOR--surface--tertiary)', borderRadius: 'var(--LAYOUT--border-radius--md)', fontFamily: 'monospace', fontSize: '12px', marginBottom: '12px' }}>
-                  {createProgress}
-                </Box>
+                <Text size="xs" style={{ fontFamily: 'monospace', marginBottom: '12px' }}>{createProgress}</Text>
               )}
 
               <Text size="xs" className="vce-text-muted" style={{ marginBottom: '12px' }}>
@@ -2061,7 +2117,7 @@ function FastlyTab({
           {/* Service Info Card */}
           <Box mb="md">
             <Card withBorder radius="md" padding={0}>
-              <Card.Section style={{ padding: '12px 16px', background: 'var(--COLOR--surface--secondary)' }}>
+              <Card.Section style={{ padding: '8px 12px', background: 'var(--COLOR--surface--secondary)' }}>
                 <Flex justify="space-between" align="center">
                   <Title order={5}>Service Info</Title>
                   <ActionIcon variant="subtle" onClick={handleRefreshService} loading={engineVersionLoading}>
@@ -2101,7 +2157,7 @@ function FastlyTab({
           {/* Step 1: Engine */}
           <Box mb="md">
             <Card withBorder radius="md" padding={0}>
-              <Card.Section style={{ padding: '12px 16px', background: 'var(--COLOR--surface--secondary)' }}>
+              <Card.Section style={{ padding: '8px 12px', background: 'var(--COLOR--surface--secondary)' }}>
                 <Flex align="center" gap="sm">
                   <Pill variant={engineVersion?.version === VCE_ENGINE_VERSION ? 'success' : 'default'}>1</Pill>
                   <Box>
@@ -2113,8 +2169,8 @@ function FastlyTab({
 
               <Box style={{ padding: '16px' }}>
               {engineUpdateProgress ? (
-                <Box style={{ padding: '12px', background: 'var(--COLOR--surface--secondary)', borderRadius: 'var(--LAYOUT--border-radius--md)' }}>
-                  <Text size="xs" style={{ fontFamily: 'monospace', marginBottom: '8px' }}>{engineUpdateProgress}</Text>
+                <Stack gap="xs">
+                  <Text size="xs" style={{ fontFamily: 'monospace' }}>{engineUpdateProgress}</Text>
                   {engineUpdateProgress.includes('POPs') && (() => {
                     const match = engineUpdateProgress.match(/(\d+)\/(\d+) POPs \((\d+)%\)/)
                     if (match) {
@@ -2127,7 +2183,7 @@ function FastlyTab({
                     }
                     return null
                   })()}
-                </Box>
+                </Stack>
               ) : engineVersionLoading ? (
                 <Stack gap="sm">
                   <Skeleton height={44} radius="md" />
@@ -2135,7 +2191,7 @@ function FastlyTab({
                 </Stack>
               ) : engineVersion ? (
                 <Stack gap="sm">
-                  <Flex align="center" justify="space-between" style={{ padding: '12px', background: 'var(--COLOR--surface--secondary)', borderRadius: 'var(--LAYOUT--border-radius--md)' }}>
+                  <Flex align="center" justify="space-between">
                     <Text size="sm">{engineVersion.engine} v{engineVersion.version}</Text>
                     {engineVersion.engine !== 'Visual Compute Engine' ? (
                       <Pill variant="error">Unknown</Pill>
@@ -2160,10 +2216,10 @@ function FastlyTab({
                 </Stack>
               ) : (
                 <Stack gap="sm">
-                  <Box style={{ padding: '12px', background: 'var(--COLOR--surface--secondary)', borderRadius: 'var(--LAYOUT--border-radius--md)' }}>
+                  <Flex align="center" justify="space-between">
                     <Text size="sm" style={{ color: 'var(--COLOR--error--text)' }}>Not detected</Text>
-                    <Text size="xs" className="vce-text-muted">Service may not be deployed</Text>
-                  </Box>
+                    <Pill variant="error">Not deployed</Pill>
+                  </Flex>
                   <Text size="xs" className="vce-text-muted" style={{ fontStyle: 'italic' }}>
                     {selectedConfigStore ? 'Deployment typically takes ~30-60s to propagate.' : 'Deploy the engine first, then setup Config Store.'}
                   </Text>
@@ -2183,7 +2239,7 @@ function FastlyTab({
       {selectedService && selectedConfigStore && (
         <Box mb="md">
           <Card withBorder radius="md" padding={0}>
-            <Card.Section style={{ padding: '12px 16px', background: 'var(--COLOR--surface--secondary)' }}>
+            <Card.Section style={{ padding: '8px 12px', background: 'var(--COLOR--surface--secondary)' }}>
               <Flex align="center" gap="sm">
                 <Pill variant="success">2</Pill>
                 <Box>
@@ -2194,7 +2250,7 @@ function FastlyTab({
             </Card.Section>
 
             <Box style={{ padding: '16px' }}>
-            <Flex align="center" justify="space-between" style={{ padding: '12px', background: 'var(--COLOR--surface--tertiary)', borderRadius: 'var(--LAYOUT--border-radius--md)' }}>
+            <Flex align="center" justify="space-between">
               <Text size="sm" style={{ fontFamily: 'monospace' }}>
                 {configStores.find(s => s.id === selectedConfigStore)?.name || selectedConfigStore}
               </Text>
@@ -2264,7 +2320,7 @@ function FastlyTab({
         return (
           <Box mb="md">
             <Card withBorder radius="md" padding={0}>
-              <Card.Section style={{ padding: '12px 16px', background: 'var(--COLOR--surface--secondary)' }}>
+              <Card.Section style={{ padding: '8px 12px', background: 'var(--COLOR--surface--secondary)' }}>
                 <Flex align="center" gap="sm">
                   <Pill variant="default">2</Pill>
                   <Box>
@@ -2277,33 +2333,29 @@ function FastlyTab({
               <Box style={{ padding: '16px' }}>
               {/* Status display */}
               <Stack gap="sm">
-                <Box style={{ padding: '12px', background: 'var(--COLOR--surface--tertiary)', borderRadius: 'var(--LAYOUT--border-radius--md)' }}>
-                  <Flex justify="space-between" align="center">
-                    <Flex align="center" gap="xs" style={{ flex: 1 }}>
-                      {getStatusPill()}
-                      <Text size="xs" className="vce-text-muted" style={{ flex: 1 }}>
-                        {configStoreStatusLoading ? 'Checking...' :
-                         configStoreStatus ? configStoreStatus.message :
-                         'Click Refresh to check status'}
-                      </Text>
-                    </Flex>
-                    {!configStoreStatusLoading && (
-                      <ActionIcon variant="subtle" onClick={() => fetchConfigStoreStatus(selectedService)}>
-                        <IconSync width={16} height={16} />
-                      </ActionIcon>
-                    )}
-                  </Flex>
-                  {configStoreStatus?.status === 'linked_outdated' && (
-                    <Text size="xs" style={{ color: 'var(--COLOR--caution--text)', marginTop: '4px' }}>
-                      Update available: v{configStoreStatus.manifestVersion} → v{configStoreStatus.currentVersion}
+                <Flex justify="space-between" align="center">
+                  <Flex align="center" gap="xs" style={{ flex: 1 }}>
+                    {getStatusPill()}
+                    <Text size="xs" className="vce-text-muted" style={{ flex: 1 }}>
+                      {configStoreStatusLoading ? 'Checking...' :
+                       configStoreStatus ? configStoreStatus.message :
+                       'Click Refresh to check status'}
                     </Text>
+                  </Flex>
+                  {!configStoreStatusLoading && (
+                    <ActionIcon variant="subtle" onClick={() => fetchConfigStoreStatus(selectedService)}>
+                      <IconSync width={16} height={16} />
+                    </ActionIcon>
                   )}
-                </Box>
+                </Flex>
+                {configStoreStatus?.status === 'linked_outdated' && (
+                  <Text size="xs" style={{ color: 'var(--COLOR--caution--text)' }}>
+                    Update available: v{configStoreStatus.manifestVersion} → v{configStoreStatus.currentVersion}
+                  </Text>
+                )}
 
                 {createProgress && (
-                  <Box style={{ padding: '12px', background: 'var(--COLOR--surface--tertiary)', borderRadius: 'var(--LAYOUT--border-radius--md)' }}>
-                    <Text size="xs" style={{ fontFamily: 'monospace' }}>{createProgress}</Text>
-                  </Box>
+                  <Text size="xs" style={{ fontFamily: 'monospace' }}>{createProgress}</Text>
                 )}
 
                 <Button variant="filled" leftSection={<IconUpload width={16} height={16} />} onClick={handleSetupConfigStore} loading={loading} fullWidth>
@@ -2322,7 +2374,7 @@ function FastlyTab({
       {/* Step 3: Deploy Rules */}
       <Box style={{ marginBottom: '16px' }}>
         <Card withBorder radius="md" padding={0}>
-          <Card.Section style={{ padding: '12px 16px', background: 'var(--COLOR--surface--secondary)' }}>
+          <Card.Section style={{ padding: '8px 12px', background: 'var(--COLOR--surface--secondary)' }}>
             <Flex align="center" gap="sm">
               <Pill variant="default">3</Pill>
               <Box>
@@ -2335,14 +2387,8 @@ function FastlyTab({
           <Box style={{ padding: '16px' }}>
           <Stack gap="sm">
             <Flex gap="md">
-              <Box style={{ flex: 1, textAlign: 'center', padding: '12px', background: 'var(--COLOR--surface--tertiary)', borderRadius: 'var(--LAYOUT--border-radius--md)' }}>
-                <Text size="xs" className="vce-text-muted">Nodes</Text>
-                <Text size="lg" style={{ fontWeight: 600 }}>{nodes.length}</Text>
-              </Box>
-              <Box style={{ flex: 1, textAlign: 'center', padding: '12px', background: 'var(--COLOR--surface--tertiary)', borderRadius: 'var(--LAYOUT--border-radius--md)' }}>
-                <Text size="xs" className="vce-text-muted">Edges</Text>
-                <Text size="lg" style={{ fontWeight: 600 }}>{edges.length}</Text>
-              </Box>
+              <Text size="sm"><Text span weight="bold">{nodes.length}</Text> <Text span className="vce-text-muted">nodes</Text></Text>
+              <Text size="sm"><Text span weight="bold">{edges.length}</Text> <Text span className="vce-text-muted">edges</Text></Text>
             </Flex>
 
             <Button

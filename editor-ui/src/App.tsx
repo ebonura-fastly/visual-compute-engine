@@ -19,6 +19,7 @@ import {
   SelectionMode,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
+import { BrowserRouter, Routes, Route, useParams, useNavigate } from 'react-router-dom'
 import { Box, Stack, Title, Text, Flex, Pill } from '@fastly/beacon-mantine'
 
 import { ConditionNode, ActionNode, RequestNode, RateLimitNode, TransformNode, BackendNode, LoggingNode, RuleGroupNode, HeaderNode, CacheNode } from './components/nodes'
@@ -79,6 +80,11 @@ function Flow() {
   const [nodes, setNodes] = useState<Node[]>([])
   const [edges, setEdges] = useState<Edge[]>([])
   const { screenToFlowPosition } = useReactFlow()
+
+  // Router hooks
+  const { serviceId } = useParams<{ serviceId?: string }>()
+  const navigate = useNavigate()
+  const isLocalMode = window.location.pathname === '/local'
 
   const onNodesChange: OnNodesChange = useCallback(
     (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
@@ -168,6 +174,9 @@ function Flow() {
           edges={edges}
           onAddTemplate={handleAddTemplate}
           onLoadRules={handleLoadRules}
+          routeServiceId={serviceId}
+          isLocalRoute={isLocalMode}
+          onNavigate={navigate}
         />
         <div className="vce-canvas" ref={reactFlowWrapper}>
           <ReactFlow
@@ -233,12 +242,24 @@ function Flow() {
   )
 }
 
-export default function App() {
+function AppRoutes() {
   return (
     <div className="vce-app">
       <ReactFlowProvider>
         <Flow />
       </ReactFlowProvider>
     </div>
+  )
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<AppRoutes />} />
+        <Route path="/local" element={<AppRoutes />} />
+        <Route path="/:serviceId" element={<AppRoutes />} />
+      </Routes>
+    </BrowserRouter>
   )
 }
