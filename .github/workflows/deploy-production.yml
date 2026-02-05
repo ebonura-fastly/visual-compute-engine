@@ -57,12 +57,12 @@ jobs:
           READY_STATUS=""
 
           for attempt in $(seq 1 $MAX_ATTEMPTS); do
-            READY_STATUS=$(gcloud run services describe vce-editor-production \
+            READY_STATUS=$(gcloud run services describe configure-compute-editor-production \
               --region=${{ env.REGION }} \
               --format='value(status.conditions[0].status)' 2>/dev/null || echo "")
 
             if [ "$READY_STATUS" = "True" ]; then
-              echo "Service vce-editor-production is ready (attempt $attempt)"
+              echo "Service configure-compute-editor-production is ready (attempt $attempt)"
               break
             fi
 
@@ -72,12 +72,12 @@ jobs:
           done
 
           if [ "$READY_STATUS" != "True" ]; then
-            echo "Service vce-editor-production did not become ready after $MAX_ATTEMPTS attempts"
+            echo "Service configure-compute-editor-production did not become ready after $MAX_ATTEMPTS attempts"
             exit 1
           fi
 
           # Verify deployed commit
-          DEPLOYED_COMMIT=$(gcloud run services describe vce-editor-production \
+          DEPLOYED_COMMIT=$(gcloud run services describe configure-compute-editor-production \
             --region=${{ env.REGION }} \
             --format='value(metadata.annotations["deploy.cloud.run/commit"])')
 
@@ -129,7 +129,7 @@ jobs:
 
           TAG_MESSAGE="Production release $VERSION
 
-          Deployed to: vce-editor-production
+          Deployed to: configure-compute-editor-production
           Commit: $SHORT_SHA
           Region: ${{ env.REGION }}
           Deployed: $(date -u +%Y-%m-%dT%H:%M:%SZ)"

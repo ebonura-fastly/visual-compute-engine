@@ -1,10 +1,10 @@
-# Multi-stage build for Visual Compute Engine editor-ui
-# Stage 1: Build vce-core WASM
+# Multi-stage build for Configure Compute editor-ui
+# Stage 1: Build cc-core WASM
 # Stage 2: Build editor-ui
 # Stage 3: Serve with nginx
 
 # ============================================================================
-# Stage 1: Build vce-core WASM with Rust + wasm-pack
+# Stage 1: Build cc-core WASM with Rust + wasm-pack
 # ============================================================================
 FROM rust:1.83-slim AS wasm-builder
 
@@ -21,7 +21,7 @@ WORKDIR /build
 # Copy core source
 COPY core/ ./core/
 
-# Build vce-core WASM package
+# Build cc-core WASM package
 WORKDIR /build/core
 RUN wasm-pack build --target web --out-dir pkg
 

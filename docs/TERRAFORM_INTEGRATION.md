@@ -1,8 +1,8 @@
-# VCE Terraform Integration (Future)
+# Configure Compute Terraform Integration (Future)
 
 ## Overview
 
-This document outlines how VCE could use Terraform for full service lifecycle management, following the same patterns as ConfigureFastly.
+This document outlines how Configure Compute could use Terraform for full service lifecycle management, following the same patterns as ConfigureFastly.
 
 ## Current Model (Direct API)
 
@@ -18,7 +18,7 @@ Browser (user's Fastly token) → Fastly API
 ## Future Model (Terraform Backend)
 
 ```
-Browser → VCE Backend API → Terraform → Fastly
+Browser → Configure Compute Backend API → Terraform → Fastly
                            └─ fastly_service_compute
                            └─ fastly_configstore
                            └─ fastly_configstore_entries
@@ -30,7 +30,7 @@ Browser → VCE Backend API → Terraform → Fastly
 ### Main Module Structure
 
 ```hcl
-# modules/vce-service/main.tf
+# modules/cc-service/main.tf
 
 resource "fastly_service_compute" "service" {
   name = var.service_name
@@ -44,7 +44,7 @@ resource "fastly_service_compute" "service" {
     source_code_hash = filesha256(var.wasm_package_path)
   }
 
-  # Dynamic backends from VCE graph
+  # Dynamic backends from Configure Compute graph
   dynamic "backend" {
     for_each = var.backends
     content {
@@ -68,7 +68,7 @@ resource "fastly_service_compute" "service" {
     content {
       name   = "security_logs"
       url    = var.logging_endpoint
-      format = jsonencode({ /* VCE log format */ })
+      format = jsonencode({ /* Configure Compute log format */ })
     }
   }
 }
@@ -89,7 +89,7 @@ resource "fastly_configstore_entries" "rules" {
 ### Variables
 
 ```hcl
-# modules/vce-service/variables.tf
+# modules/cc-service/variables.tf
 
 variable "service_name" {
   type        = string
@@ -103,7 +103,7 @@ variable "domain" {
 
 variable "wasm_package_path" {
   type        = string
-  description = "Path to the VCE engine WASM package"
+  description = "Path to the Configure Compute engine WASM package"
 }
 
 variable "rules_packed" {
@@ -119,7 +119,7 @@ variable "backends" {
     use_ssl           = bool
     ssl_cert_hostname = string
   }))
-  description = "Backend definitions extracted from VCE graph"
+  description = "Backend definitions extracted from Configure Compute graph"
 }
 
 variable "logging_endpoint" {
@@ -135,7 +135,7 @@ variable "logging_endpoint" {
 
 ```
 POST /deploy
-  - Accepts VCE deployment config (graph, service name, domain)
+  - Accepts Configure Compute deployment config (graph, service name, domain)
   - Extracts backends from graph
   - Generates Terraform config
   - Runs terraform apply in workspace
@@ -146,7 +146,7 @@ GET /deploy_events/{deployment_id}
   - Same pattern as ConfigureFastly
 
 GET /services
-  - List user's deployed VCE services
+  - List user's deployed Configure Compute services
   - Query Terraform state or Fastly API
 
 DELETE /services/{service_id}
@@ -156,7 +156,7 @@ DELETE /services/{service_id}
 ### Deployment Config Schema
 
 ```typescript
-interface VCEDeploymentConfig {
+interface Configure ComputeDeploymentConfig {
   id: string;              // Becomes Terraform workspace name
   service_name: string;
   domain: string;
@@ -174,7 +174,7 @@ Same pattern as ConfigureFastly:
 
 1. Each deployment config has unique `id`
 2. `id` → Terraform workspace name
-3. State stored at: `gs://{bucket}/vce/terraform/{workspace}/default.tfstate`
+3. State stored at: `gs://{bucket}/configure-compute/terraform/{workspace}/default.tfstate`
 4. Complete isolation between workspaces
 
 ## WASM Package Handling
@@ -185,14 +185,14 @@ Options:
 2. **GCS artifact** - Upload WASM to bucket, reference in Terraform
 3. **Fastly Package Hash** - Use `fastly_package_hash` data source with pre-uploaded package
 
-Recommended: Option 1 for simplicity - all users get same VCE engine version.
+Recommended: Option 1 for simplicity - all users get same Configure Compute engine version.
 
 ## Integration with ConfigureFastly
 
 Future unified product could:
 
 1. Share backend infrastructure (Cloud Run, IAP, Terraform runner)
-2. Add service type selector: "VCL Service" vs "Compute Service (VCE)"
+2. Add service type selector: "VCL Service" vs "Compute Service (Configure Compute)"
 3. Share workspace/state management patterns
 4. Unified service list showing both VCL and Compute services
 
@@ -206,5 +206,5 @@ Future unified product could:
 ## Not In Scope
 
 - Per-user Fastly API keys (use server-level key like ConfigureFastly)
-- Custom WASM uploads (all users get standard VCE engine)
+- Custom WASM uploads (all users get standard Configure Compute engine)
 - VCL generation (that's ConfigureFastly's domain)

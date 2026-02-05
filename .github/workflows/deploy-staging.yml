@@ -47,7 +47,7 @@ jobs:
           sleep 30
 
           # Get the service URL
-          SERVICE_URL=$(gcloud run services describe vce-editor-staging \
+          SERVICE_URL=$(gcloud run services describe configure-compute-editor-staging \
             --region=${{ env.REGION }} \
             --format='value(status.url)')
 

@@ -1,6 +1,6 @@
 # Architecture
 
-Visual Compute Engine (VCE) is a visual node-based security rules editor and runtime for Fastly Compute@Edge. It enables designing edge security policies through a graphical interface without writing code.
+Configure Compute (CC) is a visual node-based security rules editor and runtime for Fastly Compute@Edge. It enables designing edge security policies through a graphical interface without writing code.
 
 > For setup and usage instructions, see [README.md](README.md).
 
@@ -366,7 +366,7 @@ curl -s https://your-service.edgecompute.app/_version | jq
 
 # Response:
 {
-  "engine": "Visual Compute Engine",
+  "engine": "Configure Compute",
   "version": "1.1.5",
   "rules_hash": "a1b2c3d4",
   "nodes_count": 12,

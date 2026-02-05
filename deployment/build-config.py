@@ -50,15 +50,15 @@ def inject_config(template_path: str, config_profile: str, short_sha: str, proje
         environment = "development"
 
     # Get service account from config or compute from convention
-    service_account = cloud_run.get("service_account") or f"sa-vce@{project_id}.iam.gserviceaccount.com"
+    service_account = cloud_run.get("service_account") or f"sa-configure-compute@{project_id}.iam.gserviceaccount.com"
 
     # Substitution values
     values = {
-        "SERVICE_NAME": cloud_run.get("service_name", "vce-editor"),
+        "SERVICE_NAME": cloud_run.get("service_name", "configure-compute-editor"),
         "SHORT_SHA": short_sha,
         "SERVICE_ACCOUNT": service_account,
         "ENVIRONMENT": environment,
-        "IMAGE": f"us-central1-docker.pkg.dev/{project_id}/vce/vce-editor:{short_sha}",
+        "IMAGE": f"us-central1-docker.pkg.dev/{project_id}/configure-compute/configure-compute-editor:{short_sha}",
         "CPU": cloud_run.get("resources", {}).get("cpu", "1"),
         "MEMORY": cloud_run.get("resources", {}).get("memory", "512Mi"),
         "CPU_REQUEST": cloud_run.get("resources", {}).get("cpu_request", "500m"),

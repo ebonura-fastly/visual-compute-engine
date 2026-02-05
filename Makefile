@@ -1,11 +1,11 @@
-# Visual Compute Engine - Development Makefile
+# Configure Compute - Development Makefile
 # Run 'make' or 'make help' for available commands
 
 .PHONY: help dev build rebuild serve ui clean install all local local-api embed-wasm
 
 # Default target
 help:
-	@echo "Visual Compute Engine Development Commands"
+	@echo "Configure Compute Development Commands"
 	@echo "================================"
 	@echo ""
 	@echo "  make local      - Run full local dev environment (recommended for demos)"
@@ -44,24 +44,24 @@ install:
 
 # Build the Compute WASM binary
 build:
-	@echo "Building Visual Compute Engine..."
-	cd compute && cargo build --bin vce-engine --release --target wasm32-wasip1
+	@echo "Building Configure Compute..."
+	cd compute && cargo build --bin configure-compute --release --target wasm32-wasip1
 	@echo ""
-	@echo "Binary location: compute/target/wasm32-wasip1/release/vce-engine.wasm"
-	@ls -lh compute/target/wasm32-wasip1/release/vce-engine.wasm
+	@echo "Binary location: compute/target/wasm32-wasip1/release/configure-compute.wasm"
+	@ls -lh compute/target/wasm32-wasip1/release/configure-compute.wasm
 
 # Clean rebuild (guaranteed fresh WASM)
 rebuild:
-	@echo "Clean rebuild of Visual Compute Engine..."
+	@echo "Clean rebuild of Configure Compute..."
 	cd compute && cargo clean
-	cd compute && cargo build --bin vce-engine --release --target wasm32-wasip1
+	cd compute && cargo build --bin configure-compute --release --target wasm32-wasip1
 	@echo ""
-	@echo "Binary location: compute/target/wasm32-wasip1/release/vce-engine.wasm"
-	@ls -lh compute/target/wasm32-wasip1/release/vce-engine.wasm
+	@echo "Binary location: compute/target/wasm32-wasip1/release/configure-compute.wasm"
+	@ls -lh compute/target/wasm32-wasip1/release/configure-compute.wasm
 
 # Run Compute engine locally (requires build first)
 serve: build
-	@echo "Starting Visual Compute Engine on http://127.0.0.1:7676"
+	@echo "Starting Configure Compute on http://127.0.0.1:7676"
 	@echo "Test with: curl http://127.0.0.1:7676/_version"
 	@echo ""
 	cd compute && fastly compute serve
@@ -75,7 +75,7 @@ ui:
 # First builds and embeds the latest WASM into the UI
 dev: embed-wasm
 	@echo "==================================================="
-	@echo "  Visual Compute Engine Development Mode"
+	@echo "  Configure Compute Development Mode"
 	@echo "==================================================="
 	@echo ""
 	@echo "Starting services..."
@@ -106,7 +106,7 @@ local-api:
 # First builds and embeds the latest WASM into the UI
 local: embed-wasm
 	@echo "╔═══════════════════════════════════════════════════════════════╗"
-	@echo "║           Visual Compute Engine - Local Development Mode                 ║"
+	@echo "║           Configure Compute - Local Development Mode                 ║"
 	@echo "╠═══════════════════════════════════════════════════════════════╣"
 	@echo "║  Editor UI:    http://localhost:5174                          ║"
 	@echo "║  Local API:    http://localhost:3001 (for saving rules)       ║"
@@ -128,8 +128,8 @@ local: embed-wasm
 # Uses clean rebuild to ensure deployed WASM always matches source code
 embed-wasm: rebuild
 	@echo "Embedding WASM in Editor UI..."
-	base64 -i compute/target/wasm32-wasip1/release/vce-engine.wasm -o editor-ui/src/assets/vce-engine.wasm.b64
-	@echo "Updated editor-ui/src/assets/vce-engine.wasm.b64"
+	base64 -i compute/target/wasm32-wasip1/release/configure-compute.wasm -o editor-ui/src/assets/configure-compute.wasm.b64
+	@echo "Updated editor-ui/src/assets/configure-compute.wasm.b64"
 
 # ============================================================================
 # LOCAL DEMO MODE

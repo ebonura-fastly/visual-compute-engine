@@ -1,9 +1,9 @@
-# Visual Compute Engine - Production Configuration
-# Deployed to: vce-editor-production
+# Configure Compute - Production Configuration
+# Deployed to: configure-compute-editor-production
 
 cloud_run:
-  service_name: vce-editor-production
-  service_account: sa-vce@fastly-soc.iam.gserviceaccount.com
+  service_name: configure-compute-editor-production
+  service_account: sa-configure-compute@fastly-soc.iam.gserviceaccount.com
 
   resources:
     cpu: "1"

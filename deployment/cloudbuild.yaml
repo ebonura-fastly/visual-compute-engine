@@ -1,9 +1,9 @@
-# Cloud Build for Visual Compute Engine
+# Cloud Build for Configure Compute
 # Builds editor-ui container and deploys to Cloud Run
 # Note: Run from project root directory
 
 steps:
-  # Build editor-ui image (includes vce-core WASM build)
+  # Build editor-ui image (includes cc-core WASM build)
   - name: gcr.io/cloud-builders/docker
     id: build-ui
     args:
@@ -11,9 +11,9 @@ steps:
       - -f
       - deployment/Dockerfile
       - -t
-      - us-central1-docker.pkg.dev/$PROJECT_ID/vce/vce-editor:$SHORT_SHA
+      - us-central1-docker.pkg.dev/$PROJECT_ID/configure-compute/configure-compute-editor:$SHORT_SHA
       - -t
-      - us-central1-docker.pkg.dev/$PROJECT_ID/vce/vce-editor:latest
+      - us-central1-docker.pkg.dev/$PROJECT_ID/configure-compute/configure-compute-editor:latest
       - .
 
   # Push image
@@ -23,7 +23,7 @@ steps:
     args:
       - push
       - --all-tags
-      - us-central1-docker.pkg.dev/$PROJECT_ID/vce/vce-editor
+      - us-central1-docker.pkg.dev/$PROJECT_ID/configure-compute/configure-compute-editor
 
   # Deploy to Cloud Run with config profile injection
   - name: gcr.io/cloud-builders/gcloud
@@ -56,8 +56,8 @@ steps:
 
 # Push images to Artifact Registry
 images:
-  - us-central1-docker.pkg.dev/$PROJECT_ID/vce/vce-editor:$SHORT_SHA
-  - us-central1-docker.pkg.dev/$PROJECT_ID/vce/vce-editor:latest
+  - us-central1-docker.pkg.dev/$PROJECT_ID/configure-compute/configure-compute-editor:$SHORT_SHA
+  - us-central1-docker.pkg.dev/$PROJECT_ID/configure-compute/configure-compute-editor:latest
 
 # Substitutions with defaults
 substitutions:

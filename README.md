@@ -1,16 +1,16 @@
-# Visual Compute Engine
+# Configure Compute
 
 Visual security rules editor and runtime for Fastly Compute@Edge.
 
 ## Overview
 
-Visual Compute Engine provides a visual node-based editor for creating security rules that run on Fastly's edge network. Rules are designed as flow graphs and deployed directly to the edge - no format conversion needed.
+Configure Compute provides a visual node-based editor for creating security rules that run on Fastly's edge network. Rules are designed as flow graphs and deployed directly to the edge - no format conversion needed.
 
 ## Components
 
 ```
 ┌─────────────────┐      ┌──────────────────┐      ┌─────────────────┐
-│   Editor UI     │ ───► │  Config Store    │ ◄─── │   Visual Compute Engine    │
+│   Editor UI     │ ───► │  Config Store    │ ◄─── │   Configure Compute    │
 │  (React Flow)   │      │  (compressed)    │      │     (Rust)      │
 └─────────────────┘      └──────────────────┘      └─────────────────┘
      Design rules         Shared graph format        Execute rules
@@ -22,7 +22,7 @@ Visual Compute Engine provides a visual node-based editor for creating security 
 - Connect nodes with edges to create rule flows
 - Deploy directly to Fastly Config Store
 
-### Visual Compute Engine (`/compute`)
+### Configure Compute (`/compute`)
 - Rust service compiled to WebAssembly
 - Runs on Fastly Compute@Edge
 - Evaluates graph rules at the edge
@@ -124,7 +124,7 @@ npm install
 npm run dev
 ```
 
-### Visual Compute Engine
+### Configure Compute
 ```bash
 cd compute
 fastly compute build
@@ -175,20 +175,20 @@ This spawns Viceroy per test for isolation. Tests cover:
 
 To test against a deployed service:
 ```bash
-VCE_TEST_DOMAIN=your-service.edgecompute.app node test-graphs.mjs --deployed
+CC_TEST_DOMAIN=your-service.edgecompute.app node test-graphs.mjs --deployed
 ```
 
 ### Verify Deployment
 After deploying, check the version:
 ```bash
 curl https://your-service.edgecompute.app/_version
-# Returns: {"engine":"Visual Compute Engine","version":"1.0.0","format":"graph"}
+# Returns: {"engine":"Configure Compute","version":"1.0.0","format":"graph"}
 ```
 
 Compare package hash:
 ```bash
 # Local build hash
-shasum -a 512 pkg/vce-engine.tar.gz
+shasum -a 512 pkg/configure-compute.tar.gz
 
 # Deployed hash (via API)
 curl -H "Fastly-Key: $TOKEN" "https://api.fastly.com/service/$SERVICE_ID/version/active/package" | jq '.metadata.hashsum'
@@ -230,7 +230,7 @@ If your backend is a Fastly VCL service, add these snippets to validate Edge-Aut
 ```vcl
 # Validate Edge-Auth header format: timestamp,pop,signature
 if (!req.http.Edge-Auth || !req.http.Edge-Auth ~ "^([0-9]+),([^,]+),(0x[0-9a-f]{64})$") {
-    error 403 "VCE Invalid header format";
+    error 403 "CC Invalid header format";
 }
 
 declare local var.timestamp STRING;
@@ -239,24 +239,24 @@ declare local var.secret STRING;
 
 set var.timestamp = re.group.1;
 set var.data = var.timestamp + "," + re.group.2;
-set var.secret = table.lookup(vce_shared_secret, "compute_auth_key");
+set var.secret = table.lookup(cc_shared_secret, "compute_auth_key");
 
 # Verify HMAC signature
 if (!digest.secure_is_equal(digest.hmac_sha256(var.secret, var.data), re.group.3)) {
-    error 403 "VCE Invalid signature";
+    error 403 "CC Invalid signature";
 }
 
 # Reject requests older than 2 seconds (replay protection)
 declare local var.request_time TIME;
 set var.request_time = std.time(var.timestamp, std.integer2time(-1));
 if (!time.is_after(var.request_time, time.sub(now, 2s))) {
-    error 403 "VCE Request expired";
+    error 403 "CC Request expired";
 }
 ```
 
 **edge-auth-error.vcl** (add to `vcl_error`):
 ```vcl
-if (obj.status == 403 && obj.response ~ "^VCE ") {
+if (obj.status == 403 && obj.response ~ "^CC ") {
     set obj.http.Content-Type = "text/plain";
     synthetic {"Edge Authentication Guard: "} obj.response;
     return(deliver);
@@ -264,9 +264,9 @@ if (obj.status == 403 && obj.response ~ "^VCE ") {
 ```
 
 **Setup required:**
-1. Create an Edge Dictionary named `vce_shared_secret`
+1. Create an Edge Dictionary named `cc_shared_secret`
 2. Add key `compute_auth_key` with your shared secret
-3. Use the same secret in the Compute service's `vce_shared_secret` Config Store
+3. Use the same secret in the Compute service's `cc_shared_secret` Config Store
 
 ## POC Services
 

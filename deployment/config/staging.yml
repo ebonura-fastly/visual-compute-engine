@@ -1,9 +1,9 @@
-# Visual Compute Engine - Staging Configuration
-# Deployed to: vce-editor-staging
+# Configure Compute - Staging Configuration
+# Deployed to: configure-compute-editor-staging
 
 cloud_run:
-  service_name: vce-editor-staging
-  service_account: sa-vce@fastly-soc.iam.gserviceaccount.com
+  service_name: configure-compute-editor-staging
+  service_account: sa-configure-compute@fastly-soc.iam.gserviceaccount.com
 
   resources:
     cpu: "1"
