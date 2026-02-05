@@ -91,10 +91,10 @@ impl<'a> GraphInterpreter<'a> {
         let (rate_limiter, rate_counter_debug) = if has_rate_limit {
             // Try to open the rate counter and penalty box
             // These must be configured in fastly.toml and linked to the service
-            let counter = RateCounter::open("vce_rate_counter");
-            let penaltybox = Penaltybox::open("vce_penalty_box");
+            let counter = RateCounter::open("cc_rate_counter");
+            let penaltybox = Penaltybox::open("cc_penalty_box");
             // Open a second counter handle for debug lookups
-            let counter_debug = RateCounter::open("vce_rate_counter");
+            let counter_debug = RateCounter::open("cc_rate_counter");
             (Some(ERL::open(counter, penaltybox)), Some(counter_debug))
         } else {
             (None, None)

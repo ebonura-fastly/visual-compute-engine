@@ -57,7 +57,7 @@ export function NodeBase({
 
   return (
     <Box
-      className="vce-node"
+      className="cc-node"
       data-category={category}
       data-selected={selected}
       style={nodeStyle}
@@ -68,21 +68,21 @@ export function NodeBase({
           maxWidth={maxWidth}
           minHeight={100}
           isVisible={selected}
-          lineClassName="vce-node-resizer-line"
-          handleClassName="vce-node-resizer-handle"
+          lineClassName="cc-node-resizer-line"
+          handleClassName="cc-node-resizer-handle"
         />
       )}
 
       {/* Header */}
       <Flex
-        className="vce-node-header"
+        className="cc-node-header"
         onClick={() => setCollapsed(!collapsed)}
         align="center"
         justify="space-between"
       >
         <Flex align="center" gap="xs">
-          <Text size="xs" className="vce-node-collapse-icon">{collapsed ? '▸' : '▾'}</Text>
-          <Text size="sm" weight="bold" className="vce-node-title">{title}</Text>
+          <Text size="xs" className="cc-node-collapse-icon">{collapsed ? '▸' : '▾'}</Text>
+          <Text size="sm" weight="bold" className="cc-node-title">{title}</Text>
         </Flex>
         {docUrl && (
           <a
@@ -91,7 +91,7 @@ export function NodeBase({
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
             title="View documentation"
-            className="vce-node-doc-link"
+            className="cc-node-doc-link"
           >
             <IconHelp width={14} height={14} />
           </a>
@@ -105,7 +105,7 @@ export function NodeBase({
           type="target"
           position={Position.Left}
           id={port.id}
-          className="vce-handle"
+          className="cc-handle"
           data-port-type={port.type}
           style={{ top: collapsed ? HEADER_HEIGHT / 2 : getHandleTop(idx) }}
         />
@@ -117,7 +117,7 @@ export function NodeBase({
           type="source"
           position={Position.Right}
           id={port.id}
-          className="vce-handle"
+          className="cc-handle"
           data-port-type={port.type}
           style={{ top: collapsed ? HEADER_HEIGHT / 2 : getHandleTop(idx) }}
         />
@@ -125,22 +125,22 @@ export function NodeBase({
 
       {/* Body (collapsible) */}
       {!collapsed && (
-        <Box className="vce-node-body">
+        <Box className="cc-node-body">
           {/* Port labels - rows must match handle positions */}
           {maxPorts > 0 && (
-            <Flex className="vce-port-rows" justify="space-between">
+            <Flex className="cc-port-rows" justify="space-between">
               {/* Left ports labels */}
-              <Box className="vce-port-column vce-port-column--left">
+              <Box className="cc-port-column cc-port-column--left">
                 {inputs.map((port) => (
-                  <Text key={port.id} size="xs" className="vce-port-label">
+                  <Text key={port.id} size="xs" className="cc-port-label">
                     {port.label}
                   </Text>
                 ))}
               </Box>
               {/* Right ports labels */}
-              <Box className="vce-port-column vce-port-column--right">
+              <Box className="cc-port-column cc-port-column--right">
                 {outputs.map((port) => (
-                  <Text key={port.id} size="xs" className="vce-port-label">
+                  <Text key={port.id} size="xs" className="cc-port-label">
                     {port.label}
                   </Text>
                 ))}
@@ -150,7 +150,7 @@ export function NodeBase({
 
           {/* Node content (form fields) */}
           {children && (
-            <Box className={`vce-node-content ${maxPorts > 0 ? 'vce-node-content--with-ports' : ''}`}>
+            <Box className={`cc-node-content ${maxPorts > 0 ? 'cc-node-content--with-ports' : ''}`}>
               {children}
             </Box>
           )}
@@ -171,13 +171,13 @@ export function NodeField({
   children: ReactNode
 }) {
   return (
-    <Box className="vce-node-field" mb="xs">
-      <Text component="label" size="xs" className="vce-node-field-label">
+    <Box className="cc-node-field" mb="xs">
+      <Text component="label" size="xs" className="cc-node-field-label">
         {label}
       </Text>
-      <Box className="vce-node-field-input">{children}</Box>
+      <Box className="cc-node-field-input">{children}</Box>
       {hint && (
-        <Text size="xs" className="vce-node-field-hint">
+        <Text size="xs" className="cc-node-field-hint">
           {hint}
         </Text>
       )}
@@ -197,7 +197,7 @@ export function NodeSelect({
   // Wrapper with nodrag class + event stopping prevents React Flow from intercepting
   return (
     <Box
-      className="nodrag nopan vce-node-select-wrapper"
+      className="nodrag nopan cc-node-select-wrapper"
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
@@ -208,7 +208,7 @@ export function NodeSelect({
         data={options}
         size="xs"
         searchable={false}
-        className="vce-node-select-beacon"
+        className="cc-node-select-beacon"
         comboboxProps={{
           withinPortal: true,
           zIndex: 9999,
@@ -231,7 +231,7 @@ export function NodeInput({
 }) {
   return (
     <Box
-      className="nodrag nopan vce-node-input-wrapper"
+      className="nodrag nopan cc-node-input-wrapper"
       onPointerDown={(e) => e.stopPropagation()}
     >
       <TextInput
@@ -240,7 +240,7 @@ export function NodeInput({
         placeholder={placeholder}
         type={type}
         size="xs"
-        className="vce-node-input-beacon"
+        className="cc-node-input-beacon"
       />
     </Box>
   )
@@ -259,7 +259,7 @@ export function NodeCheckbox({
     <Flex
       align="center"
       gap="xs"
-      className="nodrag nopan vce-node-checkbox"
+      className="nodrag nopan cc-node-checkbox"
       onPointerDown={(e) => e.stopPropagation()}
     >
       <Switch
@@ -284,18 +284,18 @@ export function NodeSection({
   const [isOpen, setIsOpen] = useState(defaultOpen)
 
   return (
-    <Box className="vce-node-section">
+    <Box className="cc-node-section">
       <Flex
-        className="vce-node-section-header"
+        className="cc-node-section-header"
         onClick={() => setIsOpen(!isOpen)}
         align="center"
         gap="xs"
       >
-        <Text size="xs" className="vce-node-section-icon">{isOpen ? '▾' : '▸'}</Text>
-        <Text size="xs" weight="bold" className="vce-node-section-title">{title}</Text>
+        <Text size="xs" className="cc-node-section-icon">{isOpen ? '▾' : '▸'}</Text>
+        <Text size="xs" weight="bold" className="cc-node-section-title">{title}</Text>
       </Flex>
       {isOpen && (
-        <Box className="vce-node-section-content" pl="sm">
+        <Box className="cc-node-section-content" pl="sm">
           {children}
         </Box>
       )}
@@ -329,7 +329,7 @@ export function NodeTextarea({
         maxRows={maxRows}
         autosize
         size="xs"
-        className="vce-node-textarea"
+        className="cc-node-textarea"
       />
     </Box>
   )

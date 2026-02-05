@@ -8,6 +8,6 @@ export default defineConfig({
     port: 5174
   },
   optimizeDeps: {
-    exclude: ['vce-core']
+    exclude: ['cc-core']
   }
 })

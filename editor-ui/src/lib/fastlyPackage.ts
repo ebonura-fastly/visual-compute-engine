@@ -12,10 +12,10 @@
 import pako from 'pako'
 
 // Import the base64-encoded WASM binary
-import vceEngineB64 from '../assets/vce-engine.wasm.b64?raw'
+import ccEngineB64 from '../assets/configure-compute.wasm.b64?raw'
 
-const VCE_ENGINE_NAME = 'visual-compute-engine'
-const VCE_ENGINE_DESCRIPTION = 'Visual Compute Engine - Edge rules processing'
+const CC_ENGINE_NAME = 'configure-compute'
+const CC_ENGINE_DESCRIPTION = 'Configure Compute - Visual graph-based edge rules'
 
 type TarEntry = {
   name: string
@@ -123,11 +123,11 @@ function createTarArchive(entries: TarEntry[]): Uint8Array {
 
 /**
  * Generate fastly.toml manifest content
- * No static backends needed - VCE uses dynamic backends defined in rules
+ * No static backends needed - Configure Compute uses dynamic backends defined in rules
  */
 function generateFastlyToml(serviceName: string): string {
   return `authors = ["Fastly"]
-description = "${VCE_ENGINE_DESCRIPTION}"
+description = "${CC_ENGINE_DESCRIPTION}"
 language = "rust"
 manifest_version = 3
 name = "${serviceName}"
@@ -161,11 +161,11 @@ function sanitizePackageName(serviceName: string): string {
 }
 
 /**
- * Build a Fastly Compute package (tar.gz) for the VCE engine
+ * Build a Fastly Compute package (tar.gz) for the Configure Compute engine
  * @param serviceName Name for the service
  * @returns Base64-encoded tar.gz package ready for upload
  */
-export async function buildVcePackage(serviceName: string): Promise<string> {
+export async function buildCcPackage(serviceName: string): Promise<string> {
   const encoder = new TextEncoder()
   const pkgName = sanitizePackageName(serviceName)
 
@@ -174,7 +174,7 @@ export async function buildVcePackage(serviceName: string): Promise<string> {
   const fastlyTomlBytes = encoder.encode(fastlyToml)
 
   // Decode the WASM binary
-  const wasmBytes = base64ToUint8Array(vceEngineB64)
+  const wasmBytes = base64ToUint8Array(ccEngineB64)
 
   // Create tar archive with required structure:
   // pkgName/
@@ -203,12 +203,12 @@ export async function buildVcePackage(serviceName: string): Promise<string> {
 }
 
 /**
- * Get the VCE engine info
+ * Get the Configure Compute engine info
  */
-export function getVceEngineInfo() {
+export function getCcEngineInfo() {
   return {
-    name: VCE_ENGINE_NAME,
-    description: VCE_ENGINE_DESCRIPTION,
-    wasmSize: base64ToUint8Array(vceEngineB64.replace(/\s/g, '')).length,
+    name: CC_ENGINE_NAME,
+    description: CC_ENGINE_DESCRIPTION,
+    wasmSize: base64ToUint8Array(ccEngineB64.replace(/\s/g, '')).length,
   }
 }

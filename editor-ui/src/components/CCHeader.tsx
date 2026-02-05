@@ -1,5 +1,5 @@
 /**
- * VCEHeader - Custom header matching Uniform's TopNav styling
+ * CCHeader - Custom header matching Uniform's TopNav styling
  *
  * Simplified version with:
  * - 68px fixed height (matches --SIZE--TopNav--height)
@@ -11,9 +11,9 @@
 import { Text } from '@fastly/beacon-mantine'
 import { IconFastlyLogoSquare } from '@fastly/beacon-icons/logos'
 import { useTheme } from '../styles/theme'
-import './VCEHeader.css'
+import './CCHeader.css'
 
-interface VCEHeaderProps {
+interface CCHeaderProps {
   title?: string
 }
 
@@ -33,32 +33,32 @@ function MoonIcon() {
   )
 }
 
-export function VCEHeader({ title = 'Visual Compute Engine' }: VCEHeaderProps) {
+export function CCHeader({ title = 'Configure Compute' }: CCHeaderProps) {
   const { isDark, toggle } = useTheme()
 
   return (
-    <header className="vce-topnav">
+    <header className="cc-topnav">
       {/* Logo with separator */}
-      <div className="vce-topnav-logo">
-        <div className="vce-topnav-logo-icon">
+      <div className="cc-topnav-logo">
+        <div className="cc-topnav-logo-icon">
           <IconFastlyLogoSquare />
         </div>
       </div>
 
       {/* Title */}
-      <div className="vce-topnav-title">
+      <div className="cc-topnav-title">
         <Text size="md" weight="bold">
           {title}
         </Text>
       </div>
 
       {/* Spacer */}
-      <div className="vce-topnav-spacer" />
+      <div className="cc-topnav-spacer" />
 
       {/* Theme Toggle */}
       <button
         type="button"
-        className="vce-topnav-theme-btn"
+        className="cc-topnav-theme-btn"
         title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
         onClick={toggle}
       >

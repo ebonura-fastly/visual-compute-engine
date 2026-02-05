@@ -25,7 +25,7 @@ import { Box, Stack, Title, Text, Flex, Pill } from '@fastly/beacon-mantine'
 import { ConditionNode, ActionNode, RequestNode, RateLimitNode, TransformNode, BackendNode, LoggingNode, RuleGroupNode, HeaderNode, CacheNode } from './components/nodes'
 import { DeletableEdge } from './components/edges'
 import { Sidebar } from './components/Sidebar'
-import { VCEHeader } from './components/VCEHeader'
+import { CCHeader } from './components/CCHeader'
 import { toCanonicalGraph } from './types/graph'
 
 const nodeTypes: NodeTypes = {
@@ -170,10 +170,10 @@ function Flow() {
 
   return (
     <>
-      <VCEHeader />
+      <CCHeader />
 
       {/* Main Content */}
-      <div className="vce-main">
+      <div className="cc-main">
         <Sidebar
           nodes={nodes}
           edges={edges}
@@ -184,7 +184,7 @@ function Flow() {
           isLocalRoute={isLocalMode}
           onNavigate={navigate}
         />
-        <div className="vce-canvas" ref={reactFlowWrapper}>
+        <div className="cc-canvas" ref={reactFlowWrapper}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -216,14 +216,14 @@ function Flow() {
 
           {/* Empty Canvas State */}
           {nodes.length === 0 && (
-            <Stack className="vce-empty-canvas" align="center" gap="lg">
-              <Box className="vce-empty-canvas-icon">
+            <Stack className="cc-empty-canvas" align="center" gap="lg">
+              <Box className="cc-empty-canvas-icon">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 5v14M5 12h14" />
                 </svg>
               </Box>
-              <Title order={2} className="vce-empty-canvas-title">Start Building Your Security Rules</Title>
-              <Text className="vce-empty-canvas-text">
+              <Title order={2} className="cc-empty-canvas-title">Start Building Your Security Rules</Title>
+              <Text className="cc-empty-canvas-text">
                 Drag components from the sidebar onto the canvas,<br />
                 or use a template to get started quickly.
               </Text>
@@ -237,7 +237,7 @@ function Flow() {
                     <Pill variant="default">{step.num}</Pill>
                     <Flex direction="column" gap="xs">
                       <Text size="sm" weight="bold">{step.title}</Text>
-                      <Text size="xs" className="vce-text-muted">{step.desc}</Text>
+                      <Text size="xs" className="cc-text-muted">{step.desc}</Text>
                     </Flex>
                   </Flex>
                 ))}
@@ -252,7 +252,7 @@ function Flow() {
 
 function AppRoutes() {
   return (
-    <div className="vce-app">
+    <div className="cc-app">
       <ReactFlowProvider>
         <Flow />
       </ReactFlowProvider>

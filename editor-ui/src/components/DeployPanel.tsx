@@ -15,7 +15,7 @@ type Props = {
 }
 
 const defaultConfig: ServiceConfig = {
-  name: 'vce-service',
+  name: 'cc-service',
   backends: [
     { name: 'protected_origin', host: 'origin.example.com', useTls: true }
   ],
@@ -90,7 +90,7 @@ export function DeployPanel({ nodes, edges }: Props) {
     return (
       <Button
         onClick={() => setIsOpen(true)}
-        className="vce-panel-toggle vce-panel-toggle--deploy"
+        className="cc-panel-toggle cc-panel-toggle--deploy"
       >
         Deploy
       </Button>
@@ -100,17 +100,17 @@ export function DeployPanel({ nodes, edges }: Props) {
   const usagePercent = stats ? Math.round((stats.compressedSize / 8000) * 100) : 0
 
   return (
-    <Box className="vce-panel vce-panel--deploy">
-      <Flex className="vce-panel-header" justify="space-between" align="center">
+    <Box className="cc-panel cc-panel--deploy">
+      <Flex className="cc-panel-header" justify="space-between" align="center">
         <Text size="sm" weight="bold">Deploy to Fastly</Text>
         <Button variant="subtle" size="compact-sm" onClick={() => setIsOpen(false)}>
           <IconClose width={14} height={14} />
         </Button>
       </Flex>
 
-      <Stack className="vce-panel-body" gap="md">
+      <Stack className="cc-panel-body" gap="md">
         {/* Service Config */}
-        <Stack className="vce-panel-section" gap="sm">
+        <Stack className="cc-panel-section" gap="sm">
           <Text size="sm" weight="bold">Service Configuration</Text>
           <TextInput
             label="Service Name"
@@ -127,7 +127,7 @@ export function DeployPanel({ nodes, edges }: Props) {
         </Stack>
 
         {/* Backend Config */}
-        <Stack className="vce-panel-section" gap="sm">
+        <Stack className="cc-panel-section" gap="sm">
           <Text size="sm" weight="bold">Backend (Protected Origin)</Text>
           {config.backends.map((backend, idx) => (
             <Stack key={idx} gap="sm">
@@ -172,7 +172,7 @@ export function DeployPanel({ nodes, edges }: Props) {
 
         {/* Compression Stats */}
         {stats && (
-          <Stack className="vce-panel-stats" gap="sm">
+          <Stack className="cc-panel-stats" gap="sm">
             <Text size="sm" weight="bold">Compression Stats</Text>
 
             <Flex justify="space-between">

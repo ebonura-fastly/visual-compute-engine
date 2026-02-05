@@ -14,7 +14,7 @@ use super::types::GraphPayload;
 /// Combined payload stored in config store.
 /// Key is just the service ID, value is this JSON structure.
 #[derive(Debug, Deserialize)]
-pub struct VcePayload {
+pub struct CcPayload {
     pub version: String,
     #[serde(rename = "deployedAt")]
     pub deployed_at: String,
@@ -91,8 +91,8 @@ pub fn load_graph_from_store(
 
     println!("Loading graph for service {}...", service_id);
 
-    // Parse the VcePayload JSON
-    let payload: VcePayload = serde_json::from_str(&payload_json)?;
+    // Parse the CcPayload JSON
+    let payload: CcPayload = serde_json::from_str(&payload_json)?;
     println!("Payload version: {}, deployed: {}", payload.version, payload.deployed_at);
 
     if payload.rules_packed.is_empty() {

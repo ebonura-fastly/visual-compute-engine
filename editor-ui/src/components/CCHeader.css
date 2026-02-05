@@ -1,5 +1,5 @@
 /**
- * VCEHeader Styles - Matches Uniform's TopNav
+ * CCHeader Styles - Matches Uniform's TopNav
  *
  * Key measurements from Uniform:
  * - Height: 68px (--SIZE--TopNav--height)
@@ -7,7 +7,7 @@
  * - Separator: 1px, height calc(100% - 1.5rem)
  */
 
-.vce-topnav {
+.cc-topnav {
   position: fixed;
   top: 0;
   left: 0;
@@ -27,7 +27,7 @@
 }
 
 /* Logo container with separator */
-.vce-topnav-logo {
+.cc-topnav-logo {
   width: 68px;
   min-width: 68px;
   height: 100%;
@@ -40,7 +40,7 @@
 }
 
 /* Vertical separator after logo */
-.vce-topnav-logo::after {
+.cc-topnav-logo::after {
   content: "";
   position: absolute;
   display: block;
@@ -51,20 +51,20 @@
   background-color: var(--COLOR--surface--tertiary);
 }
 
-.vce-topnav-logo-icon {
+.cc-topnav-logo-icon {
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--COLOR--logo--primary, #e9190c);
 }
 
-.vce-topnav-logo-icon svg {
+.cc-topnav-logo-icon svg {
   width: 2rem;
   height: 2rem;
 }
 
 /* Title */
-.vce-topnav-title {
+.cc-topnav-title {
   display: inline-block;
   padding: 8px 24px;
   font-size: 16px;
@@ -74,12 +74,12 @@
 }
 
 /* Spacer to push theme toggle to the right */
-.vce-topnav-spacer {
+.cc-topnav-spacer {
   flex: 1;
 }
 
 /* Theme toggle button - matches csoc-hub-v2 */
-.vce-topnav-theme-btn {
+.cc-topnav-theme-btn {
   background: transparent;
   border: none;
   color: var(--COLOR--text--secondary);
@@ -92,17 +92,17 @@
   transition: all 130ms ease-in-out;
 }
 
-.vce-topnav-theme-btn svg {
+.cc-topnav-theme-btn svg {
   width: 20px;
   height: 20px;
 }
 
-.vce-topnav-theme-btn:hover {
+.cc-topnav-theme-btn:hover {
   color: var(--COLOR--text--primary);
   background: var(--COLOR--surface--primary--hover);
 }
 
-.vce-topnav-theme-btn:focus {
+.cc-topnav-theme-btn:focus {
   outline: none;
   box-shadow: 0 0 0 2px var(--COLOR--action--focus);
 }
@@ -111,27 +111,27 @@
  * Mobile Responsive (< 768px)
  * ======================================== */
 @media (max-width: 768px) {
-  .vce-topnav {
+  .cc-topnav {
     padding-right: 16px;
   }
 
-  .vce-topnav-logo {
+  .cc-topnav-logo {
     width: auto;
     min-width: unset;
     margin-left: 16px;
     padding-right: 16px;
   }
 
-  .vce-topnav-logo::after {
+  .cc-topnav-logo::after {
     display: none;
   }
 
-  .vce-topnav-logo-icon svg {
+  .cc-topnav-logo-icon svg {
     width: 1.5rem;
     height: 1.5rem;
   }
 
-  .vce-topnav-title {
+  .cc-topnav-title {
     padding: 8px 16px;
   }
 }

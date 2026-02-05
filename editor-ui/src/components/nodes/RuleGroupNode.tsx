@@ -137,33 +137,33 @@ export function RuleGroupNode({ id, data, selected }: NodeProps) {
 
   return (
     <Box
-      className="vce-node vce-rule-group"
+      className="cc-node cc-rule-group"
       data-category="logic"
       data-selected={selected}
     >
       {/* Header */}
       <Flex
-        className="vce-node-header vce-rule-group-header"
+        className="cc-node-header cc-rule-group-header"
         data-collapsed={collapsed}
         onClick={() => setCollapsed(!collapsed)}
         justify="space-between"
         align="center"
       >
-        <Flex className="vce-rule-group-header-left" align="center" gap="xs">
-          <Text size="xs" className="vce-node-collapse-icon">{collapsed ? '▸' : '▾'}</Text>
+        <Flex className="cc-rule-group-header-left" align="center" gap="xs">
+          <Text size="xs" className="cc-node-collapse-icon">{collapsed ? '▸' : '▾'}</Text>
           <TextInput
             value={name}
             onChange={(e) => updateData({ name: e.target.value })}
             onClick={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
-            className="vce-rule-group-name-input nodrag nopan"
+            className="cc-rule-group-name-input nodrag nopan"
             placeholder="Rule name..."
             variant="unstyled"
             size="xs"
           />
         </Flex>
-        <Flex className="vce-rule-group-header-right" align="center" gap="xs">
-          <Box className="vce-rule-group-logic-select" onClick={(e) => e.stopPropagation()}>
+        <Flex className="cc-rule-group-header-right" align="center" gap="xs">
+          <Box className="cc-rule-group-logic-select" onClick={(e) => e.stopPropagation()}>
             <NodeSelect
               value={logic}
               onChange={(v) => updateData({ logic: v as 'AND' | 'OR' })}
@@ -179,7 +179,7 @@ export function RuleGroupNode({ id, data, selected }: NodeProps) {
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
             title="View documentation"
-            className="vce-node-doc-link"
+            className="cc-node-doc-link"
           >
             <IconHelp width={14} height={14} />
           </a>
@@ -191,7 +191,7 @@ export function RuleGroupNode({ id, data, selected }: NodeProps) {
         type="target"
         position={Position.Left}
         id="trigger"
-        className="vce-handle"
+        className="cc-handle"
         data-port-type="bool"
         style={{
           width: HANDLE_SIZE,
@@ -203,7 +203,7 @@ export function RuleGroupNode({ id, data, selected }: NodeProps) {
         type="source"
         position={Position.Right}
         id="match"
-        className="vce-handle"
+        className="cc-handle"
         data-port-type="bool"
         style={{
           width: HANDLE_SIZE,
@@ -215,7 +215,7 @@ export function RuleGroupNode({ id, data, selected }: NodeProps) {
         type="source"
         position={Position.Right}
         id="noMatch"
-        className="vce-handle"
+        className="cc-handle"
         data-port-type="bool"
         style={{
           width: HANDLE_SIZE,
@@ -226,35 +226,35 @@ export function RuleGroupNode({ id, data, selected }: NodeProps) {
 
       {/* Port labels (always visible) */}
       {!collapsed && (
-        <Flex className="vce-rule-group-ports" justify="space-between">
-          <Box className="vce-rule-group-ports-left">
-            <Text size="xs" className="vce-rule-group-port-label">Trigger</Text>
+        <Flex className="cc-rule-group-ports" justify="space-between">
+          <Box className="cc-rule-group-ports-left">
+            <Text size="xs" className="cc-rule-group-port-label">Trigger</Text>
           </Box>
-          <Box className="vce-rule-group-ports-right">
-            <Text size="xs" className="vce-rule-group-port-label vce-rule-group-port-label--match">Match</Text>
-            <Text size="xs" className="vce-rule-group-port-label">No Match</Text>
+          <Box className="cc-rule-group-ports-right">
+            <Text size="xs" className="cc-rule-group-port-label cc-rule-group-port-label--match">Match</Text>
+            <Text size="xs" className="cc-rule-group-port-label">No Match</Text>
           </Box>
         </Flex>
       )}
 
       {/* Conditions */}
       {!collapsed && (
-        <Box className="vce-rule-group-body">
+        <Box className="cc-rule-group-body">
           {/* Logic indicator */}
-          <Text size="xs" className="vce-rule-group-logic-hint">
+          <Text size="xs" className="cc-rule-group-logic-hint">
             {logic === 'AND' ? 'All conditions must match' : 'Any condition must match'}
           </Text>
 
           {/* Condition cards */}
-          <Box className="vce-rule-group-conditions">
+          <Box className="cc-rule-group-conditions">
             {conditions.map((condition, idx) => (
               <Box
                 key={condition.id}
-                className="vce-rule-group-condition"
+                className="cc-rule-group-condition"
               >
                 {/* Logic connector between conditions */}
                 {idx > 0 && (
-                  <Box className="vce-rule-group-logic-connector">
+                  <Box className="cc-rule-group-logic-connector">
                     <Pill variant="default">{logic}</Pill>
                   </Box>
                 )}
@@ -262,7 +262,7 @@ export function RuleGroupNode({ id, data, selected }: NodeProps) {
                 {/* Remove button */}
                 <ActionIcon
                   onClick={() => removeCondition(condition.id)}
-                  className="vce-rule-group-condition-remove"
+                  className="cc-rule-group-condition-remove"
                   title="Remove condition"
                   variant="subtle"
                   size="xs"
@@ -271,9 +271,9 @@ export function RuleGroupNode({ id, data, selected }: NodeProps) {
                 </ActionIcon>
 
                 {/* Condition fields - row layout with labels */}
-                <Flex className="vce-rule-group-condition-fields" gap="xs" align="flex-end">
-                  <Box className="vce-rule-group-field vce-rule-group-field--field">
-                    <Text size="xs" className="vce-rule-group-field-label">Field</Text>
+                <Flex className="cc-rule-group-condition-fields" gap="xs" align="flex-end">
+                  <Box className="cc-rule-group-field cc-rule-group-field--field">
+                    <Text size="xs" className="cc-rule-group-field-label">Field</Text>
                     <NodeSelect
                       value={condition.field}
                       onChange={(newField) => {
@@ -295,8 +295,8 @@ export function RuleGroupNode({ id, data, selected }: NodeProps) {
                   </Box>
 
                   {condition.field === 'header' && (
-                    <Box className="vce-rule-group-field vce-rule-group-field--header">
-                      <Text size="xs" className="vce-rule-group-field-label">Header</Text>
+                    <Box className="cc-rule-group-field cc-rule-group-field--header">
+                      <Text size="xs" className="cc-rule-group-field-label">Header</Text>
                       <NodeInput
                         value={condition.headerName || ''}
                         onChange={(v) => {
@@ -314,8 +314,8 @@ export function RuleGroupNode({ id, data, selected }: NodeProps) {
                   )}
 
                   {booleanFields.has(condition.field) ? (
-                    <Box className="vce-rule-group-field vce-rule-group-field--bool">
-                      <Text size="xs" className="vce-rule-group-field-label">Value</Text>
+                    <Box className="cc-rule-group-field cc-rule-group-field--bool">
+                      <Text size="xs" className="cc-rule-group-field-label">Value</Text>
                       <Flex align="center" gap="xs" className="nodrag nopan">
                         <Switch
                           checked={condition.value === 'true'}
@@ -335,8 +335,8 @@ export function RuleGroupNode({ id, data, selected }: NodeProps) {
                     </Box>
                   ) : (
                     <>
-                      <Box className="vce-rule-group-field vce-rule-group-field--operator">
-                        <Text size="xs" className="vce-rule-group-field-label">Operator</Text>
+                      <Box className="cc-rule-group-field cc-rule-group-field--operator">
+                        <Text size="xs" className="cc-rule-group-field-label">Operator</Text>
                         <NodeSelect
                           value={condition.operator}
                           onChange={(v) => updateCondition(condition.id, 'operator', v)}
@@ -344,8 +344,8 @@ export function RuleGroupNode({ id, data, selected }: NodeProps) {
                         />
                       </Box>
 
-                      <Box className="vce-rule-group-field vce-rule-group-field--value">
-                        <Text size="xs" className="vce-rule-group-field-label">Value</Text>
+                      <Box className="cc-rule-group-field cc-rule-group-field--value">
+                        <Text size="xs" className="cc-rule-group-field-label">Value</Text>
                         <NodeInput
                           value={condition.value}
                           onChange={(v) => updateCondition(condition.id, 'value', v)}
@@ -365,7 +365,7 @@ export function RuleGroupNode({ id, data, selected }: NodeProps) {
             size="sm"
             onClick={addCondition}
             leftSection={<IconAdd width={14} height={14} />}
-            className="vce-rule-group-add-btn nodrag nopan"
+            className="cc-rule-group-add-btn nodrag nopan"
           >
             Add Condition
           </Button>

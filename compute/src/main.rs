@@ -1,4 +1,4 @@
-//! Visual Compute Engine - Edge rules processing for Fastly Compute.
+//! Configure Compute - Visual graph-based edge rules for Fastly Compute.
 //!
 //! This service provides edge-based request processing through:
 //! - Visual graph-based rules
@@ -22,7 +22,7 @@ use rules::{GraphInterpreter, GraphResult, HeaderMod, WafLog, load_graph_from_st
 
 /// Engine version - update this on each release
 const VERSION: &str = env!("CARGO_PKG_VERSION");
-const ENGINE_NAME: &str = "Visual Compute Engine";
+const ENGINE_NAME: &str = "Configure Compute";
 
 /// Main request handler for the security service.
 ///
@@ -134,7 +134,7 @@ fn main(req: Request) -> Result<Response, Error> {
 
             let mut response = Response::from_status(StatusCode::from_u16(status_code).unwrap_or(StatusCode::FORBIDDEN))
                 .with_body_text_plain(&message);
-            response.set_header("X-VCE-Action", "blocked");
+            response.set_header("X-CC-Action", "blocked");
 
             log_entry.add_response(&response);
             log_entry.finalize();
@@ -201,7 +201,7 @@ fn main(req: Request) -> Result<Response, Error> {
 
             match send_to_backend(backend_req, &backend_data) {
                 Ok(mut response) => {
-                    response.set_header("X-VCE-Action", &action);
+                    response.set_header("X-CC-Action", &action);
                     log_entry.add_response(&response);
                     log_entry.finalize();
                     writeln!(logger, "{}", serde_json::to_string(&log_entry)?)?;
@@ -238,7 +238,7 @@ fn main(req: Request) -> Result<Response, Error> {
                 StatusCode::from_u16(status_code).unwrap_or(StatusCode::FOUND)
             );
             response.set_header("Location", &redirect_url);
-            response.set_header("X-VCE-Action", &format!("redirect:{}", status_code));
+            response.set_header("X-CC-Action", &format!("redirect:{}", status_code));
 
             log_entry.add_response(&response);
             log_entry.finalize();
@@ -286,14 +286,14 @@ fn forward_to_default_backend_with_reason(
         "error": "backend_not_configured",
         "message": error_message,
         "reason": reason,
-        "engine": "Visual Compute Engine",
+        "engine": "Configure Compute",
     });
 
     let mut response = Response::from_status(StatusCode::SERVICE_UNAVAILABLE)
         .with_content_type(fastly::mime::APPLICATION_JSON)
         .with_body(body.to_string());
 
-    response.set_header("X-VCE-Action", reason);
+    response.set_header("X-CC-Action", reason);
 
     log_entry.add_response(&response);
     log_entry.set_final_action(reason);

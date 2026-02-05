@@ -1,10 +1,10 @@
 [package]
-name = "vce-core"
-version = "1.1.5"
+name = "cc-core"
+version = "0.1.8"
 edition = "2021"
 license = "MIT"
 authors = ["Fastly"]
-description = "Core node graph types and interpreter for Visual Compute Engine"
+description = "Core node graph types and interpreter for Configure Compute"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

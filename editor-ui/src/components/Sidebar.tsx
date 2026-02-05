@@ -200,12 +200,12 @@ export function Sidebar({ nodes, edges, canonicalGraph, onAddTemplate, onLoadRul
       ]
 
   return (
-    <aside className="vce-sidebar">
+    <aside className="cc-sidebar">
       {isActive ? (
-        <Tabs value={activeTab} onChange={(v) => setActiveTab(v as Tab)} className="vce-sidebar-tabs-container">
-          <Tabs.List grow className="vce-sidebar-tabs">
+        <Tabs value={activeTab} onChange={(v) => setActiveTab(v as Tab)} className="cc-sidebar-tabs-container">
+          <Tabs.List grow className="cc-sidebar-tabs">
             {tabs.map((tab) => (
-              <Tabs.Tab key={tab.id} value={tab.id} className="vce-sidebar-tab">
+              <Tabs.Tab key={tab.id} value={tab.id} className="cc-sidebar-tab">
                 {tab.label}
               </Tabs.Tab>
             ))}
@@ -214,7 +214,7 @@ export function Sidebar({ nodes, edges, canonicalGraph, onAddTemplate, onLoadRul
       ) : null}
 
       {/* Tab Content */}
-      <Box className="vce-sidebar-content">
+      <Box className="cc-sidebar-content">
         {activeTab === 'components' && (
           <ComponentsTab
             nodeTypes={nodeTypes}
@@ -271,25 +271,25 @@ function ComponentsTab({
   onDragStart: (event: React.DragEvent, nodeType: string) => void
 }) {
   return (
-    <Box className="vce-components-tab" p="sm">
-      <Stack className="vce-node-list" gap="xs">
+    <Box className="cc-components-tab" p="sm">
+      <Stack className="cc-node-list" gap="xs">
         {nodeTypes.map(({ type, label, category, description }) => (
           <Box
             key={type}
             draggable
             onDragStart={(e) => onDragStart(e, type)}
-            className="vce-node-item"
+            className="cc-node-item"
             data-category={category}
           >
-            <Flex className="vce-node-item-header" justify="space-between" align="center">
-              <Text size="sm" weight="bold" className="vce-node-item-title">{label}</Text>
-              <Badge size="xs" variant="light" className="vce-node-item-category">{category}</Badge>
+            <Flex className="cc-node-item-header" justify="space-between" align="center">
+              <Text size="sm" weight="bold" className="cc-node-item-title">{label}</Text>
+              <Badge size="xs" variant="light" className="cc-node-item-category">{category}</Badge>
             </Flex>
-            <Text size="xs" className="vce-node-item-description vce-text-muted">{description}</Text>
+            <Text size="xs" className="cc-node-item-description cc-text-muted">{description}</Text>
           </Box>
         ))}
       </Stack>
-      <Text size="xs" className="vce-sidebar-hint vce-text-muted">
+      <Text size="xs" className="cc-sidebar-hint cc-text-muted">
         Drag components onto the canvas
       </Text>
     </Box>
@@ -333,11 +333,11 @@ function TemplatesTab({
   }
 
   return (
-    <Box className="vce-templates-tab" p="sm">
+    <Box className="cc-templates-tab" p="sm">
       {/* Search with Filter Icon */}
-      <Flex className="vce-search-filter-row" gap="xs" align="center">
+      <Flex className="cc-search-filter-row" gap="xs" align="center">
         <TextInput
-          className="vce-search-input"
+          className="cc-search-input"
           placeholder="Search templates..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
@@ -370,7 +370,7 @@ function TemplatesTab({
               ref={filterButtonRef}
               onClick={() => setFilterOpen(!filterOpen)}
               aria-label="Filter templates"
-              className="vce-filter-icon"
+              className="cc-filter-icon"
               style={{ position: 'relative', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
             >
               <IconFilter
@@ -382,7 +382,7 @@ function TemplatesTab({
                 <Badge
                   size="xs"
                   variant="filled"
-                  className="vce-filter-badge"
+                  className="cc-filter-badge"
                   style={{ position: 'absolute', top: -6, right: -8 }}
                 >
                   {activeFilterCount}
@@ -391,7 +391,7 @@ function TemplatesTab({
             </Box>
           </Popover.Target>
           <Popover.Dropdown>
-            <Flex className="vce-filter-header" justify="space-between" align="center" style={{ marginBottom: '12px' }}>
+            <Flex className="cc-filter-header" justify="space-between" align="center" style={{ marginBottom: '12px' }}>
               <Text size="sm" weight="bold">Filter by Category</Text>
               {activeFilterCount > 0 && (
                 <Button variant="subtle" size="compact-sm" onClick={clearFilters}>
@@ -416,14 +416,14 @@ function TemplatesTab({
 
       {/* Active Filters Display */}
       {activeFilterCount > 0 && (
-        <Flex className="vce-active-filters" gap="xs" wrap="wrap">
+        <Flex className="cc-active-filters" gap="xs" wrap="wrap">
           {Array.from(selectedCategories).map((key) => (
             <Pill
               key={key}
               variant="default"
               withRemoveButton
               onRemove={() => toggleCategory(key)}
-              className="vce-active-filter-tag"
+              className="cc-active-filter-tag"
             >
               {categoryLabels[key]}
             </Pill>
@@ -432,33 +432,33 @@ function TemplatesTab({
       )}
 
       {/* Templates List */}
-      <Stack className="vce-templates-list" gap="xs">
+      <Stack className="cc-templates-list" gap="xs">
         {filteredTemplates.map((template) => (
           <Box
             key={template.id}
-            className="vce-template-card"
+            className="cc-template-card"
             onClick={() => onAddTemplate(template)}
           >
-            <Flex className="vce-template-header" justify="space-between" align="center">
-              <Text size="sm" weight="bold" className="vce-template-name">{template.name}</Text>
-              <Badge size="xs" variant="light" className="vce-template-category">
+            <Flex className="cc-template-header" justify="space-between" align="center">
+              <Text size="sm" weight="bold" className="cc-template-name">{template.name}</Text>
+              <Badge size="xs" variant="light" className="cc-template-category">
                 {categoryLabels[template.category] || template.category}
               </Badge>
             </Flex>
-            <Text size="xs" className="vce-template-description vce-text-muted">{template.description}</Text>
+            <Text size="xs" className="cc-template-description cc-text-muted">{template.description}</Text>
             {template.tags.length > 0 && (
-              <Flex className="vce-template-tags" gap="xs" style={{ marginTop: '8px' }}>
+              <Flex className="cc-template-tags" gap="xs" style={{ marginTop: '8px' }}>
                 {template.tags.slice(0, 3).map((tag) => (
-                  <Badge key={tag} size="xs" variant="outline" className="vce-template-tag">{tag}</Badge>
+                  <Badge key={tag} size="xs" variant="outline" className="cc-template-tag">{tag}</Badge>
                 ))}
               </Flex>
             )}
           </Box>
         ))}
         {filteredTemplates.length === 0 && (
-          <Stack className="vce-templates-empty" align="center" gap="sm">
-            <IconSearch width={24} height={24} className="vce-text-muted" />
-            <Text size="sm" className="vce-text-muted">No templates found</Text>
+          <Stack className="cc-templates-empty" align="center" gap="sm">
+            <IconSearch width={24} height={24} className="cc-text-muted" />
+            <Text size="sm" className="cc-text-muted">No templates found</Text>
             {(searchQuery || activeFilterCount > 0) && (
               <Button variant="subtle" size="compact-sm" onClick={clearFilters}>
                 Clear filters
@@ -473,7 +473,7 @@ function TemplatesTab({
 
 // Fastly Tab - extracted from FastlyPanel
 import { compressRules, decompressRules, validateGraph } from '../utils/ruleConverter'
-import { buildVcePackage } from '../lib/fastlyPackage'
+import { buildCcPackage } from '../lib/fastlyPackage'
 
 type FastlyService = {
   id: string
@@ -481,7 +481,7 @@ type FastlyService = {
   type: string
   version: number
   domain?: string
-  isVceEnabled?: boolean
+  isCcEnabled?: boolean
   linkedConfigStore?: string
 }
 
@@ -501,16 +501,16 @@ type ConfigStore = {
 }
 
 // Combined payload stored under single key: {serviceId}
-type VcePayload = {
+type CcPayload = {
   version: string       // Engine version at deploy time
   deployedAt: string    // ISO timestamp
   rules_packed: string  // Compressed graph data
 }
 
-const VCE_ENGINE_VERSION = '1.1.7'
+const CC_ENGINE_VERSION = '0.1.8'
 const FASTLY_API_BASE = 'https://api.fastly.com'
-const STORAGE_KEY = 'vce-fastly'
-const VCE_SHARED_STORE_NAME = 'vce-shared-rules'
+const STORAGE_KEY = 'cc-fastly'
+const CC_SHARED_STORE_NAME = 'cc-shared-rules'
 
 function loadStoredSettings(): { apiToken: string; selectedService: string; selectedConfigStore: string } {
   try {
@@ -634,7 +634,7 @@ type FastlyState = {
   configStores: ConfigStore[]
   selectedService: string
   selectedConfigStore: string
-  sharedStoreId: string | null  // ID of vce-shared-rules store, null if doesn't exist
+  sharedStoreId: string | null  // ID of cc-shared-rules store, null if doesn't exist
   serviceDomain: string | null  // Cached domain for selected service
   engineVersion: EngineVersion
   engineVersionLoading: boolean
@@ -1087,9 +1087,9 @@ function FastlyTab({
         console.log('[Engine Update] Using version:', newVersionNumber, '(new service, no active version)')
       }
 
-      setEngineUpdateProgress('Building VCE Engine package...')
+      setEngineUpdateProgress('Building Configure Compute package...')
       console.log('[Engine Update] Building package...')
-      const packageB64 = await buildVcePackage(service.name)
+      const packageB64 = await buildCcPackage(service.name)
       console.log('[Engine Update] Package built, size:', packageB64.length, 'bytes (base64)')
       const packageBlob = await fetch(`data:application/gzip;base64,${packageB64}`).then(r => r.blob())
       console.log('[Engine Update] Package blob size:', packageBlob.size, 'bytes')
@@ -1118,7 +1118,7 @@ function FastlyTab({
       const activateResult = await fastlyFetch(`/service/${service.id}/version/${newVersionNumber}/activate`, { method: 'PUT' })
       console.log('[Engine Update] Version activated:', activateResult)
 
-      setStatus(`VCE Engine deployed, verifying...`)
+      setStatus(`Engine deployed, verifying...`)
       console.log('[Engine Update] Update complete! Verifying deployment...')
 
       // Get actual domain from the service and cache it
@@ -1146,10 +1146,10 @@ function FastlyTab({
             const versionData = await versionResponse.json()
             console.log(`[Engine Update] Version check ${attempt}/${maxAttempts}:`, versionData)
 
-            if (versionData.engine === 'Visual Compute Engine' && versionData.version === VCE_ENGINE_VERSION) {
+            if (versionData.engine === 'Configure Compute' && versionData.version === CC_ENGINE_VERSION) {
               setEngineVersion(versionData)
               setEngineUpdateProgress(null)
-              setStatus(`VCE Engine v${VCE_ENGINE_VERSION} deployed!`)
+              setStatus(`Engine v${CC_ENGINE_VERSION} deployed!`)
               setLoading(false)
               return
             } else {
@@ -1208,8 +1208,8 @@ function FastlyTab({
         name: s.name || s.attributes?.name || s.id,
       }))
 
-      // Find the shared VCE config store by name
-      const sharedStore = stores.find(s => s.name === VCE_SHARED_STORE_NAME)
+      // Find the shared Configure Compute config store by name
+      const sharedStore = stores.find(s => s.name === CC_SHARED_STORE_NAME)
       let foundSharedStoreId: string | null = null
 
       // Only check the shared store for service manifests
@@ -1230,7 +1230,7 @@ function FastlyTab({
               // Key is the service ID directly
               const serviceIdx = computeServices.findIndex(s => s.id === key)
               if (serviceIdx !== -1) {
-                computeServices[serviceIdx].isVceEnabled = true
+                computeServices[serviceIdx].isCcEnabled = true
                 computeServices[serviceIdx].linkedConfigStore = sharedStore.id
               }
             }
@@ -1241,25 +1241,25 @@ function FastlyTab({
       }
 
       computeServices.sort((a, b) => {
-        if (a.isVceEnabled && !b.isVceEnabled) return -1
-        if (!a.isVceEnabled && b.isVceEnabled) return 1
+        if (a.isCcEnabled && !b.isCcEnabled) return -1
+        if (!a.isCcEnabled && b.isCcEnabled) return 1
         return a.name.localeCompare(b.name)
       })
 
-      // Mark services with VCE naming convention
+      // Mark services with CC naming convention
       for (const service of computeServices) {
-        if (!service.isVceEnabled && service.name.toLowerCase().startsWith('vce-')) {
-          service.isVceEnabled = true
+        if (!service.isCcEnabled && service.name.toLowerCase().startsWith('cc-')) {
+          service.isCcEnabled = true
         }
       }
 
-      const vceServices = computeServices.filter(s => s.isVceEnabled)
+      const ccServices = computeServices.filter(s => s.isCcEnabled)
       let serviceToSelect = selectedService
       let storeToSelect = ''
 
-      // Priority: 1) URL route service ID, 2) previously selected, 3) first VCE service
+      // Priority: 1) URL route service ID, 2) previously selected, 3) first CC service
       const routeService = routeServiceId ? computeServices.find(s => s.id === routeServiceId) : null
-      const previousService = computeServices.find(s => s.id === selectedService && s.isVceEnabled)
+      const previousService = computeServices.find(s => s.id === selectedService && s.isCcEnabled)
 
       if (routeService) {
         // URL specifies a service - use it
@@ -1267,9 +1267,9 @@ function FastlyTab({
         storeToSelect = routeService.linkedConfigStore || ''
       } else if (previousService) {
         storeToSelect = previousService.linkedConfigStore || ''
-      } else if (vceServices.length > 0) {
-        serviceToSelect = vceServices[0].id
-        storeToSelect = vceServices[0].linkedConfigStore || ''
+      } else if (ccServices.length > 0) {
+        serviceToSelect = ccServices[0].id
+        storeToSelect = ccServices[0].linkedConfigStore || ''
       }
 
       // If shared store exists, use it; otherwise storeToSelect stays empty
@@ -1302,7 +1302,7 @@ function FastlyTab({
           setResourceLinkInfo({ storeId: actualLink.resourceId, storeName: linkedStoreName })
           console.log(`[Connect] Service "${serviceName}" security_rules link points to: ${linkedStoreName} (${actualLink.resourceId})`)
           if (actualLink.resourceId !== foundSharedStoreId) {
-            console.warn(`[Connect] WARNING: Link mismatch! Expected ${VCE_SHARED_STORE_NAME} but linked to ${linkedStoreName}`)
+            console.warn(`[Connect] WARNING: Link mismatch! Expected ${CC_SHARED_STORE_NAME} but linked to ${linkedStoreName}`)
           }
         } else {
           setResourceLinkInfo(null)
@@ -1333,7 +1333,7 @@ function FastlyTab({
     if (!onLoadRules) return
 
     try {
-      // Key is just the service ID, value is VcePayload JSON
+      // Key is just the service ID, value is CcPayload JSON
       const url = `${FASTLY_API_BASE}/resources/stores/config/${storeId}/item/${encodeURIComponent(serviceId)}`
       console.log('[Load] Fetching from:', url)
       const response = await fetch(url, {
@@ -1344,8 +1344,8 @@ function FastlyTab({
       if (response.ok) {
         const itemData = await response.json()
         const itemValue = itemData?.value || itemData?.item_value
-        // Parse the VcePayload JSON
-        const payload: VcePayload = itemValue ? JSON.parse(itemValue) : null
+        // Parse the CcPayload JSON
+        const payload: CcPayload = itemValue ? JSON.parse(itemValue) : null
         const compressedRules = payload?.rules_packed
         if (compressedRules) {
           const decompressed = await decompressRules(compressedRules)
@@ -1429,11 +1429,11 @@ function FastlyTab({
       setStatus('Loading rules from Config Store...')
       await loadRulesFromStore(linkedStore, serviceId, service?.name || '')
       setLoading(false)
-    } else if (service && !service.isVceEnabled) {
+    } else if (service && !service.isCcEnabled) {
       if (onLoadRules) {
         onLoadRules([], [])
       }
-      setStatus(`Selected ${service.name} - Click "Enable VCE" to configure`)
+      setStatus(`Selected ${service.name} - Click "Enable CC" to configure`)
     } else if (service) {
       if (onLoadRules) {
         onLoadRules([], [])
@@ -1476,7 +1476,7 @@ function FastlyTab({
 
       // Use shared config store for all services
       const { id: configStoreId, created: storeCreated } = await findOrCreateConfigStore(
-        VCE_SHARED_STORE_NAME,
+        CC_SHARED_STORE_NAME,
         configStores,
         fastlyFetch
       )
@@ -1507,9 +1507,9 @@ function FastlyTab({
       setCreateProgress('Activating service version...')
       await fastlyFetch(`/service/${service.id}/version/${versionToUse}/activate`, { method: 'PUT' })
 
-      setCreateProgress('Creating VCE payload entry...')
-      const payload: VcePayload = {
-        version: VCE_ENGINE_VERSION,
+      setCreateProgress('Creating CC payload entry...')
+      const payload: CcPayload = {
+        version: CC_ENGINE_VERSION,
         deployedAt: new Date().toISOString(),
         rules_packed: '',  // Empty until rules are deployed
       }
@@ -1525,12 +1525,12 @@ function FastlyTab({
 
       // Update state with the new/existing shared store
       const updatedConfigStores = storeCreated
-        ? [{ id: configStoreId, name: VCE_SHARED_STORE_NAME, hasVceManifest: true }, ...configStores]
+        ? [{ id: configStoreId, name: CC_SHARED_STORE_NAME, hasVceManifest: true }, ...configStores]
         : configStores.map(s => s.id === configStoreId ? { ...s, hasVceManifest: true } : s)
 
       updateFastlyState({
         services: services.map(s =>
-          s.id === service.id ? { ...s, isVceEnabled: true, linkedConfigStore: configStoreId } : s
+          s.id === service.id ? { ...s, isCcEnabled: true, linkedConfigStore: configStoreId } : s
         ),
         configStores: updatedConfigStores,
         selectedConfigStore: configStoreId,
@@ -1568,7 +1568,7 @@ function FastlyTab({
 
       // Use shared config store for all services
       const { id: configStoreId, created: storeCreated } = await findOrCreateConfigStore(
-        VCE_SHARED_STORE_NAME,
+        CC_SHARED_STORE_NAME,
         configStores,
         fastlyFetch
       )
@@ -1600,7 +1600,7 @@ function FastlyTab({
       })
       setCreateProgress('Building and uploading WASM package...')
 
-      const packageB64 = await buildVcePackage(createForm.serviceName)
+      const packageB64 = await buildCcPackage(createForm.serviceName)
       const packageBlob = await fetch(`data:application/gzip;base64,${packageB64}`).then(r => r.blob())
       const formData = new FormData()
       formData.append('package', packageBlob, 'package.tar.gz')
@@ -1619,10 +1619,10 @@ function FastlyTab({
       setCreateProgress('Activating service version...')
 
       await fastlyFetch(`/service/${serviceId}/version/${serviceVersion}/activate`, { method: 'PUT' })
-      setCreateProgress('Deploying VCE payload...')
+      setCreateProgress('Deploying CC payload...')
 
-      const payload: VcePayload = {
-        version: VCE_ENGINE_VERSION,
+      const payload: CcPayload = {
+        version: CC_ENGINE_VERSION,
         deployedAt: new Date().toISOString(),
         rules_packed: '',  // Empty until rules are deployed
       }
@@ -1647,13 +1647,13 @@ function FastlyTab({
         name: createForm.serviceName,
         type: 'wasm',
         version: serviceVersion,
-        isVceEnabled: true,
+        isCcEnabled: true,
         linkedConfigStore: configStoreId,
       }
 
       // Update state with the new/existing shared store
       const updatedConfigStores = storeCreated
-        ? [{ id: configStoreId, name: VCE_SHARED_STORE_NAME, hasVceManifest: true }, ...configStores]
+        ? [{ id: configStoreId, name: CC_SHARED_STORE_NAME, hasVceManifest: true }, ...configStores]
         : configStores.map(s => s.id === configStoreId ? { ...s, hasVceManifest: true } : s)
 
       updateFastlyState({
@@ -1666,7 +1666,7 @@ function FastlyTab({
       saveSettings({ apiToken, selectedService: serviceId, selectedConfigStore: configStoreId })
       setShowCreateForm(false)
       setCreateForm({ serviceName: '' })
-      setStatus(`VCE service "${createForm.serviceName}" created successfully!`)
+      setStatus(`Service "${createForm.serviceName}" created successfully!`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Service creation failed')
     } finally {
@@ -1757,7 +1757,7 @@ function FastlyTab({
       await fastlyFetch(`/service/${service.id}/version/${versionToUse}/activate`, { method: 'PUT' })
 
       // Update local state
-      setResourceLinkInfo({ storeId: sharedStoreId, storeName: VCE_SHARED_STORE_NAME })
+      setResourceLinkInfo({ storeId: sharedStoreId, storeName: CC_SHARED_STORE_NAME })
       setStatus('Resource link fixed successfully!')
 
     } catch (err) {
@@ -1801,8 +1801,8 @@ function FastlyTab({
 
       setDeployProgress('Uploading to Config Store...')
       // Combined payload: manifest fields + rules
-      const payload: VcePayload = {
-        version: VCE_ENGINE_VERSION,
+      const payload: CcPayload = {
+        version: CC_ENGINE_VERSION,
         deployedAt: new Date().toISOString(),
         rules_packed: compressed,
       }
@@ -1823,7 +1823,7 @@ function FastlyTab({
 
       updateFastlyState({
         services: services.map(s =>
-          s.id === selectedService ? { ...s, isVceEnabled: true, linkedConfigStore: sharedStoreId } : s
+          s.id === selectedService ? { ...s, isCcEnabled: true, linkedConfigStore: sharedStoreId } : s
         ),
         configStores: configStores.map(s =>
           s.id === sharedStoreId ? { ...s, hasVceManifest: true } : s
@@ -1959,7 +1959,7 @@ function FastlyTab({
 
               {localComputeRunning && localEngineVersion && (
                 <Text size="sm" style={{ marginBottom: '12px' }}>
-                  <Text span className="vce-text-muted">Engine:</Text> {localEngineVersion.engine} v{localEngineVersion.version}
+                  <Text span className="cc-text-muted">Engine:</Text> {localEngineVersion.engine} v{localEngineVersion.version}
                 </Text>
               )}
 
@@ -1976,7 +1976,7 @@ function FastlyTab({
               )}
 
               {!localComputeRunning && (
-                <Text size="xs" className="vce-text-muted">
+                <Text size="xs" className="cc-text-muted">
                   Run <code style={{ background: 'var(--COLOR--surface--tertiary)', padding: '2px 4px', borderRadius: '2px' }}>make serve</code> to start
                 </Text>
               )}
@@ -1991,15 +1991,15 @@ function FastlyTab({
               <Flex align="center" gap="sm">
                 <Box>
                   <Title order={5}>Save Rules</Title>
-                  <Text size="xs" className="vce-text-muted">Export to local file system</Text>
+                  <Text size="xs" className="cc-text-muted">Export to local file system</Text>
                 </Box>
               </Flex>
             </Card.Section>
 
             <Box style={{ padding: '12px' }}>
               <Flex gap="md" style={{ marginBottom: '12px' }}>
-                <Text size="sm"><Text span weight="bold">{nodes.length}</Text> <Text span className="vce-text-muted">nodes</Text></Text>
-                <Text size="sm"><Text span weight="bold">{edges.length}</Text> <Text span className="vce-text-muted">edges</Text></Text>
+                <Text size="sm"><Text span weight="bold">{nodes.length}</Text> <Text span className="cc-text-muted">nodes</Text></Text>
+                <Text size="sm"><Text span weight="bold">{edges.length}</Text> <Text span className="cc-text-muted">edges</Text></Text>
               </Flex>
 
               <Button variant="filled" leftSection={<IconUpload width={16} height={16} />} onClick={handleDeployLocal} disabled={loading} fullWidth>
@@ -2007,7 +2007,7 @@ function FastlyTab({
               </Button>
 
               {localComputeRunning && (
-                <Text size="xs" className="vce-text-muted" style={{ marginTop: '8px', fontStyle: 'italic' }}>
+                <Text size="xs" className="cc-text-muted" style={{ marginTop: '8px', fontStyle: 'italic' }}>
                   Restart the Compute server to reload rules
                 </Text>
               )}
@@ -2029,13 +2029,13 @@ function FastlyTab({
                     <Anchor href="http://127.0.0.1:7676/_version" target="_blank" size="xs">
                       /_version
                     </Anchor>
-                    <Text size="xs" className="vce-text-muted">Engine info</Text>
+                    <Text size="xs" className="cc-text-muted">Engine info</Text>
                   </Flex>
                   <Flex justify="space-between" align="center">
                     <Anchor href="http://127.0.0.1:7676/" target="_blank" size="xs">
                       /
                     </Anchor>
-                    <Text size="xs" className="vce-text-muted">Test request</Text>
+                    <Text size="xs" className="cc-text-muted">Test request</Text>
                   </Flex>
                 </Stack>
               </Box>
@@ -2059,7 +2059,7 @@ function FastlyTab({
     return (
       <Box p="md">
         {/* Connect to Fastly section */}
-        <Text size="sm" className="vce-text-muted" style={{ marginBottom: '12px' }}>
+        <Text size="sm" className="cc-text-muted" style={{ marginBottom: '12px' }}>
           Connect to Fastly to deploy rules to the edge.
         </Text>
 
@@ -2071,7 +2071,7 @@ function FastlyTab({
             onChange={(e) => updateFastlyState({ apiToken: e.target.value })}
             placeholder="Enter your Fastly API token"
           />
-          <Text size="xs" className="vce-text-muted" style={{ marginTop: '4px' }}>
+          <Text size="xs" className="cc-text-muted" style={{ marginTop: '4px' }}>
             Create a token at{' '}
             <a href="https://manage.fastly.com/account/personal/tokens" target="_blank" rel="noreferrer" style={{ color: 'var(--COLOR--action--text)' }}>
               manage.fastly.com
@@ -2098,7 +2098,7 @@ function FastlyTab({
 
         <Flex style={{ alignItems: 'center', gap: '12px', margin: '16px 0' }}>
           <Box style={{ flex: 1, height: '1px', background: 'var(--COLOR--border--primary)' }} />
-          <Text size="xs" className="vce-text-muted">OR</Text>
+          <Text size="xs" className="cc-text-muted">OR</Text>
           <Box style={{ flex: 1, height: '1px', background: 'var(--COLOR--border--primary)' }} />
         </Flex>
 
@@ -2140,7 +2140,7 @@ function FastlyTab({
                   label="Service Name"
                   value={createForm.serviceName}
                   onChange={(e) => setCreateForm({ serviceName: e.target.value })}
-                  placeholder="my-vce-service"
+                  placeholder="my-cc-service"
                 />
               </Box>
 
@@ -2148,7 +2148,7 @@ function FastlyTab({
                 <Text size="xs" style={{ fontFamily: 'monospace', marginBottom: '12px' }}>{createProgress}</Text>
               )}
 
-              <Text size="xs" className="vce-text-muted" style={{ marginBottom: '12px' }}>
+              <Text size="xs" className="cc-text-muted" style={{ marginBottom: '12px' }}>
                 Service creation takes 1-2 minutes.
               </Text>
 
@@ -2177,19 +2177,19 @@ function FastlyTab({
 
         {services.length === 0 ? (
           <Box p="sm" style={{ border: '1px solid var(--COLOR--border--primary)', borderRadius: '6px' }}>
-            <Text size="sm" className="vce-text-muted">No Compute services found. Create one above.</Text>
+            <Text size="sm" className="cc-text-muted">No Compute services found. Create one above.</Text>
           </Box>
         ) : (
           <Select
             data={[
               // Configured services first (sorted by name)
               ...services
-                .filter(s => s.isVceEnabled)
+                .filter(s => s.isCcEnabled)
                 .sort((a, b) => a.name.localeCompare(b.name))
                 .map(s => ({ value: s.id, label: s.name })),
               // Then non-configured services (sorted by name, marked with ⚠)
               ...services
-                .filter(s => !s.isVceEnabled)
+                .filter(s => !s.isCcEnabled)
                 .sort((a, b) => a.name.localeCompare(b.name))
                 .map(s => ({ value: s.id, label: `⚠ ${s.name}` })),
             ]}
@@ -2202,14 +2202,14 @@ function FastlyTab({
         {/* Warning only when deploying will make destructive changes */}
         {selectedService && (
           // Show warning if engine needs deploying OR config store link needs changing
-          (engineVersion?.version !== VCE_ENGINE_VERSION || resourceLinkInfo?.storeName !== VCE_SHARED_STORE_NAME)
+          (engineVersion?.version !== CC_ENGINE_VERSION || resourceLinkInfo?.storeName !== CC_SHARED_STORE_NAME)
         ) && (
           <Alert variant="caution" icon={<IconAttentionFilled width={16} height={16} />} style={{ marginTop: 8 }}>
             <Text size="xs">
               <strong>Warning:</strong> Deploying will{' '}
-              {engineVersion?.version !== VCE_ENGINE_VERSION && 'replace this service\'s WASM binary'}
-              {engineVersion?.version !== VCE_ENGINE_VERSION && resourceLinkInfo?.storeName !== VCE_SHARED_STORE_NAME && ' and '}
-              {resourceLinkInfo?.storeName !== VCE_SHARED_STORE_NAME && 'change the config store link'}
+              {engineVersion?.version !== CC_ENGINE_VERSION && 'replace this service\'s WASM binary'}
+              {engineVersion?.version !== CC_ENGINE_VERSION && resourceLinkInfo?.storeName !== CC_SHARED_STORE_NAME && ' and '}
+              {resourceLinkInfo?.storeName !== CC_SHARED_STORE_NAME && 'change the config store link'}
               .
             </Text>
           </Alert>
@@ -2240,7 +2240,7 @@ function FastlyTab({
               <Stack gap="sm" style={{ padding: '12px' }}>
                 {/* Service ID */}
                 <Flex align="center" justify="space-between">
-                  <Text size="xs" className="vce-text-muted">Service ID</Text>
+                  <Text size="xs" className="cc-text-muted">Service ID</Text>
                   <Flex align="center" gap="xs">
                     <Text size="xs" style={{ fontFamily: 'monospace' }}>{service.id}</Text>
                     <ActionIcon variant="subtle" size="xs" onClick={() => navigator.clipboard.writeText(service.id)}>
@@ -2251,7 +2251,7 @@ function FastlyTab({
 
                 {/* Test URL */}
                 <Flex align="center" justify="space-between">
-                  <Text size="xs" className="vce-text-muted">Test URL</Text>
+                  <Text size="xs" className="cc-text-muted">Test URL</Text>
                   <Anchor href={serviceUrl} target="_blank" size="xs">
                     {displayDomain}
                   </Anchor>
@@ -2261,11 +2261,11 @@ function FastlyTab({
 
                 {/* Config Store */}
                 <Flex align="center" justify="space-between">
-                  <Text size="xs" className="vce-text-muted">Config Store</Text>
-                  {resourceLinkInfo?.storeName === VCE_SHARED_STORE_NAME ? (
+                  <Text size="xs" className="cc-text-muted">Config Store</Text>
+                  {resourceLinkInfo?.storeName === CC_SHARED_STORE_NAME ? (
                     <Flex align="center" gap={4}>
                       <IconCheckCircleFilled width={14} height={14} style={{ color: 'var(--COLOR--success--text)' }} />
-                      <Text size="xs" style={{ fontFamily: 'monospace' }}>{VCE_SHARED_STORE_NAME}</Text>
+                      <Text size="xs" style={{ fontFamily: 'monospace' }}>{CC_SHARED_STORE_NAME}</Text>
                     </Flex>
                   ) : !sharedStoreId ? (
                     <Button size="compact-sm" variant="light" onClick={handleSetupConfigStore} loading={!!createProgress}>
@@ -2290,21 +2290,21 @@ function FastlyTab({
 
                 {/* Engine Version */}
                 <Flex align="center" justify="space-between">
-                  <Text size="xs" className="vce-text-muted">Engine</Text>
+                  <Text size="xs" className="cc-text-muted">Engine</Text>
                   {engineVersionLoading ? (
                     <Loader size="xs" />
                   ) : engineUpdateProgress ? (
                     <Text size="xs" style={{ fontFamily: 'monospace' }}>{engineUpdateProgress}</Text>
-                  ) : engineVersion?.version === VCE_ENGINE_VERSION ? (
+                  ) : engineVersion?.version === CC_ENGINE_VERSION ? (
                     <Flex align="center" gap={4}>
                       <IconCheckCircleFilled width={14} height={14} style={{ color: 'var(--COLOR--success--text)' }} />
-                      <Text size="xs">v{VCE_ENGINE_VERSION}</Text>
+                      <Text size="xs">v{CC_ENGINE_VERSION}</Text>
                     </Flex>
                   ) : engineVersion ? (
                     <Flex align="center" gap={4}>
                       <IconAttentionFilled width={14} height={14} style={{ color: 'var(--COLOR--caution--text)' }} />
                       <Button size="compact-sm" variant="light" color="orange" onClick={handleUpdateEngine}>
-                        Update to v{VCE_ENGINE_VERSION}
+                        Update to v{CC_ENGINE_VERSION}
                       </Button>
                     </Flex>
                   ) : (
@@ -2316,15 +2316,15 @@ function FastlyTab({
 
                 {/* Rules Info */}
                 <Flex align="center" justify="space-between">
-                  <Text size="xs" className="vce-text-muted">Rules</Text>
+                  <Text size="xs" className="cc-text-muted">Rules</Text>
                   <Flex align="center" gap="xs">
                     {engineVersion && (engineVersion.nodes_count ?? 0) > 0 ? (
                       <>
                         <Text size="xs">{engineVersion.nodes_count} nodes · {engineVersion.edges_count} edges</Text>
-                        <Text size="xs" className="vce-text-muted">({engineVersion.rules_hash?.slice(0, 8)})</Text>
+                        <Text size="xs" className="cc-text-muted">({engineVersion.rules_hash?.slice(0, 8)})</Text>
                       </>
                     ) : (
-                      <Text size="xs" className="vce-text-muted">No rules deployed</Text>
+                      <Text size="xs" className="cc-text-muted">No rules deployed</Text>
                     )}
                     <Tooltip label="Export graph.json" position="left">
                       <ActionIcon variant="subtle" size="xs" disabled={!validation.valid} onClick={() => {
@@ -2365,7 +2365,7 @@ function FastlyTab({
 
                 {/* Graph Stats (current canvas) */}
                 <Flex align="center" justify="space-between">
-                  <Text size="xs" className="vce-text-muted">Canvas</Text>
+                  <Text size="xs" className="cc-text-muted">Canvas</Text>
                   <Flex align="center" gap="xs">
                     <Text size="xs">{nodes.length} nodes · {edges.length} edges</Text>
                     {isGraphInSync ? (

@@ -125,7 +125,7 @@ export function CacheNode({ id, data, selected }: NodeProps) {
             align="center"
             gap="xs"
             style={{ marginTop: '8px', cursor: 'pointer' }}
-            className="vce-node-toggle"
+            className="cc-node-toggle"
           >
             <Text size="xs">{showAdvanced ? '▾' : '▸'}</Text>
             <Text size="xs">Advanced</Text>
@@ -144,7 +144,7 @@ export function CacheNode({ id, data, selected }: NodeProps) {
       )}
 
       {/* Helper text */}
-      <Text size="xs" className="vce-node-helper-text" style={{ marginTop: '8px' }}>
+      <Text size="xs" className="cc-node-helper-text" style={{ marginTop: '8px' }}>
         {mode === 'pass' && 'Request will bypass cache and always fetch from origin'}
         {mode === 'configure' && 'Sets cache TTL and stale-while-revalidate duration'}
       </Text>

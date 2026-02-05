@@ -1,11 +1,11 @@
 authors = ["Fastly"]
-description = "Visual Compute Engine - Graph-based edge rules for Fastly Compute"
+description = "Configure Compute - Visual graph-based edge rules for Fastly Compute"
 language = "rust"
 manifest_version = 3
-name = "vce-engine"
+name = "configure-compute"
 
 [scripts]
-build = "cargo build --bin vce-engine --release --target wasm32-wasip1 --color always"
+build = "cargo build --bin configure-compute --release --target wasm32-wasip1 --color always"
 
 [setup]
 [setup.backends]
@@ -31,7 +31,7 @@ override_host = "httpbingo.org"
 
 # Edge Rate Limiting resources
 [local_server.rate_counter]
-[local_server.rate_counter.vce_rate_counter]
+[local_server.rate_counter.cc_rate_counter]
 
 [local_server.penalty_box]
-[local_server.penalty_box.vce_penalty_box]
+[local_server.penalty_box.cc_penalty_box]

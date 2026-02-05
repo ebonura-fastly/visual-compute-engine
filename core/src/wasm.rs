@@ -1,4 +1,4 @@
-//! WASM bindings for vce-core.
+//! WASM bindings for cc-core.
 //!
 //! Exposes the graph manipulation and execution APIs to JavaScript.
 

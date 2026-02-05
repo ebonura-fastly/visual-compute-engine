@@ -1,5 +1,5 @@
 /*
- * VCE Minimal Styles
+ * Configure Compute Minimal Styles
  * Only layout + React Flow overrides
  * All component styling comes from beacon-mantine
  * Uses beacon-tokens CSS variables
@@ -14,7 +14,7 @@
   --SIZE--TopNav--height: 68px;
 }
 
-.vce-app {
+.cc-app {
   width: 100vw;
   height: 100vh;
   display: flex;
@@ -22,14 +22,14 @@
   background: var(--canvas-bg);
 }
 
-.vce-main {
+.cc-main {
   display: flex;
   flex: 1;
   min-height: 0;
   margin-top: var(--SIZE--TopNav--height); /* Account for fixed header */
 }
 
-.vce-canvas {
+.cc-canvas {
   flex: 1;
   position: relative;
 }
@@ -38,7 +38,7 @@
  * Sidebar Layout - Uniform styling
  * =========================================== */
 
-.vce-sidebar {
+.cc-sidebar {
   width: 340px;
   background: var(--COLOR--surface--primary);
   border-right: 1px solid var(--COLOR--border--primary);
@@ -47,16 +47,16 @@
   overflow: hidden;
 }
 
-.vce-sidebar-tabs-container {
+.cc-sidebar-tabs-container {
   flex-shrink: 0;
 }
 
-.vce-sidebar-tabs {
+.cc-sidebar-tabs {
   display: flex;
   width: 100%;
 }
 
-.vce-sidebar-tab {
+.cc-sidebar-tab {
   flex: 1;
   justify-content: center;
   padding: var(--LAYOUT--spacing--3) var(--LAYOUT--spacing--2) !important;
@@ -68,18 +68,18 @@
   transition: color 0.15s ease, border-color 0.15s ease;
 }
 
-.vce-sidebar-tab:hover {
+.cc-sidebar-tab:hover {
   color: var(--COLOR--text--primary) !important;
   background: var(--COLOR--surface--secondary) !important;
 }
 
-.vce-sidebar-tab[data-active="true"] {
+.cc-sidebar-tab[data-active="true"] {
   color: var(--COLOR--error--text) !important;
   border-bottom-color: var(--COLOR--error--text) !important;
   background: rgba(255, 40, 45, 0.08) !important;
 }
 
-.vce-sidebar-content {
+.cc-sidebar-content {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
@@ -87,11 +87,11 @@
   flex-direction: column;
 }
 
-.vce-sidebar-content > * {
-  animation: vce-fade-in 200ms ease-out;
+.cc-sidebar-content > * {
+  animation: cc-fade-in 200ms ease-out;
 }
 
-@keyframes vce-fade-in {
+@keyframes cc-fade-in {
   from {
     opacity: 0;
     transform: translateY(4px);
@@ -103,8 +103,8 @@
 }
 
 /* Components Tab */
-.vce-components-tab,
-.vce-templates-tab {
+.cc-components-tab,
+.cc-templates-tab {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -112,7 +112,7 @@
 }
 
 /* Draggable node items - Uniform styling */
-.vce-node-item {
+.cc-node-item {
   padding: var(--LAYOUT--spacing--3) var(--LAYOUT--spacing--4);
   padding-left: calc(var(--LAYOUT--spacing--4) + 3px);
   background: var(--COLOR--surface--primary);
@@ -123,26 +123,26 @@
   transition: all 130ms ease-in-out;
 }
 
-.vce-node-item:hover {
+.cc-node-item:hover {
   background: var(--COLOR--surface--secondary);
   border-color: var(--COLOR--border--primary--hover);
 }
 
-.vce-node-item:active {
+.cc-node-item:active {
   cursor: grabbing;
   background: var(--COLOR--action--surface--selected);
   border-color: var(--COLOR--action--border);
 }
 
 /* Node item category colors */
-.vce-node-item[data-category="input"] { border-left-color: var(--node-input-header); }
-.vce-node-item[data-category="condition"] { border-left-color: var(--node-condition-header); }
-.vce-node-item[data-category="logic"] { border-left-color: var(--node-logic-header); }
-.vce-node-item[data-category="action"] { border-left-color: var(--node-action-header); }
-.vce-node-item[data-category="routing"] { border-left-color: var(--node-routing-header); }
+.cc-node-item[data-category="input"] { border-left-color: var(--node-input-header); }
+.cc-node-item[data-category="condition"] { border-left-color: var(--node-condition-header); }
+.cc-node-item[data-category="logic"] { border-left-color: var(--node-logic-header); }
+.cc-node-item[data-category="action"] { border-left-color: var(--node-action-header); }
+.cc-node-item[data-category="routing"] { border-left-color: var(--node-routing-header); }
 
 /* Template cards - Uniform styling */
-.vce-template-card {
+.cc-template-card {
   padding: var(--LAYOUT--spacing--3) var(--LAYOUT--spacing--4);
   background: var(--COLOR--surface--primary);
   border: 1px solid var(--COLOR--border--primary);
@@ -151,18 +151,18 @@
   transition: all 130ms ease-in-out;
 }
 
-.vce-template-card:hover {
+.cc-template-card:hover {
   background: var(--COLOR--surface--secondary);
   border-color: var(--COLOR--border--primary--hover);
 }
 
-.vce-template-card:active {
+.cc-template-card:active {
   background: var(--COLOR--action--surface--selected);
   border-color: var(--COLOR--action--border);
 }
 
 /* Fastly Tab */
-.vce-fastly-content {
+.cc-fastly-content {
   padding: var(--LAYOUT--spacing--4);
   display: flex;
   flex-direction: column;
@@ -197,36 +197,36 @@
  * Panels (Test & Deploy)
  * =========================================== */
 
-.vce-panel-toggle {
+.cc-panel-toggle {
   position: absolute;
   bottom: var(--LAYOUT--spacing--3);
   z-index: 10;
 }
 
-.vce-panel-toggle--test {
+.cc-panel-toggle--test {
   left: var(--LAYOUT--spacing--3);
 }
 
-.vce-panel-toggle--deploy {
+.cc-panel-toggle--deploy {
   right: var(--LAYOUT--spacing--3);
 }
 
-.vce-panel {
+.cc-panel {
   position: absolute;
   bottom: var(--LAYOUT--spacing--3);
   width: 350px;
   background: var(--COLOR--surface--primary);
   border: 1px solid var(--COLOR--border--primary);
   border-radius: var(--LAYOUT--border-radius--lg);
-  box-shadow: var(--vce-shadow-lg);
+  box-shadow: var(--cc-shadow-lg);
   z-index: 10;
 }
 
-.vce-panel--test {
+.cc-panel--test {
   left: var(--LAYOUT--spacing--3);
 }
 
-.vce-panel--deploy {
+.cc-panel--deploy {
   right: var(--LAYOUT--spacing--3);
   width: 380px;
   max-height: calc(100vh - 80px);
@@ -237,7 +237,7 @@
  * Empty Canvas State
  * =========================================== */
 
-.vce-empty-canvas {
+.cc-empty-canvas {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -253,7 +253,7 @@
  * Edge Delete Button
  * =========================================== */
 
-.vce-edge-delete-btn {
+.cc-edge-delete-btn {
   background: var(--COLOR--surface--primary) !important;
   border: 1px solid var(--COLOR--border--secondary) !important;
   box-shadow: var(--SHADOW--shadow--2) !important;
@@ -263,9 +263,9 @@
   transform: none !important;
 }
 
-.vce-edge-delete-btn:hover,
-.vce-edge-delete-btn:focus,
-.vce-edge-delete-btn:active {
+.cc-edge-delete-btn:hover,
+.cc-edge-delete-btn:focus,
+.cc-edge-delete-btn:active {
   background: var(--COLOR--error--surface--tertiary) !important;
   border-color: var(--COLOR--error--border) !important;
   color: var(--COLOR--error--text--primary) !important;
@@ -278,7 +278,7 @@
  * Node Editor Panel
  * =========================================== */
 
-.vce-node-editor {
+.cc-node-editor {
   position: absolute;
   top: var(--LAYOUT--spacing--3);
   right: var(--LAYOUT--spacing--3);
@@ -290,12 +290,12 @@
   z-index: 10;
 }
 
-.vce-node-editor-header {
+.cc-node-editor-header {
   padding: var(--LAYOUT--spacing--3) var(--LAYOUT--spacing--4);
   border-bottom: 1px solid var(--COLOR--border--primary);
 }
 
-.vce-node-editor-form {
+.cc-node-editor-form {
   padding: var(--LAYOUT--spacing--4);
 }
 
@@ -303,7 +303,7 @@
  * Utility Classes
  * =========================================== */
 
-.vce-text-muted {
+.cc-text-muted {
   color: var(--COLOR--text--disabled);
 }
 
@@ -311,13 +311,13 @@
  * Filter Icon & Popover
  * =========================================== */
 
-.vce-filter-icon {
+.cc-filter-icon {
   padding: var(--LAYOUT--spacing--1);
   border-radius: var(--LAYOUT--border-radius--sm);
   transition: background 130ms ease-in-out;
 }
 
-.vce-filter-icon:hover {
+.cc-filter-icon:hover {
   background: var(--COLOR--surface--secondary);
 }
 

@@ -86,7 +86,7 @@ export function HeaderNode({ id, data, selected }: NodeProps) {
       )}
 
       {/* Helper text */}
-      <Text size="xs" className="vce-node-helper-text" style={{ marginTop: '8px' }}>
+      <Text size="xs" className="cc-node-helper-text" style={{ marginTop: '8px' }}>
         {operation === 'set' && 'Replaces any existing header with this value'}
         {operation === 'append' && 'Adds value to header (allows multiple values)'}
         {operation === 'remove' && 'Removes all values for this header'}

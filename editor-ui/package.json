@@ -1,6 +1,6 @@
 {
-  "name": "vce-editor",
-  "version": "0.1.0",
+  "name": "configure-compute-editor",
+  "version": "0.1.8",
   "private": true,
   "type": "module",
   "scripts": {
@@ -25,7 +25,7 @@
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "react-router-dom": "^7.13.0",
-    "vce-core": "file:../core/pkg"
+    "cc-core": "file:../core/pkg"
   },
   "devDependencies": {
     "@types/react": "^19.2.7",

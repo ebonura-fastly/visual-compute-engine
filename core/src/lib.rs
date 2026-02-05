@@ -1,6 +1,6 @@
-//! # Visual Compute Engine Core
+//! # Configure Compute Core
 //!
-//! Core node graph types and interpreter for Visual Compute Engine.
+//! Core node graph types and interpreter for Configure Compute.
 //!
 //! This crate defines the visual programming model for edge rules,
 //! inspired by Unreal Blueprints and Blender Geometry Nodes.

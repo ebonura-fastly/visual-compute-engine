@@ -1,5 +1,5 @@
 /**
- * VCE Theme System
+ * Configure Compute Theme System
  *
  * Thin wrapper around beacon-mantine's useColorScheme hook.
  * Theme is stored in localStorage (key: fui__appearance__dark-mode-enabled)

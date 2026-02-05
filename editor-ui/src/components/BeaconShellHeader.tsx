@@ -17,7 +17,7 @@ interface BeaconShellHeaderProps {
   title?: string
 }
 
-export function BeaconShellHeader({ title = 'Visual Compute Engine' }: BeaconShellHeaderProps) {
+export function BeaconShellHeader({ title = 'Configure Compute' }: BeaconShellHeaderProps) {
   const { isDark, toggle } = useTheme()
 
   return (

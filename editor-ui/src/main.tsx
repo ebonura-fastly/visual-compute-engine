@@ -5,7 +5,7 @@ import { BeaconProvider } from './BeaconProvider'
 
 // Design tokens (CSS variables) - needed for our custom styling
 import './styles/tokens.css'
-// VCE-specific styles (nodes, layout)
+// Configure Compute specific styles (nodes, layout)
 import './styles/nodes.css'
 import './index.css'
 

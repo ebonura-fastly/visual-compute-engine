@@ -29,8 +29,8 @@ export function NodeEditor({ node, onUpdate, onClose }: Props) {
   }
 
   return (
-    <Box className="vce-node-editor">
-      <Flex className="vce-node-editor-header" justify="space-between" align="center">
+    <Box className="cc-node-editor">
+      <Flex className="cc-node-editor-header" justify="space-between" align="center">
         <Text size="sm" weight="bold">Edit {node.type}</Text>
         <ActionIcon onClick={onClose} variant="subtle" size="sm">
           <IconClose width={14} height={14} />
@@ -38,7 +38,7 @@ export function NodeEditor({ node, onUpdate, onClose }: Props) {
       </Flex>
 
       {node.type === 'condition' && (
-        <Stack className="vce-node-editor-form" gap="sm">
+        <Stack className="cc-node-editor-form" gap="sm">
           <Select
             label="Field"
             value={(node.data as { field?: string }).field || 'path'}
@@ -63,7 +63,7 @@ export function NodeEditor({ node, onUpdate, onClose }: Props) {
       )}
 
       {node.type === 'logic' && (
-        <Stack className="vce-node-editor-form" gap="sm">
+        <Stack className="cc-node-editor-form" gap="sm">
           <Select
             label="Operation"
             value={(node.data as { operation?: string }).operation || 'AND'}
@@ -75,7 +75,7 @@ export function NodeEditor({ node, onUpdate, onClose }: Props) {
       )}
 
       {node.type === 'action' && (
-        <Stack className="vce-node-editor-form" gap="sm">
+        <Stack className="cc-node-editor-form" gap="sm">
           <Select
             label="Action"
             value={(node.data as { action?: string }).action || 'block'}

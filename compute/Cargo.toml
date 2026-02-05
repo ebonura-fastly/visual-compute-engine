@@ -1,17 +1,17 @@
 [package]
-name = "vce-engine"
-version = "1.1.7"
+name = "configure-compute-engine"
+version = "0.1.8"
 authors = ["Fastly"]
 edition = "2021"
-description = "Visual Compute Engine - Edge rules processing for Fastly Compute"
+description = "Configure Compute - Visual graph-based edge rules for Fastly Compute"
 publish = false
 
 [[bin]]
-name = "vce-engine"
+name = "configure-compute"
 path = "src/main.rs"
 
 [lib]
-name = "vce_engine"
+name = "configure_compute_engine"
 path = "src/lib.rs"
 
 [profile.release]

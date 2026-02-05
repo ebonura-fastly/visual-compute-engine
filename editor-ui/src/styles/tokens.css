@@ -1,16 +1,16 @@
 /*
- * VCE Design Tokens
+ * Configure Compute Design Tokens
  *
- * This file defines VCE-specific CSS variables that extend beacon-tokens.
+ * This file defines CC-specific CSS variables that extend beacon-tokens.
  * Primitive colors and semantic tokens come from @fastly/beacon-tokens.
- * We only define VCE-specific variables here (nodes, ports, canvas).
+ * We only define CC-specific variables here (nodes, ports, canvas).
  */
 
 @layer tokens {
 :root, body[data-theme="aspen"], [data-theme="aspen"][data-scoped-color-scheme="light"] {
   /* ===========================================
    * Node Category Colors - Light Mode
-   * Custom colors for VCE node types
+   * Custom colors for CC node types
    * =========================================== */
 
   /* Input nodes - coral red (entry points) */
@@ -76,25 +76,25 @@
   --canvas-minimap-mask: rgba(243, 244, 246, 0.8);
 
   /* ===========================================
-   * VCE-Specific Shadows
+   * CC-Specific Shadows
    * =========================================== */
-  --vce-shadow-sm: 0 1px 2px rgba(11, 13, 14, 0.25);
-  --vce-shadow-md: 0 4px 8px rgba(11, 13, 14, 0.25);
-  --vce-shadow-lg: 0 8px 16px rgba(11, 13, 14, 0.25);
-  --vce-shadow-xl: 0 16px 32px rgba(11, 13, 14, 0.35);
+  --cc-shadow-sm: 0 1px 2px rgba(11, 13, 14, 0.25);
+  --cc-shadow-md: 0 4px 8px rgba(11, 13, 14, 0.25);
+  --cc-shadow-lg: 0 8px 16px rgba(11, 13, 14, 0.25);
+  --cc-shadow-xl: 0 16px 32px rgba(11, 13, 14, 0.35);
 
   /* ===========================================
-   * VCE Focus Ring
+   * CC Focus Ring
    * =========================================== */
-  --vce-focus-ring: 0 0 0 2px var(--COLOR--surface--primary), 0 0 0 4px var(--COLOR--action--border);
+  --cc-focus-ring: 0 0 0 2px var(--COLOR--surface--primary), 0 0 0 4px var(--COLOR--action--border);
 
   /* ===========================================
-   * VCE Motion Tokens
+   * CC Motion Tokens
    * =========================================== */
-  --vce-duration-efficient: 80ms;
-  --vce-duration-practical: 130ms;
-  --vce-duration-expressive: 210ms;
-  --vce-easing-default: cubic-bezier(0.42, 0, 0.58, 1);
+  --cc-duration-efficient: 80ms;
+  --cc-duration-practical: 130ms;
+  --cc-duration-expressive: 210ms;
+  --cc-easing-default: cubic-bezier(0.42, 0, 0.58, 1);
 }
 
 /* ===========================================
@@ -149,12 +149,12 @@ body[data-theme="aspen"][data-prefers-color-scheme="dark"],
   --canvas-minimap-mask: rgba(18, 20, 23, 0.8);
 
   /* Shadows (stronger for dark mode) */
-  --vce-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --vce-shadow-md: 0 4px 8px rgba(0, 0, 0, 0.4);
-  --vce-shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.5);
-  --vce-shadow-xl: 0 16px 32px rgba(0, 0, 0, 0.6);
+  --cc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --cc-shadow-md: 0 4px 8px rgba(0, 0, 0, 0.4);
+  --cc-shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.5);
+  --cc-shadow-xl: 0 16px 32px rgba(0, 0, 0, 0.6);
 
   /* Focus */
-  --vce-focus-ring: 0 0 0 2px var(--COLOR--surface--primary), 0 0 0 4px var(--COLOR--action--border);
+  --cc-focus-ring: 0 0 0 2px var(--COLOR--surface--primary), 0 0 0 4px var(--COLOR--action--border);
 }
 } /* end @layer tokens */

@@ -122,6 +122,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "configure-compute-engine"
+version = "0.1.8"
+dependencies = [
+ "base64",
+ "chrono",
+ "fastly",
+ "flate2",
+ "hex",
+ "hmac",
+ "hmac-sha256",
+ "ipnet",
+ "regex",
+ "serde",
+ "serde_json",
+ "sha2 0.10.8",
+ "thiserror",
+ "uuid",
+]
+
+[[package]]
 name = "core-foundation-sys"
 version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -955,26 +975,6 @@ checksum = "f8c5f0a0af699448548ad1a2fbf920fb4bee257eae39953ba95cb84891a0446a"
 dependencies = [
  "getrandom",
  "serde",
-]
-
-[[package]]
-name = "vce-engine"
-version = "1.1.7"
-dependencies = [
- "base64",
- "chrono",
- "fastly",
- "flate2",
- "hex",
- "hmac",
- "hmac-sha256",
- "ipnet",
- "regex",
- "serde",
- "serde_json",
- "sha2 0.10.8",
- "thiserror",
- "uuid",
 ]
 
 [[package]]

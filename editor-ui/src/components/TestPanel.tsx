@@ -33,21 +33,21 @@ export function TestPanel({ onExecute, isLoaded }: Props) {
 
   if (!isOpen) {
     return (
-      <Button onClick={() => setIsOpen(true)} variant="outline" className="vce-panel-toggle vce-panel-toggle--test">
+      <Button onClick={() => setIsOpen(true)} variant="outline" className="cc-panel-toggle cc-panel-toggle--test">
         Test Rule
       </Button>
     )
   }
 
   return (
-    <Box className="vce-panel vce-panel--test">
-      <Flex className="vce-panel-header" justify="space-between" align="center">
+    <Box className="cc-panel cc-panel--test">
+      <Flex className="cc-panel-header" justify="space-between" align="center">
         <Text size="sm" weight="bold">Test Request</Text>
         <Button onClick={() => setIsOpen(false)} variant="subtle" size="compact-sm">
           <IconClose width={14} height={14} />
         </Button>
       </Flex>
-      <Stack className="vce-panel-body" gap="sm">
+      <Stack className="cc-panel-body" gap="sm">
         <Textarea
           value={request}
           onChange={(e) => setRequest(e.target.value)}
@@ -64,9 +64,9 @@ export function TestPanel({ onExecute, isLoaded }: Props) {
           {isLoaded ? 'Execute' : 'Loading WASM...'}
         </Button>
         {result && (
-          <Box className="vce-panel-result">
+          <Box className="cc-panel-result">
             <Text size="xs" weight="bold" style={{ marginBottom: '8px' }}>Result:</Text>
-            <Code block className="vce-panel-result-content">{result}</Code>
+            <Code block className="cc-panel-result-content">{result}</Code>
           </Box>
         )}
       </Stack>

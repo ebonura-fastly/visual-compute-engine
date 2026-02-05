@@ -52,7 +52,7 @@ export function DeletableEdge({
             variant="filled"
             size="sm"
             radius="sm"
-            className="vce-edge-delete-btn"
+            className="cc-edge-delete-btn"
             title="Delete connection"
           >
             <IconClose width={12} height={12} />

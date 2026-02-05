@@ -1,4 +1,4 @@
-declare module 'vce-core' {
+declare module 'cc-core' {
   export class WasmGraph {
     constructor(name: string)
     free(): void
