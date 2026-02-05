@@ -249,6 +249,31 @@
 }
 
 /* ===========================================
+ * Node Editor Panel
+ * =========================================== */
+
+.vce-node-editor {
+  position: absolute;
+  top: var(--LAYOUT--spacing--3);
+  right: var(--LAYOUT--spacing--3);
+  width: 280px;
+  background: var(--COLOR--surface--primary);
+  border: 1px solid var(--COLOR--border--primary);
+  border-radius: var(--LAYOUT--border-radius--md);
+  box-shadow: var(--SHADOW--shadow--3);
+  z-index: 10;
+}
+
+.vce-node-editor-header {
+  padding: var(--LAYOUT--spacing--3) var(--LAYOUT--spacing--4);
+  border-bottom: 1px solid var(--COLOR--border--primary);
+}
+
+.vce-node-editor-form {
+  padding: var(--LAYOUT--spacing--4);
+}
+
+/* ===========================================
  * Utility Classes
  * =========================================== */
 

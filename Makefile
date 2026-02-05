@@ -10,7 +10,7 @@ help:
 	@echo ""
 	@echo "  make local      - Run full local dev environment (recommended for demos)"
 	@echo "  make dev        - Run UI and Compute (without local API server)"
-	@echo "  make ui         - Run only the Editor UI (port 5173)"
+	@echo "  make ui         - Run only the Editor UI (port 5174)"
 	@echo "  make serve      - Run only the Compute engine (port 7676)"
 	@echo "  make build      - Build the Compute WASM binary (incremental)"
 	@echo "  make rebuild    - Clean and rebuild WASM (use if deployment shows wrong version)"
@@ -24,7 +24,7 @@ help:
 	@echo ""
 	@echo "Local Dev Mode:"
 	@echo "  The 'local' target runs all three services:"
-	@echo "    - Editor UI on http://localhost:5173"
+	@echo "    - Editor UI on http://localhost:5174"
 	@echo "    - Local API on http://localhost:3001 (for saving rules)"
 	@echo "    - Compute on http://127.0.0.1:7676"
 	@echo ""
@@ -68,7 +68,7 @@ serve: build
 
 # Run Editor UI
 ui:
-	@echo "Starting Editor UI on http://localhost:5173"
+	@echo "Starting Editor UI on http://localhost:5174"
 	cd editor-ui && npm run dev
 
 # Run both UI and Compute (in foreground - use two terminals or Ctrl+C to stop)
@@ -79,7 +79,7 @@ dev: embed-wasm
 	@echo "==================================================="
 	@echo ""
 	@echo "Starting services..."
-	@echo "  - Editor UI:      http://localhost:5173"
+	@echo "  - Editor UI:      http://localhost:5174"
 	@echo "  - Compute Engine: http://127.0.0.1:7676"
 	@echo ""
 	@echo "Press Ctrl+C to stop"
@@ -108,7 +108,7 @@ local: embed-wasm
 	@echo "╔═══════════════════════════════════════════════════════════════╗"
 	@echo "║           Visual Compute Engine - Local Development Mode                 ║"
 	@echo "╠═══════════════════════════════════════════════════════════════╣"
-	@echo "║  Editor UI:    http://localhost:5173                          ║"
+	@echo "║  Editor UI:    http://localhost:5174                          ║"
 	@echo "║  Local API:    http://localhost:3001 (for saving rules)       ║"
 	@echo "║  Compute:      http://127.0.0.1:7676                          ║"
 	@echo "╠═══════════════════════════════════════════════════════════════╣"
@@ -138,14 +138,14 @@ embed-wasm: rebuild
 #
 # Quick Start (Demo):
 #   1. make demo           - Start both UI and local Compute server
-#   2. Design rules in the Editor UI (http://localhost:5173)
+#   2. Design rules in the Editor UI (http://localhost:5174)
 #   3. Click "↓ Export JSON (for local dev)" in the sidebar
 #   4. Copy downloaded file to compute/security-rules.json
 #   5. Restart with 'make serve' to reload rules
 #
 # Two-Terminal Workflow (faster iteration):
 #   Terminal 1: make serve   - Compute server on http://127.0.0.1:7676
-#   Terminal 2: make ui      - Editor UI on http://localhost:5173
+#   Terminal 2: make ui      - Editor UI on http://localhost:5174
 #   - Export JSON from UI → Copy to compute/security-rules.json
 #   - Ctrl+C and restart 'make serve' to reload
 #

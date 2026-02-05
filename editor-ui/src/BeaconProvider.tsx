@@ -30,7 +30,7 @@ interface BeaconProviderProps {
 
 export function BeaconProvider({ children }: BeaconProviderProps) {
   return (
-    <MantineProvider theme={mantineTheme}>
+    <MantineProvider theme={mantineTheme} defaultColorScheme="auto">
       {children}
     </MantineProvider>
   )

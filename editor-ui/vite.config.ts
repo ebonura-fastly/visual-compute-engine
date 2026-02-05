@@ -4,6 +4,9 @@ import wasm from 'vite-plugin-wasm'
 
 export default defineConfig({
   plugins: [react(), wasm()],
+  server: {
+    port: 5174
+  },
   optimizeDeps: {
     exclude: ['vce-core']
   }

@@ -6,7 +6,8 @@
  * We only define VCE-specific variables here (nodes, ports, canvas).
  */
 
-:root {
+@layer tokens {
+:root, body[data-theme="aspen"], [data-theme="aspen"][data-scoped-color-scheme="light"] {
   /* ===========================================
    * Node Category Colors - Light Mode
    * Custom colors for VCE node types
@@ -99,8 +100,10 @@
 /* ===========================================
  * Dark Mode Overrides
  * Uses beacon-mantine's color scheme selector
+ * Must match beacon-tokens selectors
  * =========================================== */
-body[data-prefers-color-scheme="dark"] {
+body[data-theme="aspen"][data-prefers-color-scheme="dark"],
+[data-theme="aspen"][data-scoped-color-scheme="dark"] {
   /* Node colors (adjusted for dark mode)
    * Headers keep category colors, use white text for contrast
    * Surface colors are darker tints for badges
@@ -154,3 +157,4 @@ body[data-prefers-color-scheme="dark"] {
   /* Focus */
   --vce-focus-ring: 0 0 0 2px var(--COLOR--surface--primary), 0 0 0 4px var(--COLOR--action--border);
 }
+} /* end @layer tokens */

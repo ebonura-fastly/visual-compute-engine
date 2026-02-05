@@ -178,6 +178,7 @@
       { "id": "equals", "label": "equals" },
       { "id": "notEquals", "label": "not equals" },
       { "id": "inCidr", "label": "in CIDR range" },
+      { "id": "notInCidr", "label": "not in CIDR range" },
       { "id": "in", "label": "in list" },
       { "id": "notIn", "label": "not in list" }
     ],
