@@ -824,7 +824,7 @@ function FastlyTab({
       }
     } catch {
       // Local server not running - show error to user
-      setError('Local dev server not found. Run "make dev" in the VCE directory to start the dev server.')
+      setError('Local API server not found. Run "make local" to start the full local environment (UI + API + Compute).')
     }
     return false
   }, [onLoadRules, hasLoadedRules, updateLocalModeState])

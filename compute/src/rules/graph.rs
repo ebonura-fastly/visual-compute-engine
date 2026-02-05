@@ -124,12 +124,6 @@ impl<'a> GraphInterpreter<'a> {
         self.cache_settings.borrow().clone()
     }
 
-    /// Get transform results collected during evaluation.
-    /// Returns a map of variable name -> transformed value.
-    pub fn get_transform_results(&self) -> HashMap<String, String> {
-        self.transform_results.borrow().clone()
-    }
-
     /// Get geo data for client IP, caching the result
     fn get_geo(&self, req: &Request) -> Option<fastly::geo::Geo> {
         let mut cache = self.geo_cache.borrow_mut();
@@ -653,6 +647,28 @@ impl<'a> GraphInterpreter<'a> {
                         false
                     }
                 } else {
+                    false
+                }
+            }
+            "notInCidr" => {
+                // Negated CIDR range matching - true if IP is NOT in any CIDR
+                if let Some(ip_str) = &field_value {
+                    if let Ok(ip) = ip_str.parse::<IpAddr>() {
+                        let in_any_cidr = data.value.split(',').map(|s| s.trim()).any(|cidr| {
+                            cidr.parse::<IpNet>()
+                                .map(|net| net.contains(&ip))
+                                .unwrap_or(false)
+                        });
+                        let result = !in_any_cidr;
+                        println!("[Graph] notInCidr: IP {} notIn {} = {} (in_any={})",
+                            ip_str, data.value, result, in_any_cidr);
+                        result
+                    } else {
+                        println!("[Graph] Failed to parse IP: {}", ip_str);
+                        false
+                    }
+                } else {
+                    println!("[Graph] notInCidr: no IP value found");
                     false
                 }
             }
