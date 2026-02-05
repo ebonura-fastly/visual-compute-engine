@@ -205,6 +205,7 @@ function Flow() {
             selectionOnDrag
             panOnDrag={[1, 2]}
             selectNodesOnDrag={false}
+            nodeDragThreshold={0}
             selectionKeyCode={['Shift']}
             multiSelectionKeyCode={['Shift', 'Meta', 'Control']}
             proOptions={{ hideAttribution: true }}

@@ -143,6 +143,24 @@ export function Sidebar({ nodes, edges, canonicalGraph, onAddTemplate, onLoadRul
     hasLoadedRules: false,
   })
 
+  // FastlyTab UI state - lifted up to persist across tab switches
+  const [fastlyTabState, setFastlyTabState] = useState({
+    loading: false,
+    error: null as string | null,
+    status: null as string | null,
+    showCreateForm: false,
+    createForm: { serviceName: '' },
+    createProgress: null as string | null,
+    engineUpdateProgress: null as string | null,
+    deployStatus: 'idle' as 'idle' | 'deploying' | 'verifying' | 'verified' | 'error' | 'timeout',
+    deployProgress: null as string | null,
+    resourceLinkInfo: null as { storeId: string; storeName: string } | null,
+    fixingLink: false,
+    deployedRulesHash: null as string | null,
+    currentGraphHash: null as string | null,
+    shouldCaptureDeployedHash: false,
+  })
+
   const onDragStart = (event: React.DragEvent, nodeType: string) => {
     event.dataTransfer.setData('application/reactflow', nodeType)
     event.dataTransfer.effectAllowed = 'move'
@@ -223,6 +241,8 @@ export function Sidebar({ nodes, edges, canonicalGraph, onAddTemplate, onLoadRul
             setFastlyState={setFastlyState}
             localModeState={localModeState}
             setLocalModeState={setLocalModeState}
+            fastlyTabState={fastlyTabState}
+            setFastlyTabState={setFastlyTabState}
             routeServiceId={routeServiceId}
             isLocalRoute={isLocalRoute}
             onNavigate={onNavigate}
@@ -628,6 +648,23 @@ type LocalModeState = {
   hasLoadedRules: boolean
 }
 
+type FastlyTabState = {
+  loading: boolean
+  error: string | null
+  status: string | null
+  showCreateForm: boolean
+  createForm: { serviceName: string }
+  createProgress: string | null
+  engineUpdateProgress: string | null
+  deployStatus: DeployStatus
+  deployProgress: string | null
+  resourceLinkInfo: { storeId: string; storeName: string } | null
+  fixingLink: boolean
+  deployedRulesHash: string | null
+  currentGraphHash: string | null
+  shouldCaptureDeployedHash: boolean
+}
+
 function FastlyTab({
   nodes,
   edges,
@@ -637,6 +674,8 @@ function FastlyTab({
   setFastlyState,
   localModeState,
   setLocalModeState,
+  fastlyTabState,
+  setFastlyTabState,
   routeServiceId,
   isLocalRoute,
   onNavigate,
@@ -649,16 +688,43 @@ function FastlyTab({
   setFastlyState: React.Dispatch<React.SetStateAction<FastlyState>>
   localModeState: LocalModeState
   setLocalModeState: React.Dispatch<React.SetStateAction<LocalModeState>>
+  fastlyTabState: FastlyTabState
+  setFastlyTabState: React.Dispatch<React.SetStateAction<FastlyTabState>>
   routeServiceId?: string
   isLocalRoute?: boolean
   onNavigate?: (path: string) => void
 }) {
   const { apiToken, isConnected, services, configStores, selectedService, selectedConfigStore, sharedStoreId, engineVersion, engineVersionLoading, serviceDomain } = fastlyState
   const { localMode, localServerAvailable, localComputeRunning, localEngineVersion, hasLoadedRules } = localModeState
+  const {
+    loading, error, status, showCreateForm, createForm, createProgress,
+    engineUpdateProgress, deployStatus, deployProgress, resourceLinkInfo, fixingLink,
+    deployedRulesHash, currentGraphHash, shouldCaptureDeployedHash
+  } = fastlyTabState
 
   const updateLocalModeState = (updates: Partial<LocalModeState>) => {
     setLocalModeState(prev => ({ ...prev, ...updates }))
   }
+
+  const updateTabState = (updates: Partial<FastlyTabState>) => {
+    setFastlyTabState(prev => ({ ...prev, ...updates }))
+  }
+
+  // Helper setters for cleaner code
+  const setLoading = (v: boolean) => updateTabState({ loading: v })
+  const setError = (v: string | null) => updateTabState({ error: v })
+  const setStatus = (v: string | null) => updateTabState({ status: v })
+  const setShowCreateForm = (v: boolean) => updateTabState({ showCreateForm: v })
+  const setCreateForm = (v: { serviceName: string }) => updateTabState({ createForm: v })
+  const setCreateProgress = (v: string | null) => updateTabState({ createProgress: v })
+  const setEngineUpdateProgress = (v: string | null) => updateTabState({ engineUpdateProgress: v })
+  const setDeployStatus = (v: DeployStatus) => updateTabState({ deployStatus: v })
+  const setDeployProgress = (v: string | null) => updateTabState({ deployProgress: v })
+  const setResourceLinkInfo = (v: { storeId: string; storeName: string } | null) => updateTabState({ resourceLinkInfo: v })
+  const setFixingLink = (v: boolean) => updateTabState({ fixingLink: v })
+  const setDeployedRulesHash = (v: string | null) => updateTabState({ deployedRulesHash: v })
+  const setCurrentGraphHash = (v: string | null) => updateTabState({ currentGraphHash: v })
+  const setShouldCaptureDeployedHash = (v: boolean) => updateTabState({ shouldCaptureDeployedHash: v })
 
   const setEngineVersion = (version: EngineVersion) => {
     setFastlyState(prev => ({ ...prev, engineVersion: version }))
@@ -669,23 +735,6 @@ function FastlyTab({
   const setServiceDomain = (domain: string | null) => {
     setFastlyState(prev => ({ ...prev, serviceDomain: domain }))
   }
-
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [status, setStatus] = useState<string | null>(null)
-  const [showCreateForm, setShowCreateForm] = useState(false)
-  const [createForm, setCreateForm] = useState({ serviceName: '' })
-  const [createProgress, setCreateProgress] = useState<string | null>(null)
-  const [engineUpdateProgress, setEngineUpdateProgress] = useState<string | null>(null)
-  const [deployStatus, setDeployStatus] = useState<DeployStatus>('idle')
-  const [deployProgress, setDeployProgress] = useState<string | null>(null)
-  const [resourceLinkInfo, setResourceLinkInfo] = useState<{ storeId: string; storeName: string } | null>(null)
-  const [fixingLink, setFixingLink] = useState(false)
-
-  // Track deployed rules hash to detect modifications
-  const [deployedRulesHash, setDeployedRulesHash] = useState<string | null>(null)
-  const [currentGraphHash, setCurrentGraphHash] = useState<string | null>(null)
-  const [shouldCaptureDeployedHash, setShouldCaptureDeployedHash] = useState(false)
 
   // Compute current graph hash when canonical graph changes
   // Uses canonicalGraph which already has React Flow internal fields stripped
@@ -2090,7 +2139,7 @@ function FastlyTab({
                 <TextInput
                   label="Service Name"
                   value={createForm.serviceName}
-                  onChange={(e) => setCreateForm(prev => ({ ...prev, serviceName: e.target.value }))}
+                  onChange={(e) => setCreateForm({ serviceName: e.target.value })}
                   placeholder="my-vce-service"
                 />
               </Box>
