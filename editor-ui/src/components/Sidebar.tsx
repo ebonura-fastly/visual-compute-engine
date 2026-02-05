@@ -9,7 +9,6 @@ import {
   Select,
   Alert,
   Pill,
-  Loader,
   Popover,
   Checkbox,
   Stack,
@@ -20,8 +19,9 @@ import {
   Anchor,
   Title,
   Divider,
+  Skeleton,
 } from '@fastly/beacon-mantine'
-import { IconClose, IconSearch, IconFilter, IconLink, IconUnlink, IconCode, IconSwap, IconSync, IconCopy, IconUpload } from '@fastly/beacon-icons'
+import { IconClose, IconSearch, IconFilter, IconLink, IconUnlink, IconCode, IconSwap, IconSync, IconCopy, IconUpload, IconAttentionFilled, IconCheckCircleFilled } from '@fastly/beacon-icons'
 import { allTemplates, instantiateTemplate, type RuleTemplate } from '../templates'
 
 type SidebarProps = {
@@ -823,7 +823,8 @@ function FastlyTab({
         return true
       }
     } catch {
-      // Local server not running
+      // Local server not running - show error to user
+      setError('Local dev server not found. Run "make dev" in the VCE directory to start the dev server.')
     }
     return false
   }, [onLoadRules, hasLoadedRules, updateLocalModeState])
@@ -1316,6 +1317,10 @@ function FastlyTab({
     })
     setStatus(null)
     saveSettings({ apiToken: '', selectedService: '', selectedConfigStore: '' })
+    // Clear the canvas
+    if (onLoadRules) {
+      onLoadRules([], [])
+    }
   }
 
   const fetchConfigStoreStatus = async (serviceId: string) => {
@@ -1763,7 +1768,7 @@ function FastlyTab({
     return (
       <Box p="md">
         {/* Local Mode Banner */}
-        <Flex style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+        <Flex style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <Pill variant="action">Local Dev Mode</Pill>
           <Button
             variant="outline"
@@ -1775,104 +1780,132 @@ function FastlyTab({
           </Button>
         </Flex>
 
-        {/* Local Compute Status */}
-        <Text size="sm" style={{ fontWeight: 500, marginBottom: '4px' }}>Local Compute Server</Text>
-        <Box p="sm" mb="md" style={{ border: '1px solid var(--COLOR--border--primary)', borderRadius: '8px' }}>
-          <Flex style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <a
-              href="http://127.0.0.1:7676/"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ color: 'var(--COLOR--action--text)', fontFamily: 'monospace', fontSize: '12px' }}
-            >
-              127.0.0.1:7676
-            </a>
-            <Button variant="outline" size="sm" leftSection={<IconSync width={14} height={14} />} onClick={handleRefreshLocal} disabled={loading}>
-              {loading ? '...' : 'Refresh'}
-            </Button>
-          </Flex>
+        {/* Local Server Card */}
+        <Box mb="md">
+          <Card withBorder radius="md" padding={0}>
+            <Card.Section style={{ padding: '12px 16px', background: 'var(--COLOR--surface--secondary)' }}>
+              <Flex justify="space-between" align="center">
+                <Title order={5}>Local Server</Title>
+                <ActionIcon variant="subtle" onClick={handleRefreshLocal} disabled={loading}>
+                  <IconSync width={16} height={16} />
+                </ActionIcon>
+              </Flex>
+            </Card.Section>
 
-          {/* Status */}
-          <Flex style={{ alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-            <Pill variant={localComputeRunning ? 'success' : 'error'}>
-              {localComputeRunning ? 'Running' : 'Not Running'}
-            </Pill>
-          </Flex>
+            <Box style={{ padding: '16px' }}>
+              <Flex justify="space-between" align="center" style={{ marginBottom: '12px' }}>
+                <Anchor
+                  href="http://127.0.0.1:7676/"
+                  target="_blank"
+                  size="xs"
+                  style={{ fontFamily: 'monospace' }}
+                >
+                  127.0.0.1:7676
+                </Anchor>
+                <Pill variant={localComputeRunning ? 'success' : 'error'}>
+                  {localComputeRunning ? 'Running' : 'Not Running'}
+                </Pill>
+              </Flex>
 
-          {/* Engine Version */}
-          {localComputeRunning && localEngineVersion && (
-            <Box p="sm" mb="sm" style={{ background: 'var(--COLOR--surface--tertiary)', borderRadius: '4px' }}>
-              <Text size="xs" className="vce-text-muted">Engine: </Text>
-              <Text size="xs">{localEngineVersion.engine} v{localEngineVersion.version}</Text>
+              {localComputeRunning && localEngineVersion && (
+                <Box style={{ padding: '12px', background: 'var(--COLOR--surface--tertiary)', borderRadius: 'var(--LAYOUT--border-radius--md)', marginBottom: '12px' }}>
+                  <Text size="xs" className="vce-text-muted">Engine</Text>
+                  <Text size="sm">{localEngineVersion.engine} v{localEngineVersion.version}</Text>
+                </Box>
+              )}
+
+              {localComputeRunning && (
+                <Button
+                  variant="outline"
+                  component="a"
+                  href="http://127.0.0.1:7676/"
+                  target="_blank"
+                  fullWidth
+                >
+                  Open in Browser
+                </Button>
+              )}
+
+              {!localComputeRunning && (
+                <Text size="xs" className="vce-text-muted">
+                  Run <code style={{ background: 'var(--COLOR--surface--tertiary)', padding: '2px 4px', borderRadius: '2px' }}>make serve</code> to start
+                </Text>
+              )}
             </Box>
-          )}
-
-          {/* Open in Browser button when running */}
-          {localComputeRunning && (
-            <Button
-              variant="outline"
-              component="a"
-              href="http://127.0.0.1:7676/"
-              target="_blank"
-              fullWidth
-            >
-              Open in Browser
-            </Button>
-          )}
-
-          {!localComputeRunning && (
-            <Text size="xs" className="vce-text-muted">
-              Run <code style={{ background: 'var(--COLOR--surface--tertiary)', padding: '2px 4px', borderRadius: '2px' }}>make serve</code> to start the local Compute server
-            </Text>
-          )}
+          </Card>
         </Box>
 
-        {/* Deploy to Local Button */}
-        <Button variant="filled" leftSection={<IconUpload width={16} height={16} />} onClick={handleDeployLocal} disabled={loading} style={{ width: '100%', marginBottom: '8px' }}>
-          {loading ? 'Saving...' : 'Save Rules Locally'}
-        </Button>
+        {/* Deploy Rules Card */}
+        <Box mb="md">
+          <Card withBorder radius="md" padding={0}>
+            <Card.Section style={{ padding: '12px 16px', background: 'var(--COLOR--surface--secondary)' }}>
+              <Flex align="center" gap="sm">
+                <Box>
+                  <Title order={5}>Save Rules</Title>
+                  <Text size="xs" className="vce-text-muted">Export to local file system</Text>
+                </Box>
+              </Flex>
+            </Card.Section>
 
-        <Text size="xs" className="vce-text-muted">
-          {nodes.length} nodes, {edges.length} edges
-        </Text>
+            <Box style={{ padding: '16px' }}>
+              <Flex gap="md" style={{ marginBottom: '12px' }}>
+                <Box style={{ flex: 1, textAlign: 'center', padding: '12px', background: 'var(--COLOR--surface--tertiary)', borderRadius: 'var(--LAYOUT--border-radius--md)' }}>
+                  <Text size="xs" className="vce-text-muted">Nodes</Text>
+                  <Text size="lg" style={{ fontWeight: 600 }}>{nodes.length}</Text>
+                </Box>
+                <Box style={{ flex: 1, textAlign: 'center', padding: '12px', background: 'var(--COLOR--surface--tertiary)', borderRadius: 'var(--LAYOUT--border-radius--md)' }}>
+                  <Text size="xs" className="vce-text-muted">Edges</Text>
+                  <Text size="lg" style={{ fontWeight: 600 }}>{edges.length}</Text>
+                </Box>
+              </Flex>
 
+              <Button variant="filled" leftSection={<IconUpload width={16} height={16} />} onClick={handleDeployLocal} disabled={loading} fullWidth>
+                {loading ? 'Saving...' : 'Save Rules Locally'}
+              </Button>
+
+              {localComputeRunning && (
+                <Text size="xs" className="vce-text-muted" style={{ marginTop: '8px', fontStyle: 'italic' }}>
+                  Restart the Compute server to reload rules
+                </Text>
+              )}
+            </Box>
+          </Card>
+        </Box>
+
+        {/* Test URLs Card */}
         {localComputeRunning && (
-          <Text size="xs" className="vce-text-muted" style={{ fontStyle: 'italic' }}>
-            Restart the Compute server to reload rules
-          </Text>
+          <Box mb="md">
+            <Card withBorder radius="md" padding={0}>
+              <Card.Section style={{ padding: '12px 16px', background: 'var(--COLOR--surface--secondary)' }}>
+                <Title order={5}>Test URLs</Title>
+              </Card.Section>
+
+              <Box style={{ padding: '16px' }}>
+                <Stack gap="xs">
+                  <Flex justify="space-between" align="center">
+                    <Anchor href="http://127.0.0.1:7676/_version" target="_blank" size="xs">
+                      /_version
+                    </Anchor>
+                    <Text size="xs" className="vce-text-muted">Engine info</Text>
+                  </Flex>
+                  <Flex justify="space-between" align="center">
+                    <Anchor href="http://127.0.0.1:7676/" target="_blank" size="xs">
+                      /
+                    </Anchor>
+                    <Text size="xs" className="vce-text-muted">Test request</Text>
+                  </Flex>
+                </Stack>
+              </Box>
+            </Card>
+          </Box>
         )}
 
         {/* Status/Error Messages */}
         {error && (
-          <Box mt="md">
-            <Alert variant="error">{error}</Alert>
-          </Box>
+          <Alert variant="error" icon={<IconAttentionFilled width={16} height={16} />}>{error}</Alert>
         )}
         {status && !error && (
-          <Box mt="md">
-            <Alert variant="success">{status}</Alert>
-          </Box>
-        )}
-
-        {/* Test URLs */}
-        {localComputeRunning && (
-          <Box mt="md">
-            <Text size="sm" style={{ fontWeight: 500, marginBottom: '4px' }}>Test URLs</Text>
-            <Box p="sm" style={{ border: '1px solid var(--COLOR--border--primary)', borderRadius: '6px' }}>
-              <Box mb="sm">
-                <a href="http://127.0.0.1:7676/_version" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--COLOR--action--text)' }}>
-                  /_version
-                </a>
-                <Text size="xs" className="vce-text-muted"> - Engine info</Text>
-              </Box>
-              <Box>
-                <a href="http://127.0.0.1:7676/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--COLOR--action--text)' }}>
-                  /
-                </a>
-                <Text size="xs" className="vce-text-muted"> - Test request</Text>
-              </Box>
-            </Box>
-          </Box>
+          <Alert variant="success" icon={<IconCheckCircleFilled width={16} height={16} />}>{status}</Alert>
         )}
       </Box>
     )
@@ -1916,7 +1949,7 @@ function FastlyTab({
 
         {error && (
           <Box mt="md">
-            <Alert variant="error">{error}</Alert>
+            <Alert variant="error" icon={<IconAttentionFilled width={16} height={16} />}>{error}</Alert>
           </Box>
         )}
 
@@ -1947,39 +1980,47 @@ function FastlyTab({
 
       {/* Create New Service Form */}
       {showCreateForm ? (
-        <Box p="sm" mb="md" style={{ border: '1px solid var(--COLOR--border--primary)', borderRadius: '8px' }}>
-          <Flex style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <Text size="sm" style={{ fontWeight: 600 }}>New VCE Service</Text>
-            <Button variant="outline" size="sm" onClick={() => setShowCreateForm(false)}>×</Button>
-          </Flex>
+        <Box mb="md">
+          <Card withBorder radius="md" padding={0}>
+            <Card.Section style={{ padding: '12px 16px', background: 'var(--COLOR--surface--secondary)' }}>
+              <Flex justify="space-between" align="center">
+                <Title order={5}>New VCE Service</Title>
+                <ActionIcon variant="subtle" onClick={() => setShowCreateForm(false)}>
+                  <IconClose width={16} height={16} />
+                </ActionIcon>
+              </Flex>
+            </Card.Section>
 
-          <Box mb="sm">
-            <TextInput
-              label="Service Name"
-              value={createForm.serviceName}
-              onChange={(e) => setCreateForm(prev => ({ ...prev, serviceName: e.target.value }))}
-              placeholder="my-vce-service"
-            />
-          </Box>
+            <Box style={{ padding: '16px' }}>
+              <Box mb="sm">
+                <TextInput
+                  label="Service Name"
+                  value={createForm.serviceName}
+                  onChange={(e) => setCreateForm(prev => ({ ...prev, serviceName: e.target.value }))}
+                  placeholder="my-vce-service"
+                />
+              </Box>
 
-          {createProgress && (
-            <Box p="sm" mb="sm" style={{ background: 'var(--COLOR--surface--tertiary)', borderRadius: '4px', fontFamily: 'monospace', fontSize: '12px' }}>
-              {createProgress}
+              {createProgress && (
+                <Box style={{ padding: '12px', background: 'var(--COLOR--surface--tertiary)', borderRadius: 'var(--LAYOUT--border-radius--md)', fontFamily: 'monospace', fontSize: '12px', marginBottom: '12px' }}>
+                  {createProgress}
+                </Box>
+              )}
+
+              <Text size="xs" className="vce-text-muted" style={{ marginBottom: '12px' }}>
+                Service creation takes 1-2 minutes.
+              </Text>
+
+              <Button
+                variant="filled"
+                onClick={handleCreateService}
+                disabled={loading || !createForm.serviceName}
+                fullWidth
+              >
+                {loading ? 'Creating...' : 'Create Service'}
+              </Button>
             </Box>
-          )}
-
-          <Text size="xs" className="vce-text-muted" style={{ marginBottom: '8px' }}>
-            Service creation takes 1-2 minutes.
-          </Text>
-
-          <Button
-            variant="filled"
-            onClick={handleCreateService}
-            disabled={loading || !createForm.serviceName}
-            style={{ width: '100%' }}
-          >
-            {loading ? 'Creating...' : 'Create Service'}
-          </Button>
+          </Card>
         </Box>
       ) : (
         <Box mb="md">
@@ -2088,9 +2129,10 @@ function FastlyTab({
                   })()}
                 </Box>
               ) : engineVersionLoading ? (
-                <Flex justify="center" style={{ padding: '16px' }}>
-                  <Loader />
-                </Flex>
+                <Stack gap="sm">
+                  <Skeleton height={44} radius="md" />
+                  <Skeleton height={36} radius="md" />
+                </Stack>
               ) : engineVersion ? (
                 <Stack gap="sm">
                   <Flex align="center" justify="space-between" style={{ padding: '12px', background: 'var(--COLOR--surface--secondary)', borderRadius: 'var(--LAYOUT--border-radius--md)' }}>
@@ -2166,9 +2208,12 @@ function FastlyTab({
               <Box mt="sm">
                 <Card withBorder padding="sm" radius="sm" style={{ maxHeight: '200px', overflow: 'auto' }}>
                   {storePreview.loading && (
-                    <Flex justify="center">
-                      <Loader />
-                    </Flex>
+                    <Stack gap="xs">
+                      <Skeleton height={12} width="40%" radius="sm" />
+                      <Skeleton height={10} radius="sm" />
+                      <Skeleton height={12} width="35%" radius="sm" style={{ marginTop: 8 }} />
+                      <Skeleton height={10} radius="sm" />
+                    </Stack>
                   )}
                   {storePreview.error && (
                     <Text size="sm" style={{ color: 'var(--COLOR--error--text)' }}>{storePreview.error}</Text>
@@ -2365,14 +2410,10 @@ function FastlyTab({
 
       {/* Status/Error Messages */}
       {error && (
-        <Box mt="md">
-          <Alert variant="error">{error}</Alert>
-        </Box>
+        <Alert variant="error" icon={<IconAttentionFilled width={16} height={16} />}>{error}</Alert>
       )}
       {status && !error && (
-        <Box mt="md">
-          <Alert variant="success">{status}</Alert>
-        </Box>
+        <Alert variant="success" icon={<IconCheckCircleFilled width={16} height={16} />}>{status}</Alert>
       )}
     </Box>
   )

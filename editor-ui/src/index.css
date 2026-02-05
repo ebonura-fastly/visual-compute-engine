@@ -60,6 +60,21 @@
   flex-direction: column;
 }
 
+.vce-sidebar-content > * {
+  animation: vce-fade-in 200ms ease-out;
+}
+
+@keyframes vce-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Components Tab */
 .vce-components-tab,
 .vce-templates-tab {
