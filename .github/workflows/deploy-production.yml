@@ -1,0 +1,145 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  PROJECT_ID: fastly-soc
+  REGION: us-central1
+  CONFIG_PROFILE: production
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    concurrency:
+      group: production-deployment
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Submit Cloud Build
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          gcloud builds submit \
+            --config=deployment/cloudbuild.yaml \
+            --substitutions="SHORT_SHA=${SHORT_SHA},_CONFIG_PROFILE=${{ env.CONFIG_PROFILE }}" \
+            --project=${{ env.PROJECT_ID }}
+
+      - name: Verify deployment
+        id: verify
+        run: |
+          echo "Waiting for service to be ready..."
+
+          # Poll for service readiness
+          MAX_ATTEMPTS=10
+          SLEEP_SECONDS=5
+          READY_STATUS=""
+
+          for attempt in $(seq 1 $MAX_ATTEMPTS); do
+            READY_STATUS=$(gcloud run services describe vce-editor-production \
+              --region=${{ env.REGION }} \
+              --format='value(status.conditions[0].status)' 2>/dev/null || echo "")
+
+            if [ "$READY_STATUS" = "True" ]; then
+              echo "Service vce-editor-production is ready (attempt $attempt)"
+              break
+            fi
+
+            echo "Service not ready yet (status: ${READY_STATUS:-Unknown}). Attempt $attempt/$MAX_ATTEMPTS. Retrying in ${SLEEP_SECONDS}s..."
+            sleep "$SLEEP_SECONDS"
+            SLEEP_SECONDS=$((SLEEP_SECONDS * 2))
+          done
+
+          if [ "$READY_STATUS" != "True" ]; then
+            echo "Service vce-editor-production did not become ready after $MAX_ATTEMPTS attempts"
+            exit 1
+          fi
+
+          # Verify deployed commit
+          DEPLOYED_COMMIT=$(gcloud run services describe vce-editor-production \
+            --region=${{ env.REGION }} \
+            --format='value(metadata.annotations["deploy.cloud.run/commit"])')
+
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+
+          echo "Deployed commit: $DEPLOYED_COMMIT"
+          echo "Expected commit: $SHORT_SHA"
+
+          if [ -z "$DEPLOYED_COMMIT" ]; then
+            echo "Failed to determine deployed commit"
+            exit 1
+          fi
+
+          if [ "$DEPLOYED_COMMIT" != "$SHORT_SHA" ]; then
+            echo "Commit mismatch: deployed $DEPLOYED_COMMIT, expected $SHORT_SHA"
+            exit 1
+          fi
+
+          echo "Deployment verified: commit $SHORT_SHA"
+          echo "verified=true" >> $GITHUB_OUTPUT
+
+      - name: Read version from package.json
+        id: version
+        if: steps.verify.outputs.verified == 'true'
+        run: |
+          VERSION=$(node -p "require('./editor-ui/package.json').version")
+          echo "Version from package.json: $VERSION"
+
+          # Check if tag already exists
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "Tag v$VERSION already exists, skipping tag creation"
+            echo "tag_exists=true" >> $GITHUB_OUTPUT
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Creating new tag: v$VERSION"
+          echo "tag_exists=false" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create production release tag
+        if: steps.verify.outputs.verified == 'true' && steps.version.outputs.tag_exists == 'false'
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          TAG_MESSAGE="Production release $VERSION
+
+          Deployed to: vce-editor-production
+          Commit: $SHORT_SHA
+          Region: ${{ env.REGION }}
+          Deployed: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          git tag -a "v$VERSION" -m "$TAG_MESSAGE"
+
+          if ! git push origin "v$VERSION"; then
+            echo "Failed to push tag v$VERSION"
+            git tag -d "v$VERSION" || true
+            exit 1
+          fi
+
+          echo "Created and pushed tag v$VERSION"

@@ -1,0 +1,17 @@
+# Visual Compute Engine - Production Configuration
+# Deployed to: vce-editor-production
+
+cloud_run:
+  service_name: vce-editor-production
+  service_account: sa-vce@fastly-soc.iam.gserviceaccount.com
+
+  resources:
+    cpu: "1"
+    memory: "512Mi"
+    cpu_request: "500m"
+    memory_request: "256Mi"
+
+  scaling:
+    min_instances: 1  # Keep one instance warm for production
+    max_instances: 10
+    concurrency: 80

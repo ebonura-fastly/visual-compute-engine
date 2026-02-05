@@ -1,0 +1,55 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches:
+      - staging
+
+env:
+  PROJECT_ID: fastly-soc
+  REGION: us-central1
+  CONFIG_PROFILE: staging
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Submit Cloud Build
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          gcloud builds submit \
+            --config=deployment/cloudbuild.yaml \
+            --substitutions="SHORT_SHA=${SHORT_SHA},_CONFIG_PROFILE=${{ env.CONFIG_PROFILE }}" \
+            --project=${{ env.PROJECT_ID }}
+
+      - name: Verify deployment
+        run: |
+          echo "Waiting for service to be ready..."
+          sleep 30
+
+          # Get the service URL
+          SERVICE_URL=$(gcloud run services describe vce-editor-staging \
+            --region=${{ env.REGION }} \
+            --format='value(status.url)')
+
+          echo "Service URL: $SERVICE_URL"
+          echo "Deployment to staging complete"

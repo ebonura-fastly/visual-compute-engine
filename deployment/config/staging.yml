@@ -1,0 +1,17 @@
+# Visual Compute Engine - Staging Configuration
+# Deployed to: vce-editor-staging
+
+cloud_run:
+  service_name: vce-editor-staging
+  service_account: sa-vce@fastly-soc.iam.gserviceaccount.com
+
+  resources:
+    cpu: "1"
+    memory: "512Mi"
+    cpu_request: "500m"
+    memory_request: "256Mi"
+
+  scaling:
+    min_instances: 0
+    max_instances: 5
+    concurrency: 80

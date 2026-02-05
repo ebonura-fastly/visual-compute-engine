@@ -1,0 +1,38 @@
+# Git
+.git
+.gitignore
+
+# Editor/IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node
+editor-ui/node_modules
+editor-ui/dist
+editor-ui/.cache
+
+# Rust build artifacts (we rebuild in Docker)
+compute/target
+core/target
+
+# Documentation
+*.md
+!README.md
+
+# Tests
+integration-tests
+**/*.test.*
+**/*.spec.*
+
+# Local development
+.env*
+*.log
+
+# Generated files
+deployment/run-service-generated.yaml

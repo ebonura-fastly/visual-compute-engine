@@ -1,0 +1,69 @@
+# Cloud Build for Visual Compute Engine
+# Builds editor-ui container and deploys to Cloud Run
+# Note: Run from project root directory
+
+steps:
+  # Build editor-ui image (includes vce-core WASM build)
+  - name: gcr.io/cloud-builders/docker
+    id: build-ui
+    args:
+      - build
+      - -f
+      - deployment/Dockerfile
+      - -t
+      - us-central1-docker.pkg.dev/$PROJECT_ID/vce/vce-editor:$SHORT_SHA
+      - -t
+      - us-central1-docker.pkg.dev/$PROJECT_ID/vce/vce-editor:latest
+      - .
+
+  # Push image
+  - name: gcr.io/cloud-builders/docker
+    id: push-ui
+    waitFor: ['build-ui']
+    args:
+      - push
+      - --all-tags
+      - us-central1-docker.pkg.dev/$PROJECT_ID/vce/vce-editor
+
+  # Deploy to Cloud Run with config profile injection
+  - name: gcr.io/cloud-builders/gcloud
+    id: deploy-service
+    waitFor: ['push-ui']
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        # Install PyYAML
+        echo "Installing PyYAML..."
+        python3 -m pip install --no-cache-dir pyyaml
+
+        # Inject config values into template using build-config.py
+        echo "Generating Cloud Run service spec from config profile: $_CONFIG_PROFILE"
+        python3 deployment/build-config.py \
+          deployment/run-service.template.yaml \
+          $_CONFIG_PROFILE \
+          $SHORT_SHA \
+          $PROJECT_ID
+
+        echo "Deploying service..."
+        # Deploy the generated service
+        gcloud run services replace deployment/run-service-generated.yaml \
+          --region=$_REGION \
+          --platform=managed
+    env:
+      - PROJECT_ID=$PROJECT_ID
+      - SHORT_SHA=$SHORT_SHA
+
+# Push images to Artifact Registry
+images:
+  - us-central1-docker.pkg.dev/$PROJECT_ID/vce/vce-editor:$SHORT_SHA
+  - us-central1-docker.pkg.dev/$PROJECT_ID/vce/vce-editor:latest
+
+# Substitutions with defaults
+substitutions:
+  _REGION: us-central1
+  _CONFIG_PROFILE: production
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
