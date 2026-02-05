@@ -1429,16 +1429,11 @@ function FastlyTab({
       setStatus('Loading rules from Config Store...')
       await loadRulesFromStore(linkedStore, serviceId, service?.name || '')
       setLoading(false)
-    } else if (service && !service.isCcEnabled) {
-      if (onLoadRules) {
-        onLoadRules([], [])
-      }
-      setStatus(`Selected ${service.name} - Click "Enable CC" to configure`)
     } else if (service) {
       if (onLoadRules) {
         onLoadRules([], [])
       }
-      setStatus(`Selected ${service.name} - Deploy rules to configure`)
+      setStatus('')
     }
   }
 
