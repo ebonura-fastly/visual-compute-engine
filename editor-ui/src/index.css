@@ -39,7 +39,7 @@
  * =========================================== */
 
 .vce-sidebar {
-  width: 280px;
+  width: 340px;
   background: var(--COLOR--surface--primary);
   border-right: 1px solid var(--COLOR--border--primary);
   display: flex;
@@ -54,10 +54,10 @@
 
 .vce-sidebar-content {
   flex: 1;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
-  padding: var(--LAYOUT--spacing--4);
 }
 
 /* Components Tab */

@@ -16,8 +16,12 @@ import {
   Tabs,
   ActionIcon,
   Badge,
+  Card,
+  Anchor,
+  Title,
+  Divider,
 } from '@fastly/beacon-mantine'
-import { IconClose, IconSearch, IconFilter } from '@fastly/beacon-icons'
+import { IconClose, IconSearch, IconFilter, IconLink, IconUnlink, IconCode, IconSwap, IconSync, IconCopy, IconUpload } from '@fastly/beacon-icons'
 import { allTemplates, instantiateTemplate, type RuleTemplate } from '../templates'
 
 type SidebarProps = {
@@ -155,23 +159,33 @@ export function Sidebar({ nodes, edges, onAddTemplate, onLoadRules }: SidebarPro
     return matchesSearch && matchesCategory
   })
 
-  const tabs: { id: Tab; label: string }[] = [
-    { id: 'fastly', label: 'Services' },
-    { id: 'components', label: 'Components' },
-    { id: 'templates', label: 'Templates' },
-  ]
+  // User is "active" if connected to Fastly OR in local dev mode
+  const isActive = fastlyState.isConnected || (localModeState.localMode && localModeState.localServerAvailable)
+
+  // Only show Components/Templates tabs after user has connected
+  const tabs: { id: Tab; label: string }[] = isActive
+    ? [
+        { id: 'fastly', label: 'Services' },
+        { id: 'components', label: 'Components' },
+        { id: 'templates', label: 'Templates' },
+      ]
+    : [
+        { id: 'fastly', label: 'Services' },
+      ]
 
   return (
     <aside className="vce-sidebar">
-      <Tabs value={activeTab} onChange={(v) => setActiveTab(v as Tab)} className="vce-sidebar-tabs-container">
-        <Tabs.List className="vce-sidebar-tabs">
-          {tabs.map((tab) => (
-            <Tabs.Tab key={tab.id} value={tab.id} className="vce-sidebar-tab">
-              {tab.label}
-            </Tabs.Tab>
-          ))}
-        </Tabs.List>
-      </Tabs>
+      {isActive ? (
+        <Tabs value={activeTab} onChange={(v) => setActiveTab(v as Tab)} className="vce-sidebar-tabs-container">
+          <Tabs.List className="vce-sidebar-tabs">
+            {tabs.map((tab) => (
+              <Tabs.Tab key={tab.id} value={tab.id} className="vce-sidebar-tab">
+                {tab.label}
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+        </Tabs>
+      ) : null}
 
       {/* Tab Content */}
       <Box className="vce-sidebar-content">
@@ -1752,8 +1766,9 @@ function FastlyTab({
         <Flex style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
           <Pill variant="action">Local Dev Mode</Pill>
           <Button
-            variant="secondary"
+            variant="outline"
             size="sm"
+            leftSection={<IconSwap width={14} height={14} />}
             onClick={() => updateLocalModeState({ localMode: false, localServerAvailable: false })}
           >
             Switch to Fastly
@@ -1762,17 +1777,17 @@ function FastlyTab({
 
         {/* Local Compute Status */}
         <Text size="sm" style={{ fontWeight: 500, marginBottom: '4px' }}>Local Compute Server</Text>
-        <Box p="sm" mb="md" style={{ border: '1px solid var(--color-border)', borderRadius: '8px' }}>
+        <Box p="sm" mb="md" style={{ border: '1px solid var(--COLOR--border--primary)', borderRadius: '8px' }}>
           <Flex style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
             <a
               href="http://127.0.0.1:7676/"
               target="_blank"
               rel="noopener noreferrer"
-              style={{ color: 'var(--color-link)', fontFamily: 'monospace', fontSize: '12px' }}
+              style={{ color: 'var(--COLOR--action--text)', fontFamily: 'monospace', fontSize: '12px' }}
             >
               127.0.0.1:7676
             </a>
-            <Button variant="secondary" size="sm" onClick={handleRefreshLocal} disabled={loading}>
+            <Button variant="outline" size="sm" leftSection={<IconSync width={14} height={14} />} onClick={handleRefreshLocal} disabled={loading}>
               {loading ? '...' : 'Refresh'}
             </Button>
           </Flex>
@@ -1786,7 +1801,7 @@ function FastlyTab({
 
           {/* Engine Version */}
           {localComputeRunning && localEngineVersion && (
-            <Box p="sm" mb="sm" style={{ background: 'var(--color-bg-subtle)', borderRadius: '4px' }}>
+            <Box p="sm" mb="sm" style={{ background: 'var(--COLOR--surface--tertiary)', borderRadius: '4px' }}>
               <Text size="xs" className="vce-text-muted">Engine: </Text>
               <Text size="xs">{localEngineVersion.engine} v{localEngineVersion.version}</Text>
             </Box>
@@ -1807,13 +1822,13 @@ function FastlyTab({
 
           {!localComputeRunning && (
             <Text size="xs" className="vce-text-muted">
-              Run <code style={{ background: 'var(--color-bg-subtle)', padding: '2px 4px', borderRadius: '2px' }}>make serve</code> to start the local Compute server
+              Run <code style={{ background: 'var(--COLOR--surface--tertiary)', padding: '2px 4px', borderRadius: '2px' }}>make serve</code> to start the local Compute server
             </Text>
           )}
         </Box>
 
         {/* Deploy to Local Button */}
-        <Button variant="primary" onClick={handleDeployLocal} disabled={loading} style={{ width: '100%', marginBottom: '8px' }}>
+        <Button variant="filled" leftSection={<IconUpload width={16} height={16} />} onClick={handleDeployLocal} disabled={loading} style={{ width: '100%', marginBottom: '8px' }}>
           {loading ? 'Saving...' : 'Save Rules Locally'}
         </Button>
 
@@ -1843,15 +1858,15 @@ function FastlyTab({
         {localComputeRunning && (
           <Box mt="md">
             <Text size="sm" style={{ fontWeight: 500, marginBottom: '4px' }}>Test URLs</Text>
-            <Box p="sm" style={{ border: '1px solid var(--color-border)', borderRadius: '6px' }}>
+            <Box p="sm" style={{ border: '1px solid var(--COLOR--border--primary)', borderRadius: '6px' }}>
               <Box mb="sm">
-                <a href="http://127.0.0.1:7676/_version" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-link)' }}>
+                <a href="http://127.0.0.1:7676/_version" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--COLOR--action--text)' }}>
                   /_version
                 </a>
                 <Text size="xs" className="vce-text-muted"> - Engine info</Text>
               </Box>
               <Box>
-                <a href="http://127.0.0.1:7676/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-link)' }}>
+                <a href="http://127.0.0.1:7676/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--COLOR--action--text)' }}>
                   /
                 </a>
                 <Text size="xs" className="vce-text-muted"> - Test request</Text>
@@ -1867,17 +1882,7 @@ function FastlyTab({
   if (!isConnected) {
     return (
       <Box p="md">
-        {/* Local Dev Mode button */}
-        <Button variant="primary" onClick={checkLocalEnvironment} style={{ width: '100%' }}>
-          Use Local Dev Mode
-        </Button>
-
-        <Flex style={{ alignItems: 'center', gap: '12px', margin: '16px 0' }}>
-          <Box style={{ flex: 1, height: '1px', background: 'var(--color-border)' }} />
-          <Text size="xs" className="vce-text-muted">OR</Text>
-          <Box style={{ flex: 1, height: '1px', background: 'var(--color-border)' }} />
-        </Flex>
-
+        {/* Connect to Fastly section */}
         <Text size="sm" className="vce-text-muted" style={{ marginBottom: '12px' }}>
           Connect to Fastly to deploy rules to the edge.
         </Text>
@@ -1892,19 +1897,21 @@ function FastlyTab({
           />
           <Text size="xs" className="vce-text-muted" style={{ marginTop: '4px' }}>
             Create a token at{' '}
-            <a href="https://manage.fastly.com/account/personal/tokens" target="_blank" rel="noreferrer" style={{ color: 'var(--color-link)' }}>
+            <a href="https://manage.fastly.com/account/personal/tokens" target="_blank" rel="noreferrer" style={{ color: 'var(--COLOR--action--text)' }}>
               manage.fastly.com
             </a>
           </Text>
         </Box>
 
         <Button
-          variant="primary"
+          variant="filled"
           onClick={handleConnect}
-          disabled={loading || !apiToken}
+          disabled={!apiToken}
+          loading={loading}
+          leftSection={<IconLink width={16} height={16} />}
           style={{ width: '100%' }}
         >
-          {loading ? 'Connecting...' : 'Connect to Fastly'}
+          Connect to Fastly
         </Button>
 
         {error && (
@@ -1912,6 +1919,17 @@ function FastlyTab({
             <Alert variant="error">{error}</Alert>
           </Box>
         )}
+
+        <Flex style={{ alignItems: 'center', gap: '12px', margin: '16px 0' }}>
+          <Box style={{ flex: 1, height: '1px', background: 'var(--COLOR--border--primary)' }} />
+          <Text size="xs" className="vce-text-muted">OR</Text>
+          <Box style={{ flex: 1, height: '1px', background: 'var(--COLOR--border--primary)' }} />
+        </Flex>
+
+        {/* Local Dev Mode button */}
+        <Button variant="outline" onClick={checkLocalEnvironment} leftSection={<IconCode width={16} height={16} />} style={{ width: '100%' }}>
+          Use Local Dev Mode
+        </Button>
       </Box>
     )
   }
@@ -1922,26 +1940,17 @@ function FastlyTab({
       {/* Connection status row */}
       <Flex style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
         <Pill variant="success">Connected</Pill>
-        <Button variant="secondary" size="sm" onClick={handleDisconnect}>
+        <Button variant="outline" size="sm" leftSection={<IconUnlink width={14} height={14} />} onClick={handleDisconnect}>
           Disconnect
         </Button>
       </Flex>
 
-      {/* Check for local mode button */}
-      {!localMode && (
-        <Box mb="md">
-          <Button variant="secondary" onClick={checkLocalEnvironment} style={{ width: '100%' }}>
-            Switch to Local Dev Mode
-          </Button>
-        </Box>
-      )}
-
       {/* Create New Service Form */}
       {showCreateForm ? (
-        <Box p="sm" mb="md" style={{ border: '1px solid var(--color-border)', borderRadius: '8px' }}>
+        <Box p="sm" mb="md" style={{ border: '1px solid var(--COLOR--border--primary)', borderRadius: '8px' }}>
           <Flex style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
             <Text size="sm" style={{ fontWeight: 600 }}>New VCE Service</Text>
-            <Button variant="secondary" size="sm" onClick={() => setShowCreateForm(false)}>×</Button>
+            <Button variant="outline" size="sm" onClick={() => setShowCreateForm(false)}>×</Button>
           </Flex>
 
           <Box mb="sm">
@@ -1954,7 +1963,7 @@ function FastlyTab({
           </Box>
 
           {createProgress && (
-            <Box p="sm" mb="sm" style={{ background: 'var(--color-bg-subtle)', borderRadius: '4px', fontFamily: 'monospace', fontSize: '12px' }}>
+            <Box p="sm" mb="sm" style={{ background: 'var(--COLOR--surface--tertiary)', borderRadius: '4px', fontFamily: 'monospace', fontSize: '12px' }}>
               {createProgress}
             </Box>
           )}
@@ -1964,7 +1973,7 @@ function FastlyTab({
           </Text>
 
           <Button
-            variant="primary"
+            variant="filled"
             onClick={handleCreateService}
             disabled={loading || !createForm.serviceName}
             style={{ width: '100%' }}
@@ -1974,7 +1983,7 @@ function FastlyTab({
         </Box>
       ) : (
         <Box mb="md">
-          <Button variant="secondary" onClick={() => setShowCreateForm(true)} style={{ width: '100%', border: '1px dashed var(--color-border)' }}>
+          <Button variant="outline" onClick={() => setShowCreateForm(true)} style={{ width: '100%', border: '1px dashed var(--COLOR--border--primary)' }}>
             + Create New VCE Service
           </Button>
         </Box>
@@ -1985,7 +1994,7 @@ function FastlyTab({
         <Text size="sm" style={{ fontWeight: 500, marginBottom: '4px' }}>VCE Service</Text>
 
         {services.length === 0 ? (
-          <Box p="sm" style={{ border: '1px solid var(--color-border)', borderRadius: '6px' }}>
+          <Box p="sm" style={{ border: '1px solid var(--COLOR--border--primary)', borderRadius: '6px' }}>
             <Text size="sm" className="vce-text-muted">No Compute services found. Create one above.</Text>
           </Box>
         ) : (
@@ -2009,112 +2018,120 @@ function FastlyTab({
         return (
           <>
           {/* Service Info Card */}
-          <Box p="sm" mb="md" style={{ border: '1px solid var(--color-border)', borderRadius: '8px' }}>
-            <Flex style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <Text size="sm" style={{ fontWeight: 600 }}>Service Info</Text>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleRefreshService}
-                disabled={engineVersionLoading}
-              >
-                {engineVersionLoading ? '...' : 'Refresh'}
-              </Button>
-            </Flex>
+          <Box mb="md">
+            <Card withBorder radius="md" padding={0}>
+              <Card.Section style={{ padding: '12px 16px', background: 'var(--COLOR--surface--secondary)' }}>
+                <Flex justify="space-between" align="center">
+                  <Title order={5}>Service Info</Title>
+                  <ActionIcon variant="subtle" onClick={handleRefreshService} loading={engineVersionLoading}>
+                    <IconSync width={16} height={16} />
+                  </ActionIcon>
+                </Flex>
+              </Card.Section>
 
-            <Box mb="sm">
-              <Text size="xs" className="vce-text-muted">Service ID</Text>
-              <Flex style={{ alignItems: 'center', gap: '8px' }}>
-                <Text size="xs" style={{ fontFamily: 'monospace', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{service.id}</Text>
-                <Button variant="secondary" size="sm" onClick={() => navigator.clipboard.writeText(service.id)}>Copy</Button>
-              </Flex>
-            </Box>
+              <Stack gap="sm" style={{ padding: '16px' }}>
+                <Box>
+                  <Text size="xs" className="vce-text-muted" style={{ marginBottom: '4px' }}>Service ID</Text>
+                  <Flex align="center" gap="xs">
+                    <Text size="xs" style={{ fontFamily: 'monospace', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{service.id}</Text>
+                    <ActionIcon variant="subtle" onClick={() => navigator.clipboard.writeText(service.id)}>
+                      <IconCopy width={14} height={14} />
+                    </ActionIcon>
+                  </Flex>
+                </Box>
 
-            <Box>
-              <Text size="xs" className="vce-text-muted">Test URL</Text>
-              <Flex style={{ alignItems: 'center', gap: '8px' }}>
-                <a href={serviceUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--color-link)', fontSize: '11px' }}>
-                  {service.name}.edgecompute.app
-                </a>
-                <Button variant="secondary" size="sm" onClick={() => navigator.clipboard.writeText(serviceUrl)}>Copy</Button>
-              </Flex>
-            </Box>
+                <Box>
+                  <Text size="xs" className="vce-text-muted" style={{ marginBottom: '4px' }}>Test URL</Text>
+                  <Flex align="center" gap="xs">
+                    <Anchor href={serviceUrl} target="_blank" size="xs">
+                      {service.name}.edgecompute.app
+                    </Anchor>
+                    <ActionIcon variant="subtle" onClick={() => navigator.clipboard.writeText(serviceUrl)}>
+                      <IconCopy width={14} height={14} />
+                    </ActionIcon>
+                  </Flex>
+                </Box>
+              </Stack>
+            </Card>
           </Box>
 
-          {/* Step 1: Engine */}
-          <Box mb="md" p="sm" style={{ border: '1px solid var(--color-border)', borderRadius: '8px' }}>
-            <Flex style={{ alignItems: 'flex-start', gap: '12px', marginBottom: '12px' }}>
-              <Box style={{
-                width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: engineVersion?.version === VCE_ENGINE_VERSION ? 'var(--color-success)' : 'var(--color-border)',
-                color: engineVersion?.version === VCE_ENGINE_VERSION ? 'white' : 'var(--color-text-muted)',
-                fontSize: '12px', fontWeight: 600, flexShrink: 0
-              }}>1</Box>
-              <Box>
-                <Text size="sm" style={{ fontWeight: 600 }}>Engine (WASM Binary)</Text>
-                <Text size="xs" className="vce-text-muted">The code that runs on Fastly's edge servers</Text>
-              </Box>
-            </Flex>
+          <Divider style={{ margin: '16px 0' }} />
 
-            {engineUpdateProgress ? (
-              <Box p="sm" style={{ background: 'var(--color-bg-subtle)', borderRadius: '4px', fontFamily: 'monospace', fontSize: '12px' }}>
-                <Box mb="sm">{engineUpdateProgress}</Box>
-                {engineUpdateProgress.includes('POPs') && (() => {
-                  const match = engineUpdateProgress.match(/(\d+)\/(\d+) POPs \((\d+)%\)/)
-                  if (match) {
-                    const percent = parseInt(match[3], 10)
-                    return (
-                      <Box style={{ height: '4px', background: 'var(--color-border)', borderRadius: '2px', overflow: 'hidden' }}>
-                        <Box style={{ height: '100%', width: `${percent}%`, background: percent >= 95 ? 'var(--color-success)' : 'var(--color-info)', transition: 'width 0.3s' }} />
-                      </Box>
-                    )
-                  }
-                  return null
-                })()}
-              </Box>
-            ) : engineVersionLoading ? (
-              <Flex style={{ justifyContent: 'center', padding: '12px' }}>
-                <Loader />
-              </Flex>
-            ) : engineVersion ? (
-              <>
-                <Flex style={{ alignItems: 'center', justifyContent: 'space-between', padding: '8px', background: 'var(--color-bg-subtle)', borderRadius: '4px' }}>
-                  <Text size="sm">{engineVersion.engine} v{engineVersion.version}</Text>
-                  {engineVersion.engine !== 'Visual Compute Engine' ? (
-                    <Pill variant="error">Unknown</Pill>
-                  ) : engineVersion.version === VCE_ENGINE_VERSION ? (
-                    <Pill variant="success">Up to date</Pill>
-                  ) : (
-                    <Pill variant="caution">Update available</Pill>
-                  )}
+          {/* Step 1: Engine */}
+          <Box mb="md">
+            <Card withBorder radius="md" padding={0}>
+              <Card.Section style={{ padding: '12px 16px', background: 'var(--COLOR--surface--secondary)' }}>
+                <Flex align="center" gap="sm">
+                  <Pill variant={engineVersion?.version === VCE_ENGINE_VERSION ? 'success' : 'default'}>1</Pill>
+                  <Box>
+                    <Title order={5}>Engine</Title>
+                    <Text size="xs" className="vce-text-muted">WASM binary on edge servers</Text>
+                  </Box>
                 </Flex>
-                {(engineVersion.engine !== 'Visual Compute Engine' || engineVersion.version !== VCE_ENGINE_VERSION) ? (
-                  <>
-                    <Text size="xs" className="vce-text-muted" style={{ marginTop: '8px' }}>Updates typically take ~30-60s to propagate.</Text>
-                    <Button variant="primary" onClick={handleUpdateEngine} disabled={loading} style={{ width: '100%', marginTop: '8px' }}>
-                      Update Engine to v{VCE_ENGINE_VERSION}
-                    </Button>
-                  </>
-                ) : (
-                  <Button variant="secondary" size="sm" onClick={handleUpdateEngine} disabled={loading} style={{ marginTop: '8px' }}>
-                    {loading ? 'Re-deploying...' : 'Force Re-deploy Engine'}
-                  </Button>
-                )}
-              </>
-            ) : (
-              <>
-                <Box p="sm" style={{ background: 'var(--color-bg-subtle)', borderRadius: '4px' }}>
-                  <Text size="sm" style={{ color: 'var(--color-error)' }}>Not detected</Text>
-                  <Text size="xs" className="vce-text-muted"> - service may not be deployed</Text>
+              </Card.Section>
+
+              <Box style={{ padding: '16px' }}>
+              {engineUpdateProgress ? (
+                <Box style={{ padding: '12px', background: 'var(--COLOR--surface--secondary)', borderRadius: 'var(--LAYOUT--border-radius--md)' }}>
+                  <Text size="xs" style={{ fontFamily: 'monospace', marginBottom: '8px' }}>{engineUpdateProgress}</Text>
+                  {engineUpdateProgress.includes('POPs') && (() => {
+                    const match = engineUpdateProgress.match(/(\d+)\/(\d+) POPs \((\d+)%\)/)
+                    if (match) {
+                      const percent = parseInt(match[3], 10)
+                      return (
+                        <Box style={{ height: '4px', background: 'var(--COLOR--border--primary)', borderRadius: '2px', overflow: 'hidden' }}>
+                          <Box style={{ height: '100%', width: `${percent}%`, background: percent >= 95 ? 'var(--COLOR--success--surface--tertiary)' : 'var(--COLOR--action--surface)', transition: 'width 0.3s' }} />
+                        </Box>
+                      )
+                    }
+                    return null
+                  })()}
                 </Box>
-                <Text size="xs" className="vce-text-muted" style={{ marginTop: '8px', fontStyle: 'italic' }}>
-                  {selectedConfigStore ? 'Deployment typically takes ~30-60s to propagate.' : 'Deploy the engine first, then setup Config Store.'}
-                </Text>
-                <Button variant="primary" onClick={handleUpdateEngine} disabled={loading} style={{ width: '100%', marginTop: '8px' }}>
-                  Deploy Engine v{VCE_ENGINE_VERSION}
-                </Button>
-              </>
-            )}
+              ) : engineVersionLoading ? (
+                <Flex justify="center" style={{ padding: '16px' }}>
+                  <Loader />
+                </Flex>
+              ) : engineVersion ? (
+                <Stack gap="sm">
+                  <Flex align="center" justify="space-between" style={{ padding: '12px', background: 'var(--COLOR--surface--secondary)', borderRadius: 'var(--LAYOUT--border-radius--md)' }}>
+                    <Text size="sm">{engineVersion.engine} v{engineVersion.version}</Text>
+                    {engineVersion.engine !== 'Visual Compute Engine' ? (
+                      <Pill variant="error">Unknown</Pill>
+                    ) : engineVersion.version === VCE_ENGINE_VERSION ? (
+                      <Pill variant="success">Up to date</Pill>
+                    ) : (
+                      <Pill variant="caution">Update available</Pill>
+                    )}
+                  </Flex>
+                  {(engineVersion.engine !== 'Visual Compute Engine' || engineVersion.version !== VCE_ENGINE_VERSION) ? (
+                    <>
+                      <Text size="xs" className="vce-text-muted">Updates typically take ~30-60s to propagate.</Text>
+                      <Button variant="filled" leftSection={<IconUpload width={16} height={16} />} onClick={handleUpdateEngine} loading={loading} fullWidth>
+                        Update Engine to v{VCE_ENGINE_VERSION}
+                      </Button>
+                    </>
+                  ) : (
+                    <Button variant="outline" size="sm" leftSection={<IconSync width={14} height={14} />} onClick={handleUpdateEngine} loading={loading}>
+                      Force Re-deploy Engine
+                    </Button>
+                  )}
+                </Stack>
+              ) : (
+                <Stack gap="sm">
+                  <Box style={{ padding: '12px', background: 'var(--COLOR--surface--secondary)', borderRadius: 'var(--LAYOUT--border-radius--md)' }}>
+                    <Text size="sm" style={{ color: 'var(--COLOR--error--text)' }}>Not detected</Text>
+                    <Text size="xs" className="vce-text-muted">Service may not be deployed</Text>
+                  </Box>
+                  <Text size="xs" className="vce-text-muted" style={{ fontStyle: 'italic' }}>
+                    {selectedConfigStore ? 'Deployment typically takes ~30-60s to propagate.' : 'Deploy the engine first, then setup Config Store.'}
+                  </Text>
+                  <Button variant="filled" leftSection={<IconUpload width={16} height={16} />} onClick={handleUpdateEngine} loading={loading} fullWidth>
+                    Deploy Engine v{VCE_ENGINE_VERSION}
+                  </Button>
+                </Stack>
+              )}
+              </Box>
+            </Card>
           </Box>
           </>
         )
@@ -2122,51 +2139,56 @@ function FastlyTab({
 
       {/* Step 2: Config Store */}
       {selectedService && selectedConfigStore && (
-        <Box mb="md" p="sm" style={{ border: '1px solid var(--color-border)', borderRadius: '8px' }}>
-          <Flex style={{ alignItems: 'flex-start', gap: '12px', marginBottom: '12px' }}>
-            <Box style={{
-              width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'var(--color-success)', color: 'white', fontSize: '12px', fontWeight: 600, flexShrink: 0
-            }}>2</Box>
-            <Box>
-              <Text size="sm" style={{ fontWeight: 600 }}>Config Store</Text>
-              <Text size="xs" className="vce-text-muted">Where your rules are stored (edge key-value store)</Text>
-            </Box>
-          </Flex>
-
-          <Flex style={{ alignItems: 'center', justifyContent: 'space-between', padding: '8px', background: 'var(--color-bg-subtle)', borderRadius: '4px' }}>
-            <Text size="sm" style={{ fontFamily: 'monospace' }}>
-              {configStores.find(s => s.id === selectedConfigStore)?.name || selectedConfigStore}
-            </Text>
-            <Button variant="secondary" size="sm" onClick={() => fetchStorePreview(selectedConfigStore)}>
-              {storePreview?.storeId === selectedConfigStore ? 'Hide' : 'View'}
-            </Button>
-          </Flex>
-
-          {/* Config Store Preview */}
-          {storePreview?.storeId === selectedConfigStore && (
-            <Box mt="sm" p="sm" style={{ border: '1px solid var(--color-border)', borderRadius: '4px', maxHeight: '200px', overflow: 'auto' }}>
-              {storePreview.loading && (
-                <Flex style={{ justifyContent: 'center' }}>
-                  <Loader />
-                </Flex>
-              )}
-              {storePreview.error && (
-                <Text size="sm" style={{ color: 'var(--color-error)' }}>{storePreview.error}</Text>
-              )}
-              {!storePreview.loading && !storePreview.error && storePreview.items.length === 0 && (
-                <Text size="sm" className="vce-text-muted" style={{ textAlign: 'center' }}>Empty store</Text>
-              )}
-              {storePreview.items.map((item, idx) => (
-                <Box key={idx} mb="sm" style={{ borderBottom: idx < storePreview.items.length - 1 ? '1px solid var(--color-border)' : 'none', paddingBottom: '8px' }}>
-                  <Text size="xs" style={{ fontWeight: 600 }}>{item.key}</Text>
-                  <Text size="xs" className="vce-text-muted" style={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                    {item.value}{item.truncated && '...'}
-                  </Text>
+        <Box mb="md">
+          <Card withBorder radius="md" padding={0}>
+            <Card.Section style={{ padding: '12px 16px', background: 'var(--COLOR--surface--secondary)' }}>
+              <Flex align="center" gap="sm">
+                <Pill variant="success">2</Pill>
+                <Box>
+                  <Title order={5}>Config Store</Title>
+                  <Text size="xs" className="vce-text-muted">Edge key-value store for rules</Text>
                 </Box>
-              ))}
+              </Flex>
+            </Card.Section>
+
+            <Box style={{ padding: '16px' }}>
+            <Flex align="center" justify="space-between" style={{ padding: '12px', background: 'var(--COLOR--surface--tertiary)', borderRadius: 'var(--LAYOUT--border-radius--md)' }}>
+              <Text size="sm" style={{ fontFamily: 'monospace' }}>
+                {configStores.find(s => s.id === selectedConfigStore)?.name || selectedConfigStore}
+              </Text>
+              <Button variant="outline" size="sm" onClick={() => fetchStorePreview(selectedConfigStore)}>
+                {storePreview?.storeId === selectedConfigStore ? 'Hide' : 'View'}
+              </Button>
+            </Flex>
+
+            {/* Config Store Preview */}
+            {storePreview?.storeId === selectedConfigStore && (
+              <Box mt="sm">
+                <Card withBorder padding="sm" radius="sm" style={{ maxHeight: '200px', overflow: 'auto' }}>
+                  {storePreview.loading && (
+                    <Flex justify="center">
+                      <Loader />
+                    </Flex>
+                  )}
+                  {storePreview.error && (
+                    <Text size="sm" style={{ color: 'var(--COLOR--error--text)' }}>{storePreview.error}</Text>
+                  )}
+                  {!storePreview.loading && !storePreview.error && storePreview.items.length === 0 && (
+                    <Text size="sm" className="vce-text-muted" style={{ textAlign: 'center' }}>Empty store</Text>
+                  )}
+                  {storePreview.items.map((item, idx) => (
+                    <Box key={idx} style={{ paddingBottom: '8px', marginBottom: '8px', borderBottom: idx < storePreview.items.length - 1 ? '1px solid var(--COLOR--border--primary)' : 'none' }}>
+                      <Text size="xs" style={{ fontWeight: 600 }}>{item.key}</Text>
+                      <Text size="xs" className="vce-text-muted" style={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                        {item.value}{item.truncated && '...'}
+                      </Text>
+                    </Box>
+                  ))}
+                </Card>
+              </Box>
+            )}
             </Box>
-          )}
+          </Card>
         </Box>
       )}
 
@@ -2195,143 +2217,150 @@ function FastlyTab({
         }
 
         return (
-          <Box p="sm" mb="md" style={{ border: '1px solid var(--color-border)', borderRadius: '8px' }}>
-            <Flex style={{ alignItems: 'flex-start', gap: '12px', marginBottom: '12px' }}>
-              <Box style={{
-                width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: 'var(--color-border)', color: 'var(--color-text-muted)', fontSize: '12px', fontWeight: 600, flexShrink: 0
-              }}>2</Box>
-              <Box>
-                <Text size="sm" style={{ fontWeight: 600 }}>Config Store</Text>
-                <Text size="xs" className="vce-text-muted">Setup required</Text>
-              </Box>
-            </Flex>
-
-            {/* Status display */}
-            <Box p="sm" mb="sm" style={{ background: 'var(--color-bg-subtle)', borderRadius: '4px' }}>
-              <Flex style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                <Flex style={{ alignItems: 'center', gap: '8px', flex: 1 }}>
-                  {getStatusPill()}
-                  <Text size="xs" className="vce-text-muted" style={{ flex: 1 }}>
-                    {configStoreStatusLoading ? 'Checking...' :
-                     configStoreStatus ? configStoreStatus.message :
-                     'Click Refresh to check status'}
-                  </Text>
+          <Box mb="md">
+            <Card withBorder radius="md" padding={0}>
+              <Card.Section style={{ padding: '12px 16px', background: 'var(--COLOR--surface--secondary)' }}>
+                <Flex align="center" gap="sm">
+                  <Pill variant="default">2</Pill>
+                  <Box>
+                    <Title order={5}>Config Store</Title>
+                    <Text size="xs" className="vce-text-muted">Setup required</Text>
+                  </Box>
                 </Flex>
-                {!configStoreStatusLoading && (
-                  <Button variant="secondary" size="sm" onClick={() => fetchConfigStoreStatus(selectedService)}>
-                    Refresh
-                  </Button>
+              </Card.Section>
+
+              <Box style={{ padding: '16px' }}>
+              {/* Status display */}
+              <Stack gap="sm">
+                <Box style={{ padding: '12px', background: 'var(--COLOR--surface--tertiary)', borderRadius: 'var(--LAYOUT--border-radius--md)' }}>
+                  <Flex justify="space-between" align="center">
+                    <Flex align="center" gap="xs" style={{ flex: 1 }}>
+                      {getStatusPill()}
+                      <Text size="xs" className="vce-text-muted" style={{ flex: 1 }}>
+                        {configStoreStatusLoading ? 'Checking...' :
+                         configStoreStatus ? configStoreStatus.message :
+                         'Click Refresh to check status'}
+                      </Text>
+                    </Flex>
+                    {!configStoreStatusLoading && (
+                      <ActionIcon variant="subtle" onClick={() => fetchConfigStoreStatus(selectedService)}>
+                        <IconSync width={16} height={16} />
+                      </ActionIcon>
+                    )}
+                  </Flex>
+                  {configStoreStatus?.status === 'linked_outdated' && (
+                    <Text size="xs" style={{ color: 'var(--COLOR--caution--text)', marginTop: '4px' }}>
+                      Update available: v{configStoreStatus.manifestVersion} → v{configStoreStatus.currentVersion}
+                    </Text>
+                  )}
+                </Box>
+
+                {createProgress && (
+                  <Box style={{ padding: '12px', background: 'var(--COLOR--surface--tertiary)', borderRadius: 'var(--LAYOUT--border-radius--md)' }}>
+                    <Text size="xs" style={{ fontFamily: 'monospace' }}>{createProgress}</Text>
+                  </Box>
                 )}
-              </Flex>
-              {configStoreStatus?.status === 'linked_outdated' && (
-                <Text size="xs" style={{ color: 'var(--color-warning)', marginTop: '4px' }}>
-                  Update available: v{configStoreStatus.manifestVersion} → v{configStoreStatus.currentVersion}
-                </Text>
-              )}
-            </Box>
 
-            {createProgress && (
-              <Box p="sm" mb="sm" style={{ background: 'var(--color-bg-subtle)', borderRadius: '4px', fontFamily: 'monospace', fontSize: '12px' }}>
-                {createProgress}
+                <Button variant="filled" leftSection={<IconUpload width={16} height={16} />} onClick={handleSetupConfigStore} loading={loading} fullWidth>
+                  {configStoreStatus?.status === 'linked_ok' ? 'Re-deploy VCE Engine' :
+                   configStoreStatus?.status === 'linked_outdated' ? 'Update VCE Engine' :
+                   configStoreStatus?.status === 'linked_no_manifest' ? 'Initialize Config Store' :
+                   'Setup Config Store'}
+                </Button>
+              </Stack>
               </Box>
-            )}
-
-            <Button variant="primary" onClick={handleSetupConfigStore} disabled={loading} style={{ width: '100%' }}>
-              {loading ? 'Setting up...' :
-               configStoreStatus?.status === 'linked_ok' ? 'Re-deploy VCE Engine' :
-               configStoreStatus?.status === 'linked_outdated' ? 'Update VCE Engine' :
-               configStoreStatus?.status === 'linked_no_manifest' ? 'Initialize Config Store' :
-               'Setup Config Store'}
-            </Button>
+            </Card>
           </Box>
         )
       })()}
 
       {/* Step 3: Deploy Rules */}
-      <Box mb="md" p="sm" style={{ border: '1px solid var(--color-border)', borderRadius: '8px' }}>
-        <Flex style={{ alignItems: 'flex-start', gap: '12px', marginBottom: '12px' }}>
-          <Box style={{
-            width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'var(--color-border)', color: 'var(--color-text-muted)', fontSize: '12px', fontWeight: 600, flexShrink: 0
-          }}>3</Box>
-          <Box>
-            <Text size="sm" style={{ fontWeight: 600 }}>Deploy Rules</Text>
-            <Text size="xs" className="vce-text-muted">Push your graph to the edge (updates in ~30-40 seconds)</Text>
-          </Box>
-        </Flex>
+      <Box style={{ marginBottom: '16px' }}>
+        <Card withBorder radius="md" padding={0}>
+          <Card.Section style={{ padding: '12px 16px', background: 'var(--COLOR--surface--secondary)' }}>
+            <Flex align="center" gap="sm">
+              <Pill variant="default">3</Pill>
+              <Box>
+                <Title order={5}>Deploy Rules</Title>
+                <Text size="xs" className="vce-text-muted">Push graph to edge (~30-40s)</Text>
+              </Box>
+            </Flex>
+          </Card.Section>
 
-        <Button
-          variant="primary"
-          onClick={handleDeployRules}
-          disabled={loading || !selectedConfigStore || !selectedService}
-          style={{ width: '100%' }}
-        >
-          {deployStatus === 'deploying' ? 'Deploying...' :
-           deployStatus === 'verifying' ? 'Verifying...' :
-           'Deploy Rules'}
-        </Button>
+          <Box style={{ padding: '16px' }}>
+          <Stack gap="sm">
+            <Flex gap="md">
+              <Box style={{ flex: 1, textAlign: 'center', padding: '12px', background: 'var(--COLOR--surface--tertiary)', borderRadius: 'var(--LAYOUT--border-radius--md)' }}>
+                <Text size="xs" className="vce-text-muted">Nodes</Text>
+                <Text size="lg" style={{ fontWeight: 600 }}>{nodes.length}</Text>
+              </Box>
+              <Box style={{ flex: 1, textAlign: 'center', padding: '12px', background: 'var(--COLOR--surface--tertiary)', borderRadius: 'var(--LAYOUT--border-radius--md)' }}>
+                <Text size="xs" className="vce-text-muted">Edges</Text>
+                <Text size="lg" style={{ fontWeight: 600 }}>{edges.length}</Text>
+              </Box>
+            </Flex>
 
-        {/* Deployment Status */}
-        {deployStatus !== 'idle' && (
-          <Box mt="sm">
-            <Pill
-              variant={
-                deployStatus === 'verified' ? 'success' :
-                deployStatus === 'timeout' ? 'caution' :
-                deployStatus === 'error' ? 'error' : 'default'
-              }
+            <Button
+              variant="filled"
+              onClick={handleDeployRules}
+              disabled={!selectedConfigStore || !selectedService}
+              loading={deployStatus === 'deploying' || deployStatus === 'verifying'}
+              fullWidth
             >
-              {deployStatus === 'deploying' ? 'Pushing to Config Store...' :
-               deployStatus === 'verifying' ? 'Verifying deployment...' :
-               deployStatus === 'verified' ? 'Deployment verified' :
-               deployStatus === 'timeout' ? 'Verification timed out' :
-               deployStatus === 'error' ? 'Deployment failed' : ''}
-            </Pill>
+              {deployStatus === 'deploying' ? 'Deploying...' :
+               deployStatus === 'verifying' ? 'Verifying...' :
+               'Deploy Rules'}
+            </Button>
+
+            {/* Deployment Status */}
+            {deployStatus !== 'idle' && (
+              <Pill
+                variant={
+                  deployStatus === 'verified' ? 'success' :
+                  deployStatus === 'timeout' ? 'caution' :
+                  deployStatus === 'error' ? 'error' : 'default'
+                }
+              >
+                {deployStatus === 'deploying' ? 'Pushing to Config Store...' :
+                 deployStatus === 'verifying' ? 'Verifying deployment...' :
+                 deployStatus === 'verified' ? 'Deployment verified' :
+                 deployStatus === 'timeout' ? 'Verification timed out' :
+                 deployStatus === 'error' ? 'Deployment failed' : ''}
+              </Pill>
+            )}
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              const validation = validateGraph(nodes, edges)
+              if (!validation.valid) {
+                setError(`Validation failed:\n- ${validation.errors.join('\n- ')}`)
+                return
+              }
+
+              const graphPayload = { nodes, edges }
+              const fileContent = JSON.stringify(graphPayload, null, 2)
+
+              const blob = new Blob([fileContent], { type: 'application/json' })
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement('a')
+              a.href = url
+              a.download = 'graph.json'
+              document.body.appendChild(a)
+              a.click()
+              document.body.removeChild(a)
+              URL.revokeObjectURL(url)
+
+              setStatus('Exported graph.json')
+            }}
+            disabled={loading}
+          >
+            Export JSON (for local dev)
+          </Button>
+          </Stack>
           </Box>
-        )}
-
-        <Flex style={{ gap: '16px', marginTop: '12px' }}>
-          <Box style={{ flex: 1, textAlign: 'center', padding: '8px', background: 'var(--color-bg-subtle)', borderRadius: '4px' }}>
-            <Text size="xs" className="vce-text-muted">Nodes</Text>
-            <Text size="lg" style={{ fontWeight: 600 }}>{nodes.length}</Text>
-          </Box>
-          <Box style={{ flex: 1, textAlign: 'center', padding: '8px', background: 'var(--color-bg-subtle)', borderRadius: '4px' }}>
-            <Text size="xs" className="vce-text-muted">Edges</Text>
-            <Text size="lg" style={{ fontWeight: 600 }}>{edges.length}</Text>
-          </Box>
-        </Flex>
-
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={async () => {
-            const validation = validateGraph(nodes, edges)
-            if (!validation.valid) {
-              setError(`Validation failed:\n- ${validation.errors.join('\n- ')}`)
-              return
-            }
-
-            const graphPayload = { nodes, edges }
-            const fileContent = JSON.stringify(graphPayload, null, 2)
-
-            const blob = new Blob([fileContent], { type: 'application/json' })
-            const url = URL.createObjectURL(blob)
-            const a = document.createElement('a')
-            a.href = url
-            a.download = 'graph.json'
-            document.body.appendChild(a)
-            a.click()
-            document.body.removeChild(a)
-            URL.revokeObjectURL(url)
-
-            setStatus('Exported graph.json')
-          }}
-          disabled={loading}
-          style={{ marginTop: '12px' }}
-        >
-          Export JSON (for local dev)
-        </Button>
+        </Card>
       </Box>
 
       {/* Status/Error Messages */}
