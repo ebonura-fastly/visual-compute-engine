@@ -3,7 +3,7 @@ kind: Service
 metadata:
   name: {{SERVICE_NAME}}
   annotations:
-    run.googleapis.com/ingress: internal-and-cloud-load-balancing
+    run.googleapis.com/ingress: all
     run.googleapis.com/launch-stage: GA
     deploy.cloud.run/commit: "{{SHORT_SHA}}"
 spec:
