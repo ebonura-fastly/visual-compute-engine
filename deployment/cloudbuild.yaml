@@ -28,33 +28,35 @@ steps:
       - us-central1-docker.pkg.dev/$PROJECT_ID/configure-compute/configure-compute-editor
 
   # Deploy to Cloud Run with config profile injection
-  - name: gcr.io/cloud-builders/gcloud
-    id: deploy-service
+  - name: python:3.12-slim
+    id: generate-config
     waitFor: ['push-ui']
     entrypoint: bash
     args:
       - -c
       - |
-        # Install PyYAML
-        echo "Installing PyYAML..."
-        python3 -m pip install --no-cache-dir pyyaml
-
-        # Inject config values into template using build-config.py
+        pip install --no-cache-dir pyyaml
         echo "Generating Cloud Run service spec from config profile: $_CONFIG_PROFILE"
-        python3 deployment/build-config.py \
+        python deployment/build-config.py \
           deployment/run-service.template.yaml \
           $_CONFIG_PROFILE \
           $SHORT_SHA \
           $PROJECT_ID
-
-        echo "Deploying service..."
-        # Deploy the generated service
-        gcloud run services replace deployment/run-service-generated.yaml \
-          --region=$_REGION \
-          --platform=managed
     env:
       - PROJECT_ID=$PROJECT_ID
       - SHORT_SHA=$SHORT_SHA
+
+  - name: gcr.io/cloud-builders/gcloud
+    id: deploy-service
+    waitFor: ['generate-config']
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        echo "Deploying service..."
+        gcloud run services replace deployment/run-service-generated.yaml \
+          --region=$_REGION \
+          --platform=managed
 
 # Push images to Artifact Registry
 images:
