@@ -40,7 +40,7 @@ COPY --from=wasm-builder /build/core/pkg ./core/pkg/
 
 # Install dependencies
 WORKDIR /build/editor-ui
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 
 # Copy editor-ui source
 COPY editor-ui/ ./

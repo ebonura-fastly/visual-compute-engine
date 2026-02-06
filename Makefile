@@ -1,7 +1,7 @@
 # Configure Compute - Development Makefile
 # Run 'make' or 'make help' for available commands
 
-.PHONY: help dev build rebuild serve ui clean install all local local-api embed-wasm
+.PHONY: help dev build rebuild serve ui clean install all local local-api embed-wasm deploy deploy-staging deploy-production
 
 # Default target
 help:
@@ -16,6 +16,8 @@ help:
 	@echo "  make rebuild    - Clean and rebuild WASM (use if deployment shows wrong version)"
 	@echo "  make embed-wasm - Build WASM and embed in UI (for Fastly deployment)"
 	@echo "  make install    - Install all dependencies"
+	@echo "  make deploy      - Deploy to Cloud Run (staging)"
+	@echo "  make deploy-production - Deploy to Cloud Run (production)"
 	@echo "  make clean      - Clean build artifacts"
 	@echo ""
 	@echo "Quick Start:"
@@ -130,6 +132,37 @@ embed-wasm: rebuild
 	@echo "Embedding WASM in Editor UI..."
 	base64 -i compute/target/wasm32-wasip1/release/configure-compute.wasm -o editor-ui/src/assets/configure-compute.wasm.b64
 	@echo "Updated editor-ui/src/assets/configure-compute.wasm.b64"
+
+# ============================================================================
+# CLOUD RUN DEPLOYMENT
+# ============================================================================
+
+PROJECT_ID ?= fastly-soc
+REGION ?= us-central1
+SHORT_SHA = $(shell git rev-parse --short=7 HEAD)
+
+# Deploy to staging (default)
+deploy: deploy-staging
+
+deploy-staging:
+	@echo "Deploying to Cloud Run (staging)..."
+	@echo "  Commit: $(SHORT_SHA)"
+	@echo "  Project: $(PROJECT_ID)"
+	@echo ""
+	gcloud builds submit \
+		--config=deployment/cloudbuild.yaml \
+		--substitutions="SHORT_SHA=$(SHORT_SHA),_CONFIG_PROFILE=staging,_REGION=$(REGION)" \
+		--project=$(PROJECT_ID)
+
+deploy-production:
+	@echo "Deploying to Cloud Run (production)..."
+	@echo "  Commit: $(SHORT_SHA)"
+	@echo "  Project: $(PROJECT_ID)"
+	@echo ""
+	gcloud builds submit \
+		--config=deployment/cloudbuild.yaml \
+		--substitutions="SHORT_SHA=$(SHORT_SHA),_CONFIG_PROFILE=production,_REGION=$(REGION)" \
+		--project=$(PROJECT_ID)
 
 # ============================================================================
 # LOCAL DEMO MODE
