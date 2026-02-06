@@ -858,6 +858,8 @@ function FastlyTab({
     // Always clear canvas immediately so stale nodes don't persist
     // New rules will be loaded async by connectToFastly/checkLocalEnvironment
     onLoadRules?.([], [])
+    // Reset local-rules-loaded flag so switching back to local mode reloads rules
+    updateLocalModeState({ hasLoadedRules: false })
 
     if (request === 'personal') {
       updateLocalModeState({ localMode: false })
@@ -1284,6 +1286,10 @@ function FastlyTab({
 
     setLoading(true)
     setError(null)
+    // Reset service-specific info — stale data from previous mode/service must not persist
+    setEngineVersion(null)
+    setResourceLinkInfo(null)
+    setServiceDomain(null)
 
     try {
       // For the first call, build headers directly to avoid stale closure issues
@@ -1451,9 +1457,11 @@ function FastlyTab({
         setDeployedRulesHash(null)
       }
 
-      // Navigate to the selected service
-      if (serviceToSelect) {
-        navigateToService(serviceToSelect)
+      // Navigate directly — don't use navigateToService() here because
+      // connection.mode is stale (setConnectionInfo hasn't re-rendered yet).
+      // We already know the mode from the local `isShared` parameter.
+      if (serviceToSelect && onNavigate) {
+        onNavigate(isShared ? `/${serviceToSelect}` : `/personal/${serviceToSelect}`)
       }
     } catch (err) {
       if (isShared) {
@@ -1581,7 +1589,7 @@ function FastlyTab({
 
   const handleRefreshService = async () => {
     // Full refresh: services list, config stores, and engine version
-    await handleConnect()
+    await connectToFastly(connection.mode === 'shared' ? 'shared' : 'personal')
   }
 
   const handleSetupConfigStore = async () => {

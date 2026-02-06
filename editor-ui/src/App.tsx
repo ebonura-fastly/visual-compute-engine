@@ -19,7 +19,7 @@ import {
   SelectionMode,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { BrowserRouter, Routes, Route, useParams, useNavigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import { Box, Stack, Title, Text, Flex, Pill } from '@fastly/beacon-mantine'
 
 import { ConditionNode, ActionNode, RequestNode, RateLimitNode, TransformNode, BackendNode, LoggingNode, RuleGroupNode, HeaderNode, CacheNode } from './components/nodes'
@@ -84,12 +84,23 @@ function Flow() {
   const [edges, setEdges] = useState<Edge[]>([])
   const { screenToFlowPosition } = useReactFlow()
 
-  // Router hooks
-  const { serviceId } = useParams<{ serviceId?: string }>()
+  // Router hooks — derive mode and serviceId from URL path.
+  // Using a single catch-all route + useLocation() prevents React Router from
+  // remounting the component tree when navigating between modes, which would
+  // wipe canvas state (nodes/edges).
+  const { pathname } = useLocation()
   const navigate = useNavigate()
-  const pathname = window.location.pathname
   const isLocalMode = pathname === '/local'
   const isPersonalRoute = pathname === '/auth' || pathname.startsWith('/personal')
+
+  const serviceId = useMemo(() => {
+    if (isLocalMode) return undefined
+    if (pathname === '/' || pathname === '/auth' || pathname === '/personal') return undefined
+    if (pathname.startsWith('/personal/')) {
+      return pathname.slice('/personal/'.length) || undefined
+    }
+    return pathname.slice(1) || undefined
+  }, [pathname, isLocalMode])
 
   const onNodesChange: OnNodesChange = useCallback(
     (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
@@ -273,12 +284,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<AppRoutes />} />
-        <Route path="/auth" element={<AppRoutes />} />
-        <Route path="/personal" element={<AppRoutes />} />
-        <Route path="/personal/:serviceId" element={<AppRoutes />} />
-        <Route path="/local" element={<AppRoutes />} />
-        <Route path="/:serviceId" element={<AppRoutes />} />
+        <Route path="/*" element={<AppRoutes />} />
       </Routes>
     </BrowserRouter>
   )
